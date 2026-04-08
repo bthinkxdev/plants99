@@ -1,0 +1,29 @@
+{% load static %}
+<section class="product-section">
+    <div class="container section-container">
+        <div class="product-section-head">
+            <div>
+                <p class="section-kicker">Plant care</p>
+                <h2 class="product-section-title">Tips for thriving plants</h2>
+            </div>
+            <a href="{% url 'store:about' %}" class="link-view-all">More on {{ site_brand }}</a>
+        </div>
+        <div class="blog-teaser-grid">
+            <a href="{% url 'store:contact' %}" class="blog-teaser-card">
+                <p class="blog-teaser-card__tag">Watering</p>
+                <h3 class="blog-teaser-card__title">How much water is enough?</h3>
+                <p class="blog-teaser-card__excerpt">Match watering to light and season — we help you avoid the #1 mistake: over-loving with too much water.</p>
+            </a>
+            <a href="{% url 'store:product_list' %}?guide=office" class="blog-teaser-card">
+                <p class="blog-teaser-card__tag">Spaces</p>
+                <h3 class="blog-teaser-card__title">Desk &amp; office picks</h3>
+                <p class="blog-teaser-card__excerpt">Compact greens that tolerate artificial light and a little forgetfulness — perfect for work-from-home setups.</p>
+            </a>
+            <a href="{% url 'store:product_list' %}?guide=air_purifying" class="blog-teaser-card">
+                <p class="blog-teaser-card__tag">Wellness</p>
+                <h3 class="blog-teaser-card__title">Fresh air, naturally</h3>
+                <p class="blog-teaser-card__excerpt">Explore plants often chosen for busy living rooms — lush leaves and easy routines.</p>
+            </a>
+        </div>
+    </div>
+</section>

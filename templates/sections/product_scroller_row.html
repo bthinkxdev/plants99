@@ -1,0 +1,22 @@
+{% load static %}
+{% if products %}
+<section class="p99-reels-section" {% if aria_label %}aria-label="{{ aria_label }}"{% endif %}>
+    <div class="section-container">
+        {% if row_title %}
+        <div class="p99-reels-head">
+            <h2 class="p99-reels-title">{{ row_title }}</h2>
+            {% if view_all_url %}
+            <a href="{{ view_all_url }}" class="link-view-all">View all</a>
+            {% endif %}
+        </div>
+        {% endif %}
+        <div class="p99-reels-scroll">
+            {% for product in products %}
+            <div class="p99-reels-card">
+                {% include "partials/_product_card.html" with product=product compact=1 %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}

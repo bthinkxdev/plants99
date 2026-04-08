@@ -1,0 +1,43 @@
+{% load static %}
+<div class="promo-marquee" aria-label="Promotions">
+    <div class="promo-marquee-track">
+        <span>Free delivery on orders above ₹499 — <a href="{% url 'store:product_list' %}">Shop plants</a></span>
+        <span>Potted bundles &amp; garden essentials</span>
+        <span>Care-first packing · Secure checkout</span>
+        <span>Free delivery on orders above ₹499 — <a href="{% url 'store:product_list' %}">Shop plants</a></span>
+        <span>Potted bundles &amp; garden essentials</span>
+        <span>Care-first packing · Secure checkout</span>
+    </div>
+</div>
+<div class="hero-wrap">
+    <section class="hero-section hero-section-main">
+        {% if banners %}
+        <div class="header-carousel owl-carousel">
+            {% for banner in banners %}
+            <div class="hero-carousel-item">
+                {% if banner.redirect_url %}
+                <a href="{{ banner.redirect_url }}" class="d-block">
+                {% endif %}
+                    <img src="{{ banner.image.url }}" alt="{{ banner.title|default:'Banner' }}"
+                         class="hero-full-img" loading="{% if forloop.first %}eager{% else %}lazy{% endif %}">
+                {% if banner.redirect_url %}
+                </a>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        <div class="hero-brand-badge d-md-none" aria-hidden="true">
+            <div class="hero-brand-badge__pill">India’s No 1 Gardening Brand</div>
+        </div>
+        {% else %}
+        <div class="hero-fallback">
+            <div class="hero-fallback__inner">
+                <p class="hero-fallback__kicker">{{ site_brand }} · {{ site_tagline }}</p>
+                <h1 class="hero-fallback__title">Bring nature home 🌿</h1>
+                <p class="hero-fallback__lead">Plants, pots, seeds &amp; tools — handpicked for Indian homes. Start with beginner-friendly greens or dress your balcony in seconds.</p>
+                <a href="{% url 'store:product_list' %}" class="btn-store btn-store--light">Shop plants</a>
+            </div>
+        </div>
+        {% endif %}
+    </section>
+</div>

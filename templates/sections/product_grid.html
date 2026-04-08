@@ -1,0 +1,21 @@
+{% load static %}
+{% if products %}
+<section class="product-section{% if section_modifier %} {{ section_modifier }}{% endif %}">
+    <div class="container section-container">
+        <div class="product-section-head">
+            <div>
+                {% if section_kicker %}<p class="section-kicker">{{ section_kicker }}</p>{% endif %}
+                <h2 class="product-section-title">{{ section_title }}</h2>
+            </div>
+            {% if view_all_url %}
+            <a href="{{ view_all_url }}" class="link-view-all">View all</a>
+            {% endif %}
+        </div>
+        <div class="product-grid-layout">
+            {% for product in products %}
+                {% include "partials/_product_card.html" with product=product %}
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}

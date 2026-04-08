@@ -1,0 +1,276 @@
+﻿{% extends "base.html" %}
+{% load static %}{% load product_filters %}
+{% block title %}{{ page_title|default:"Shop" }} — {{ site_brand }}{% endblock %}
+{% block content %}
+<div class="shop-page">
+<section class="section-pad pt-0">
+    <div class="container px-0 px-md-3">
+
+        <nav class="shop-breadcrumb" aria-label="Breadcrumb">
+            <a href="{% url 'store:home' %}">Home</a>
+            <span class="shop-breadcrumb__sep" aria-hidden="true">/</span>
+            {% if selected_category %}
+            <span class="shop-breadcrumb__current">{{ selected_category.name }}</span>
+            {% else %}
+            <span class="shop-breadcrumb__current">{{ page_title|default:"Shop" }}</span>
+            {% endif %}
+        </nav>
+
+        {% if shop_category_banner %}
+        <div class="shop-category-hero">
+            <img src="{{ shop_category_banner.url }}" class="shop-category-hero__img" width="1600" height="600" decoding="async" loading="lazy" alt="{% if selected_category %}{{ selected_category.name }}{% else %}Category{% endif %}">
+            {% if shop_category_banner.tagline %}
+            <div class="shop-category-hero__overlay">
+                <p class="shop-category-hero__tagline">{{ shop_category_banner.tagline }}</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <header class="shop-head">
+            <h1 class="shop-head__title">{{ page_title|default:"Shop" }}</h1>
+        </header>
+
+        <div class="shop-toolbar">
+            <button type="button" class="shop-pill-btn" id="filterToggleBtn">
+                <i class="fas fa-sliders-h"></i> Filter
+            </button>
+            <div class="shop-toolbar__right">
+                <span class="results-count shop-toolbar__count">
+                    {% with n=total_product_count|default:0 %}
+                    <strong>{{ n }}</strong> product{{ n|pluralize }}
+                    {% endwith %}
+                </span>
+                <form method="get" action="{% url 'store:product_list' %}" id="shopFilters" class="shop-sort-wrap m-0">
+                    <input type="hidden" name="category" value="{{ filters.category|default:'all' }}">
+                    <input type="hidden" name="min_price" value="{{ filters.min_price }}">
+                    <input type="hidden" name="max_price" value="{{ filters.max_price }}">
+                    <input type="hidden" name="q" value="{{ filters.q }}">
+                    {% if filters.combo %}<input type="hidden" name="combo" value="{{ filters.combo }}">{% endif %}
+                    {% if filters.rent %}<input type="hidden" name="rent" value="{{ filters.rent }}">{% endif %}
+                    <label class="visually-hidden" for="shopSortSelect">Sort by</label>
+                    <select name="sort" id="shopSortSelect" onchange="this.form.submit()">
+                        {% for value, label in sort_options %}
+                        <option value="{{ value }}" {% if filters.sort == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </div>
+        </div>
+
+        
+        <div class="wow fadeInUp" data-wow-delay="0.2s" id="shopProductGrid">
+            {% for card in card_items %}
+            {% if card.kind == 'combo' %}
+            {% with c=card.combo %}
+            <div class="product-card">
+                <div class="product-img-wrap">
+                    {% if c.original_price and c.original_price > c.price %}
+                    <span class="product-badge badge-sale">{{ c.discount_percent }}% OFF</span>
+                    {% endif %}
+                    <a href="{% url 'store:combo_detail' c.slug %}">
+                        {% if c.image %}
+                        <img src="{{ c.image.url }}" alt="{{ c.name }}" loading="lazy">
+                        {% else %}
+                        <img src="{% static 'img/product-1.png' %}" alt="{{ c.name }}" loading="lazy">
+                        {% endif %}
+                    </a>
+                </div>
+                <div class="product-body">
+                    <div class="product-category">Bundle</div>
+                    <a href="{% url 'store:combo_detail' c.slug %}" class="text-decoration-none"><h3 class="product-name">{{ c.name }}</h3></a>
+                    <div class="product-price">
+                        <span class="price-current">₹{{ c.price|floatformat:0 }}</span>
+                        {% if c.original_price and c.original_price > c.price %}
+                        <span class="price-old">₹{{ c.original_price|floatformat:0 }}</span>
+                        {% endif %}
+                    </div>
+                    {% if c.id in cart_combo_ids %}
+                    <a href="#" class="product-cta w-100 border-0 d-inline-block text-center text-decoration-none js-open-cart-drawer">View Cart</a>
+                    {% else %}
+                    <form method="post" action="{% url 'store:cart_add' %}" class="product-add-form d-inline-block w-100">
+                        {% csrf_token %}
+                        <input type="hidden" name="combo_id" value="{{ c.id }}">
+                        <input type="hidden" name="quantity" value="1">
+                        <button type="submit" class="product-cta w-100 border-0">Add to Cart</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endwith %}
+            {% elif card.kind == 'variant' %}
+            {% with variant=card.variant is_jewellery=card.is_jewellery %}
+            {% if not is_jewellery %}
+            <div class="product-card">
+                <div class="product-img-wrap">
+                    {% if variant.original_price and variant.original_price > variant.price %}
+                    <span class="product-badge badge-sale">{{ variant.discount_percent }}% OFF</span>
+                    {% endif %}
+                    {% include "partials/_rating_pill.html" with product=variant.product %}
+                    
+                    <a href="{% url 'store:product_detail' variant.product.slug %}?variant={{ variant.id }}">
+                        {% with imgs=variant.images.all %}
+                        {% if imgs %}
+                        <img src="{{ imgs.0.image.url }}" alt="{{ variant.product.name }}" loading="lazy">
+                        {% else %}
+                        <img src="{% static 'img/product-1.png' %}" alt="{{ variant.product.name }}" loading="lazy">
+                        {% endif %}
+                        {% endwith %}
+                    </a>
+                    {% if WISHLIST_ENABLED %}
+                    <button type="button"
+                            class="product-wishlist js-wishlist-toggle {% if variant.id in wishlist_variant_ids %}in-wishlist{% endif %}"
+                            data-variant-id="{{ variant.id }}" title="Wishlist" aria-label="Wishlist">
+                        <i class="far fa-heart"></i>
+                    </button>
+                    {% endif %}
+                    
+                </div>
+                <div class="product-body">
+                    
+                    <a href="{% url 'store:product_detail' variant.product.slug %}?variant={{ variant.id }}" class="text-decoration-none">
+                        <h3 class="product-name">{{ variant.product.name }}</h3>
+                    </a>
+                    {% with p=variant.product %}
+                    {% if p.beginner_friendly or p.air_purifying or p.office_friendly or p.low_maintenance %}
+                    <div class="p99-tag-row">
+                        {% if p.beginner_friendly %}<span class="p99-mini-tag p99-mini-tag--y">Easy care</span>{% endif %}
+                        {% if p.air_purifying %}<span class="p99-mini-tag p99-mini-tag--b">Air purifying</span>{% endif %}
+                        {% if p.office_friendly %}<span class="p99-mini-tag p99-mini-tag--o">Desk friendly</span>{% endif %}
+                        {% if p.low_maintenance %}<span class="p99-mini-tag p99-mini-tag--g">Low maintenance</span>{% endif %}
+                    </div>
+                    {% endif %}
+                    {% endwith %}
+                    <div class="product-price">
+                        <span class="price-current">₹{{ variant.price|floatformat:0 }}</span>
+                        {% if variant.original_price and variant.original_price > variant.price %}
+                        <span class="price-old">₹{{ variant.original_price|floatformat:0 }}</span>
+                        {% endif %}
+                    </div>
+                    {% if variant.id in cart_variant_ids or variant.product_id in cart_product_ids %}
+                    <a href="#" class="product-cta border-0 d-inline-block text-center text-decoration-none js-open-cart-drawer">View Cart</a>
+                    {% else %}
+                    <form method="post" action="{% url 'store:cart_add' %}" class="product-add-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="product_id" value="{{ variant.product_id }}">
+                        <input type="hidden" name="variant_id" value="{{ variant.id }}">
+                        <input type="hidden" name="quantity" value="1">
+                        <button type="submit" class="product-cta border-0">Add to Cart</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            {% endwith %}
+            {% endif %}
+            {% endfor %}
+
+            
+            {% for product in simple_products %}
+            <div class="product-card">
+                <div class="product-img-wrap">
+                    {% if product.discount_percent %}<span class="product-badge badge-sale">{{ product.discount_percent }}% OFF</span>{% endif %}
+                    {% include "partials/_rating_pill.html" with product=product %}
+                    <a href="{% url 'store:product_detail' product.slug %}">
+                        {% with imgs=product.images.all %}
+                        {% if imgs %}
+                        <img src="{{ imgs.0.image.url }}" alt="{{ product.name }}" loading="lazy">
+                        {% else %}
+                        <img src="{% static 'img/product-1.png' %}" alt="{{ product.name }}" loading="lazy">
+                        {% endif %}
+                        {% endwith %}
+                    </a>
+                </div>
+                <div class="product-body">
+                    <a href="{% url 'store:product_detail' product.slug %}" class="text-decoration-none">
+                        <h3 class="product-name">{{ product.name }}</h3>
+                    </a>
+                    {% if product.beginner_friendly or product.air_purifying or product.office_friendly or product.low_maintenance %}
+                    <div class="p99-tag-row">
+                        {% if product.beginner_friendly %}<span class="p99-mini-tag p99-mini-tag--y">Easy care</span>{% endif %}
+                        {% if product.air_purifying %}<span class="p99-mini-tag p99-mini-tag--b">Air purifying</span>{% endif %}
+                        {% if product.office_friendly %}<span class="p99-mini-tag p99-mini-tag--o">Desk friendly</span>{% endif %}
+                        {% if product.low_maintenance %}<span class="p99-mini-tag p99-mini-tag--g">Low maintenance</span>{% endif %}
+                    </div>
+                    {% endif %}
+                    <div class="product-price">
+    {% if product.base_price %}
+    <span class="price-current">₹{{ product.base_price|floatformat:0 }}</span>
+    {% else %}
+    <span class="price-current">Price on request</span>
+    {% endif %}
+    {% if product.base_original_price and product.base_original_price > product.base_price %}
+    <span class="price-old">₹{{ product.base_original_price|floatformat:0 }}</span>
+    {% endif %}
+</div>
+                    {% if product.id in cart_simple_product_ids %}
+                    <a href="#" class="product-cta border-0 d-inline-block text-center text-decoration-none js-open-cart-drawer">View Cart</a>
+                    {% else %}
+                    <form method="post" action="{% url 'store:cart_add' %}" class="product-add-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="product_id" value="{{ product.id }}">
+                        <input type="hidden" name="quantity" value="1">
+                        <button type="submit" class="product-cta border-0" {% if not product.base_stock or product.base_stock <= 0 %}disabled{% endif %}>
+                            Add to Cart
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+
+            {% if not card_items and not simple_products %}
+            <div class="col-12 text-center py-5">
+                <p class="text-muted">No products found. Try adjusting filters.</p>
+                <a href="{% url 'store:product_list' %}" class="btn btn-outline-dark">Clear filters</a>
+            </div>
+            {% endif %}
+        </div>
+
+        
+        {% if page_obj and page_obj.paginator.num_pages > 1 %}
+        <nav class="mt-5 d-flex justify-content-center" aria-label="Shop pagination">
+            <ul class="pagination">
+                {% if page_obj.has_previous %}
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&category={{ filters.category }}&sort={{ filters.sort }}&q={{ filters.q }}{% if filters.combo %}&combo={{ filters.combo }}{% endif %}{% if filters.rent %}&rent={{ filters.rent }}{% endif %}">Previous</a></li>
+                {% endif %}
+                {% for p in page_obj.paginator.page_range %}
+                {% if p == page_obj.number %}
+                <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+                {% else %}
+                <li class="page-item"><a class="page-link" href="?page={{ p }}&category={{ filters.category }}&sort={{ filters.sort }}&q={{ filters.q }}{% if filters.combo %}&combo={{ filters.combo }}{% endif %}{% if filters.rent %}&rent={{ filters.rent }}{% endif %}">{{ p }}</a></li>
+                {% endif %}
+                {% endfor %}
+                {% if page_obj.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&category={{ filters.category }}&sort={{ filters.sort }}&q={{ filters.q }}{% if filters.combo %}&combo={{ filters.combo }}{% endif %}{% if filters.rent %}&rent={{ filters.rent }}{% endif %}">Next</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+
+    </div>
+</section>
+
+{% include "partials/_filters.html" %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+    /* Filter offcanvas */
+    var btn       = document.getElementById('filterToggleBtn');
+    var closeBtn  = document.getElementById('filterCloseBtn');
+    var offcanvas = document.getElementById('filterOffcanvas');
+    var overlay   = document.getElementById('filterOverlay');
+
+    function openFilter()  { offcanvas && offcanvas.classList.add('open');    overlay && overlay.classList.add('open'); }
+    function closeFilter() { offcanvas && offcanvas.classList.remove('open'); overlay && overlay.classList.remove('open'); }
+
+    if(btn)      btn.addEventListener('click', openFilter);
+    if(closeBtn) closeBtn.addEventListener('click', closeFilter);
+    if(overlay)  overlay.addEventListener('click', closeFilter);
+
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,17 @@
+<section class="p99-subscribe" aria-label="Subscription">
+  <div class="section-container">
+    <div class="p99-subscribe-card">
+      <div class="p99-subscribe-copy">
+        <p class="p99-subscribe-kicker">Subscription</p>
+        <h2 class="p99-subscribe-title">Weekly plant drops, offers & care tips</h2>
+        <p class="p99-subscribe-sub">Get early access to new arrivals and seasonal picks. No spam.</p>
+      </div>
+      <form method="post" action="{% url 'store:newsletter_subscribe' %}" class="p99-subscribe-form">
+        {% csrf_token %}
+        <input type="email" name="email" placeholder="Enter your email" required autocomplete="email" aria-label="Email address">
+        <button type="submit">Subscribe</button>
+      </form>
+    </div>
+  </div>
+</section>
+

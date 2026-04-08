@@ -1,0 +1,122 @@
+{% load static %}
+{% if combo_lines %}
+<div class="pdp-combo-bundle mb-3 p-3 border rounded-2 small pdp-card">
+    <div class="fw-bold mb-2 text-uppercase small letter-spaced">Bundle includes</div>
+    <ul class="mb-0 ps-3">
+        {% for row in combo_lines %}<li>{{ row.name }} × {{ row.quantity }}</li>{% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<div class="pdp-pincode-check mb-3 pdp-card p-3 border rounded-2"
+     id="pdpPincodeModule"
+     data-combo="{{ product.is_combo_product|yesno:'true,false' }}"
+     data-pincode-url="{{ pincode_check_url }}">
+    <label class="form-label small fw-bold mb-1" for="pdpPincodeInput">Delivery availability</label>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+        <input type="text" class="form-control form-control-sm pdp-pincode-input" style="max-width:9rem;" maxlength="6" inputmode="numeric" placeholder="PIN code" id="pdpPincodeInput" autocomplete="postal-code">
+        <button type="button" class="btn btn-sm btn-outline-dark" id="pdpPincodeBtn">Check</button>
+        <span class="small" id="pdpPincodeResult" aria-live="polite"></span>
+    </div>
+    <p class="text-muted small mt-1 mb-0">We serve {{ serviceable_pincode_count }} Kerala PIN codes.</p>
+</div>
+
+{% if product.is_rent_available %}
+<div class="pdp-offer-mode mb-3 pdp-card p-3 border rounded-2" id="pdpOfferMode" data-purchase-only="{{ purchase_only_pdp|yesno:'true,false' }}" data-rental-only="{{ rental_only_pdp|yesno:'true,false' }}">
+    {% if show_pdp_mode_toggle %}
+    <div class="btn-group w-100 mb-2" role="group" aria-label="Buy or rent">
+        <button type="button" class="btn btn-outline-dark px-3 active" data-mode="purchase">Buy</button>
+        <button type="button" class="btn btn-outline-dark px-3" data-mode="rental">Rent</button>
+    </div>
+    {% endif %}
+    <div class="pdp-rental-panel mt-1{% if purchase_only_pdp %} d-none{% endif %}" id="pdpRentalPanel">
+        <label class="form-label small mb-1">Rental dates</label>
+        <div class="d-flex flex-wrap gap-2">
+            <input type="date" class="form-control form-control-sm" id="pdpRentalStart" aria-label="Rental start date">
+            <input type="date" class="form-control form-control-sm" id="pdpRentalEnd" aria-label="Rental end date">
+        </div>
+        <div class="small mt-2 fw-semibold" id="pdpRentalPriceLine"></div>
+    </div>
+</div>
+{% endif %}
+
+{% if attributes_grouped %}
+<div class="mb-3" id="variantAttributeGroups">
+    {% for attr in attributes_grouped %}
+    <div class="mb-2">
+        <span class="small fw-bold text-uppercase">{{ attr.name }}</span>
+        <div class="d-flex gap-2 mt-1 flex-wrap" data-attribute-id="{{ attr.id }}" data-attribute-name="{{ attr.name }}">
+            {% for av in attr.values %}
+            <button type="button" class="btn {% if av.id in selected_attribute_value_ids %}btn-dark{% else %}btn-outline-dark{% endif %} px-3 attribute-value-btn" data-attribute-value-id="{{ av.id }}" data-attribute-value="{{ av.value }}" style="min-height:38px;">{{ av.value }}</button>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% elif variants %}
+<div class="mb-3">
+    <span class="small fw-bold text-uppercase">Option</span>
+    <div class="d-flex gap-2 mt-2 flex-wrap" id="variantOptions">
+        {% for v in variants %}
+        <a href="?variant={{ v.id }}" class="btn {% if selected_variant and selected_variant.id == v.id %}btn-dark{% else %}btn-outline-dark{% endif %} px-3 variant-option" data-variant-id="{{ v.id }}" style="min-height:38px;">{{ v.get_attribute_values_display|default:"Option" }} {{ forloop.counter }}</a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if product.is_giftable and product.purchase_enabled %}
+<div class="form-check form-switch mb-3" id="pdpGiftWrap">
+    <input class="form-check-input" type="checkbox" id="pdpGiftToggle" name="pdp_gift_visual">
+    <label class="form-check-label small" for="pdpGiftToggle">Send as a gift (gift message at checkout when available)</label>
+</div>
+{% endif %}
+
+<form method="post" action="{% url 'store:cart_add' %}" id="addToCartForm" class="product-add-form mb-3" data-simple-product="{{ product.is_simple_product|yesno:'true,false' }}" data-cart-url="#" data-pincode-url="{{ pincode_check_url }}" data-purchase-in-cart="{{ pdp_purchase_in_cart|yesno:'true,false' }}">
+    {% csrf_token %}
+    <input type="hidden" name="product_id" value="{{ product.id }}">
+    <input type="hidden" name="variant_id" id="formVariantId" value="{{ selected_variant.id|default:'' }}">
+    <input type="hidden" name="quantity" id="formQuantity" value="1">
+    <input type="hidden" name="line_type" id="formLineType" value="{% if rental_only_pdp %}rental{% else %}purchase{% endif %}">
+    <input type="hidden" name="is_gift" id="formIsGift" value="0">
+    {% if product.is_rent_available %}
+    <input type="hidden" name="rental_billing" id="formRentalBilling" value="">
+    <input type="hidden" name="rental_period_count" id="formRentalUnits" value="">
+    <input type="hidden" name="rental_start_date" id="formRentalStart" value="">
+    <input type="hidden" name="rental_end_date" id="formRentalEnd" value="">
+    {% endif %}
+
+    <div class="product-cta-row">
+        <div class="qty-selector quantity">
+            <button class="btn-minus" type="button"><i class="fas fa-minus"></i></button>
+            <input type="number" id="qtyInput" value="1" min="1" max="99" readonly style="width:50px;text-align:center;">
+            <button class="btn-plus" type="button"><i class="fas fa-plus"></i></button>
+        </div>
+        {% if product.is_simple_product and product.id in cart_simple_product_ids %}
+        <a href="#" class="btn btn-add-cart btn-view-cart js-open-cart-drawer">
+            <i class="fas fa-shopping-cart me-2"></i> View Cart
+        </a>
+        {% elif not product.is_simple_product and selected_variant and selected_variant.id in cart_variant_ids %}
+        <a href="#" class="btn btn-add-cart btn-view-cart js-open-cart-drawer">
+            <i class="fas fa-shopping-cart me-2"></i> View Cart
+        </a>
+        {% elif product.is_simple_product %}
+        <button type="submit" class="btn-add-cart btn js-pdp-add-cart" {% if product.is_combo_product %}{% if not pdp_combo_available %}disabled{% endif %}{% elif not product.base_stock or product.base_stock <= 0 %}disabled{% endif %}>
+            <span class="btn-add-cart-text"><i class="fas fa-shopping-bag me-2"></i> Add to Cart</span>
+        </button>
+        {% else %}
+        <button type="submit" class="btn-add-cart btn js-pdp-add-cart" {% if not selected_variant or selected_variant.stock_quantity <= 0 %}disabled{% endif %}>
+            <span class="btn-add-cart-text"><i class="fas fa-shopping-bag me-2"></i> Add to Cart</span>
+        </button>
+        {% endif %}
+    </div>
+
+    {% if product.is_simple_product %}
+    <button type="button" class="btn-buy-now btn mt-2 w-100" id="buyNowBtn" {% if product.is_combo_product %}{% if not pdp_combo_available %}disabled{% endif %}{% elif not product.base_stock or product.base_stock <= 0 %}disabled{% endif %}>
+        Buy Now
+    </button>
+    {% else %}
+    <button type="button" class="btn-buy-now btn mt-2 w-100" id="buyNowBtn" {% if not selected_variant or selected_variant.stock_quantity <= 0 %}disabled{% endif %}>
+        Buy Now
+    </button>
+    {% endif %}
+</form>

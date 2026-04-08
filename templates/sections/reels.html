@@ -1,0 +1,89 @@
+{% load static %}
+{% if reels %}
+<section class="p99-reels-section" aria-label="{{ aria_label|default:'Reels' }}">
+  <div class="section-container">
+    <div class="p99-reels-head">
+      <h2 class="p99-reels-title">{{ title|default:"Reels" }}</h2>
+      {% if view_all_url %}
+      <a href="{{ view_all_url }}" class="link-view-all">View all</a>
+      {% endif %}
+    </div>
+
+    <div class="p99-reels-scroll">
+      {% for reel in reels %}
+        {% with product=reel.product %}
+        {% if product %}
+          {% with v=product.primary_variant %}
+          <div class="p99-reels-card">
+            <div class="p99-reel-tile">
+              <a class="p99-reel-media" href="{% url 'store:product_detail' product.slug %}{% if v %}?variant={{ v.id }}{% endif %}" aria-label="{{ product.name }}">
+                <video class="p99-reel-video" muted playsinline autoplay loop preload="metadata" {% if reel.poster_image %}poster="{{ reel.poster_image.url }}"{% endif %}>
+                  <source src="{{ reel.video.url }}" type="video/mp4">
+                </video>
+                <span class="p99-reel-play" aria-hidden="true">▶</span>
+              </a>
+
+              <div class="p99-reel-meta">
+                <div class="p99-reel-name" title="{{ product.name }}">{{ product.name }}</div>
+                {% include "partials/_rating_pill.html" with product=product %}
+                <div class="p99-reel-row">
+                  <span class="p99-reel-price">₹{{ product.lowest_price|default:product.base_price|floatformat:0 }}</span>
+
+                  {% if v %}
+                    {% if v.id in cart_variant_ids %}
+                      <a class="p99-reel-btn js-open-cart-drawer" href="#">View cart</a>
+                    {% else %}
+                      <form method="post" action="{% url 'store:cart_add' %}" class="p99-reel-form product-add-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="product_id" value="{{ product.id }}">
+                        <input type="hidden" name="variant_id" value="{{ v.id }}">
+                        <input type="hidden" name="quantity" value="1">
+                        <button type="submit" class="p99-reel-btn">Add</button>
+                      </form>
+                    {% endif %}
+                  {% else %}
+                    {% if product.id in cart_simple_product_ids %}
+                      <a class="p99-reel-btn js-open-cart-drawer" href="#">View cart</a>
+                    {% else %}
+                      <form method="post" action="{% url 'store:cart_add' %}" class="p99-reel-form product-add-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="product_id" value="{{ product.id }}">
+                        <input type="hidden" name="quantity" value="1">
+                        <button type="submit" class="p99-reel-btn">Add</button>
+                      </form>
+                    {% endif %}
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endwith %}
+        {% endif %}
+        {% endwith %}
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{% if reels %}
+<script>
+(function(){
+  function tryPlayAll(){
+    var vids = document.querySelectorAll('.p99-reel-video');
+    if (!vids || !vids.length) return;
+    vids.forEach(function(v){
+      try {
+        v.muted = true;
+        v.playsInline = true;
+        var p = v.play();
+        if (p && typeof p.catch === 'function') p.catch(function(){});
+      } catch (e) {}
+    });
+  }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') tryPlayAll();
+  else document.addEventListener('DOMContentLoaded', tryPlayAll);
+})();
+</script>
+{% endif %}
+

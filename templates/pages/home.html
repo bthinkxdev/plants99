@@ -1,0 +1,97 @@
+﻿{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ site_brand }} — Plants, pots &amp; garden care{% endblock %}
+{% block meta_description %}Shop indoor plants, pots, seeds and tools at {{ site_brand }}. Beginner-friendly picks, combos and fast delivery.{% endblock %}
+{% block content %}
+{% url 'store:product_list' as shop_url %}
+<div class="storefront storefront--ios-home">
+    {# Top Bar + Header are in base/partials #}
+    {% include "sections/hero.html" %}
+    {% include "sections/home_category_heroes.html" %}
+    {% include "sections/categories.html" %}
+
+    {# Rent plants (hero focus section) #}
+    {% include "sections/rent_plants_focus.html" with rent_products=rent_products kicker="Rent plants" title="Rent plants for shoots & stays" subtitle="Pick dates, pay per day, and keep it hassle-free." cta_label="See all plants" cta_url=shop_url aria_label="Rent plants" %}
+
+    {# Featured Products #}
+    {% if HOME_FEATURED_ENABLED and featured_products %}
+        {% if banners %}
+        {% include "sections/banner_product_row.html" with products=featured_products row_title="Curated picks" banner_image=banners.0.image.url banner_link=banners.0.redirect_url|default:shop_url extra_class="p99-jsbanner--a" %}
+        {% else %}
+        {% include "sections/banner_product_row.html" with products=featured_products row_title="Curated picks" banner_link=shop_url extra_class="p99-jsbanner--a" %}
+        {% endif %}
+    {% endif %}
+    {% if HOME_BESTSELLER_ENABLED and bestseller_products %}
+        {% if banners and banners|length > 1 %}
+        {% include "sections/banner_product_row.html" with products=bestseller_products row_title="Best sellers" banner_image=banners.1.image.url banner_link=banners.1.redirect_url|default:shop_url extra_class="p99-jsbanner--b p99-jsbanner--muted" %}
+        {% else %}
+        {% include "sections/banner_product_row.html" with products=bestseller_products row_title="Best sellers" banner_link=shop_url extra_class="p99-jsbanner--b p99-jsbanner--muted" %}
+        {% endif %}
+    {% endif %}
+
+    {% if HOME_DEAL_OF_DAY_ENABLED and deal_of_day_products %}
+        {% if banners and banners|length > 2 %}
+        {% include "sections/banner_product_row.html" with products=deal_of_day_products row_title="Deal of the day" banner_image=banners.2.image.url banner_link=banners.2.redirect_url|default:shop_url extra_class="p99-jsbanner--deal" %}
+        {% else %}
+        {% include "sections/banner_product_row.html" with products=deal_of_day_products row_title="Deal of the day" banner_link=shop_url extra_class="p99-jsbanner--deal" %}
+        {% endif %}
+    {% endif %}
+
+    {% include "sections/rich_heading.html" with kicker="Low maintenance" title="Less care. More green." subtitle="Easy plants for busy homes — water-smart picks that still feel lush." cta_label="Shop easy-care plants" cta_url=shop_url modifier="p99-rich-band--foliage" %}
+
+    {% if top_rated_products %}
+    {% include "sections/product_scroller_row.html" with products=top_rated_products row_title="Shop the look" view_all_url=shop_url aria_label="Top rated plants" %}
+    {% endif %}
+
+    {% include "sections/rich_heading.html" with kicker="New arrivals" title="Fresh from the nursery" subtitle="Restocked weekly — trending plants and pots in one place." cta_label="See what's new" cta_url=shop_url modifier="p99-rich-band--soft" section_id="rich-new" %}
+
+    {# Store Locator #}
+    {% include "sections/store_locator.html" %}
+
+    {# Blogs #}
+    {% include "sections/blog_teaser.html" %}
+
+    {# Video reels with direct conversion #}
+    {% include "sections/reels.html" with reels=reels title="Video reels" view_all_url=shop_url aria_label="Video reels" %}
+
+    {# Subscription #}
+    {% include "sections/subscription.html" %}
+
+    {# Rewards #}
+    {% include "sections/rewards.html" %}
+
+    {# About #}
+    {% include "sections/about_strip.html" %}
+
+    {% if new_arrival_products %}
+    {% include "sections/product_scroller_row.html" with products=new_arrival_products|slice:":12" row_title="Just landed" view_all_url=shop_url aria_label="New arrivals" %}
+    {% endif %}
+
+    {% if HOME_FEATURED_ENABLED and featured_products %}
+        {% include "sections/product_grid.html" with section_kicker="Staff favourites" section_title="Featured plants" products=featured_products view_all_url=shop_url section_modifier="product-section--muted" %}
+    {% endif %}
+    {% if HOME_BESTSELLER_ENABLED and bestseller_products %}
+        {% include "sections/product_grid.html" with section_kicker="Customer love" section_title="Popular right now" products=bestseller_products view_all_url=shop_url %}
+    {% endif %}
+    {% if HOME_DEAL_OF_DAY_ENABLED and deal_of_day_products %}
+        {% include "sections/product_grid.html" with section_kicker="Limited time" section_title="Deal of the day" products=deal_of_day_products view_all_url=shop_url section_modifier="product-section--muted" %}
+    {% endif %}
+
+    {% include "sections/dual_promo.html" %}
+    {% include "sections/hero_secondary.html" %}
+    {% include "sections/offers.html" %}
+    {# Trust Badges #}
+    {% include "sections/trust.html" %}
+
+    {# Brand Strip #}
+    {% include "sections/brand_strip.html" %}
+
+    {# Locations #}
+    {% include "sections/locations.html" %}
+
+    {# Newsletter #}
+    {% include "sections/newsletter.html" %}
+
+    {% include "sections/rich_heading.html" with title="Ready when you are" subtitle="Free delivery thresholds, secure checkout, and care notes on every plant page." cta_label="Start shopping" cta_url=shop_url modifier="p99-rich-band--footer" section_id="rich-close" %}
+</div>
+{% endblock %}

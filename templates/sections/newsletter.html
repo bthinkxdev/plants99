@@ -1,0 +1,16 @@
+<section class="p99-newsletter" aria-label="Newsletter">
+  <div class="section-container">
+    <div class="p99-newsletter-card">
+      <div>
+        <h2 class="p99-newsletter-title">Newsletter</h2>
+        <p class="p99-newsletter-sub">Care guides, restocks and deals — straight to your inbox.</p>
+      </div>
+      <form method="post" action="{% url 'store:newsletter_subscribe' %}" class="p99-newsletter-form">
+        {% csrf_token %}
+        <input type="email" name="email" placeholder="Email address" required autocomplete="email" aria-label="Email address">
+        <button type="submit">Join</button>
+      </form>
+    </div>
+  </div>
+</section>
+
