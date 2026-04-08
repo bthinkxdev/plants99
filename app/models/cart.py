@@ -100,13 +100,13 @@ class CartItem(TimeStampedModel):
                 condition=models.Q(combo__isnull=False),
             ),
             models.CheckConstraint(
-                check=(
+                condition=(
                     models.Q(combo__isnull=False, product__isnull=True, selected_variant__isnull=True)
                     | models.Q(combo__isnull=True, product__isnull=False)
                 ),
                 name='cartitem_combo_xor_product',
             ),
-            models.CheckConstraint(check=models.Q(quantity__gte=1), name='cartitem_qty_positive'),
+            models.CheckConstraint(condition=models.Q(quantity__gte=1), name='cartitem_qty_positive'),
         ]
         indexes = [models.Index(fields=['cart', 'product']), models.Index(fields=['cart', 'line_type']), models.Index(fields=['cart', 'combo'])]
 

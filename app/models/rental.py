@@ -62,9 +62,9 @@ class RentalBooking(TimeStampedModel):
             models.Index(fields=['status', 'rental_start_date']),
         ]
         constraints = [
-            models.CheckConstraint(check=models.Q(rental_end_date__gte=models.F('rental_start_date')), name='rentalbooking_end_gte_start'),
-            models.CheckConstraint(check=models.Q(total_days__gte=1), name='rentalbooking_days_positive'),
-            models.CheckConstraint(check=models.Q(total_amount__gte=0), name='rentalbooking_amount_nonneg'),
+            models.CheckConstraint(condition=models.Q(rental_end_date__gte=models.F('rental_start_date')), name='rentalbooking_end_gte_start'),
+            models.CheckConstraint(condition=models.Q(total_days__gte=1), name='rentalbooking_days_positive'),
+            models.CheckConstraint(condition=models.Q(total_amount__gte=0), name='rentalbooking_amount_nonneg'),
         ]
 
     def __str__(self):

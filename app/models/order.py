@@ -93,7 +93,7 @@ class OrderItem(TimeStampedModel):
     class Meta:
         constraints = [
             models.CheckConstraint(
-                check=(
+                condition=(
                     models.Q(combo__isnull=False, product__isnull=True, selected_variant__isnull=True)
                     | models.Q(combo__isnull=True, product__isnull=False)
                 ),

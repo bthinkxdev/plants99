@@ -20,7 +20,7 @@ class Category(TimeStampedModel):
     class Meta:
         ordering = ['name']
         indexes = [models.Index(fields=['is_active', 'name']), models.Index(fields=['parent', 'is_active', 'name'])]
-        constraints = [models.CheckConstraint(check=~models.Q(parent=models.F('id')), name='category_parent_not_self')]
+        constraints = [models.CheckConstraint(condition=~models.Q(parent=models.F('id')), name='category_parent_not_self')]
 
     def clean(self):
         super().clean()

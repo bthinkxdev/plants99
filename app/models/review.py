@@ -21,7 +21,7 @@ class Review(TimeStampedModel):
 
     class Meta:
         ordering = ['-created_at']
-        constraints = [models.UniqueConstraint(fields=['product', 'user'], name='unique_product_user_review'), models.CheckConstraint(check=models.Q(rating__gte=1) & models.Q(rating__lte=5), name='review_rating_between_1_and_5')]
+        constraints = [models.UniqueConstraint(fields=['product', 'user'], name='unique_product_user_review'), models.CheckConstraint(condition=models.Q(rating__gte=1) & models.Q(rating__lte=5), name='review_rating_between_1_and_5')]
         indexes = [models.Index(fields=['product']), models.Index(fields=['rating']), models.Index(fields=['is_approved']), models.Index(fields=['product', 'is_approved'])]
 
     def __str__(self):

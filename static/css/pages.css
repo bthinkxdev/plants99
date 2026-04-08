@@ -70,48 +70,50 @@
 
 
 .storefront .hero-wrap {
-  background: #fff;
+  background: transparent;  
   padding: 0;
 }
 
 .storefront .hero-section {
   background: transparent;
-  padding: 10px 14px 0;
-  max-width: var(--ug-max-w, 1280px);
-  margin: 0 auto;
+  padding: 0;           
+  max-width: 100%;      
+  margin: 0;            
 }
 
 @media (min-width: 768px) {
   .storefront .hero-section {
-    padding: 14px var(--ug-gutter, 20px) 0;
+    padding: 0;         
   }
 }
 
 .storefront .hero-carousel-item {
-  border-radius: 20px;
+  border-radius: 0;     
   overflow: hidden;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.18);
 }
 
+/* Taller, more cinematic image */
 .storefront .hero-full-img {
-  border-radius: var(--ug-radius-lg);
+  border-radius: 0;    
   width: 100%;
-  min-height: 200px;
-  max-height: min(54vh, 540px);
+  min-height: 260px;
+  max-height: min(62vh, 620px);   
   object-fit: cover;
   display: block;
 }
 
 @media (min-width: 768px) {
   .storefront .hero-full-img {
-    min-height: 320px;
-    max-height: min(56vh, 560px);
+    min-height: 400px;             
+    max-height: min(68vh, 680px); 
   }
 }
 
 @media (min-width: 1200px) {
   .storefront .hero-full-img {
-    min-height: 400px;
+    min-height: 520px;            
+    max-height: min(72vh, 720px);
   }
 }
 
@@ -5878,4 +5880,484 @@ body.storefront .order-line .line-info {
 
 @media (max-width: 575px) {
   .p99-rent-focus__rail { grid-auto-columns: minmax(240px, 1fr); }
+}
+
+.storefront.storefront--ios-home .hero-carousel-item,
+.storefront.storefront--ios-home .hero-full-img {
+  border-radius: 0 !important;
+}
+
+/* ── Card shell ── */
+.hc-pcard {
+  background: #f7f3ec !important;
+  border-radius: 20px !important;
+  padding: 0 !important;
+  box-shadow:
+    0 2px 8px rgba(0,0,0,0.07),
+    0 14px 36px rgba(0,0,0,0.13) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 260px !important;
+  height: 100%;
+  overflow: hidden;
+  transition: transform 0.28s ease, box-shadow 0.28s ease !important;
+  text-decoration: none !important;
+  color: inherit !important;
+}
+.hc-pcard:hover {
+  transform: translateY(-4px) !important;
+  box-shadow:
+    0 6px 20px rgba(0,0,0,0.11),
+    0 24px 56px rgba(0,0,0,0.17) !important;
+  color: inherit !important;
+}
+ 
+/* ── Image wrap — square, flush top ── */
+.hc-pcard__img-wrap {
+  display: block !important;
+  border-radius: 0 !important;
+  overflow: hidden !important;
+  aspect-ratio: 1 / 1 !important;
+  background: #eeeae0 !important;
+  margin-bottom: 0 !important;
+  position: relative !important;
+  width: 100% !important;
+  flex-shrink: 0;
+}
+.hc-pcard__img-wrap img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block !important;
+  transition: transform 0.4s ease !important;
+}
+.hc-pcard:hover .hc-pcard__img-wrap img {
+  transform: scale(1.05) !important;
+}
+ 
+/* ── Badge — top-left corner of the image, small, unobtrusive ── */
+.hc-pcard__badge {
+  position: absolute !important;
+  top: 10px !important;
+  left: 10px !important;
+  right: auto !important;
+  transform: none !important;
+  align-self: unset !important;
+  margin: 0 !important;
+  z-index: 4;
+ 
+  /* pill style — white with green text, compact */
+  background: rgba(255, 255, 255, 0.90) !important;
+  backdrop-filter: blur(6px) !important;
+  -webkit-backdrop-filter: blur(6px) !important;
+  color: #1a5c38 !important;
+  font-size: 0.65rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  padding: 5px 10px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(30, 120, 70, 0.15) !important;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.10) !important;
+  white-space: nowrap;
+  max-width: calc(100% - 20px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+ 
+/* ── Body ── */
+.hc-pcard__title {
+  font-size: 0.95rem !important;
+  font-weight: 800 !important;
+  color: #1a2c1e !important;
+  line-height: 1.3 !important;
+  margin: 12px 12px 3px !important;
+  min-height: unset !important;
+  -webkit-line-clamp: 2 !important;
+  display: -webkit-box !important;
+  -webkit-box-orient: vertical !important;
+  overflow: hidden !important;
+}
+ 
+.hc-pcard__rating-slot {
+  min-height: unset !important;
+  margin: 0 12px 2px !important;
+}
+ 
+.hc-pcard__meta {
+  font-size: 0.78rem !important;
+  color: #7a8c80 !important;
+  font-weight: 500 !important;
+  margin: 0 12px 12px !important;
+  min-height: unset !important;
+}
+ 
+/* ── CTA — full-width green pill ── */
+.hc-pcard__cta {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: calc(100% - 24px) !important;
+  margin: auto 12px 12px !important;
+  padding: 11px 14px !important;
+  border-radius: 999px !important;
+  background: #1db864 !important;
+  color: #ffffff !important;
+  font-size: 0.85rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  border: none !important;
+  transition: background 0.22s ease, transform 0.18s ease, box-shadow 0.22s ease !important;
+  box-shadow: 0 4px 14px rgba(29, 184, 100, 0.36) !important;
+}
+.hc-pcard:hover .hc-pcard__cta {
+  background: #18a456 !important;
+}
+ 
+/* ── Owl nav arrows — prev/next text style like reference ── */
+.hc-hero-carousel.owl-carousel .owl-nav {
+  display: flex !important;
+  pointer-events: none;
+  position: absolute !important;
+  top: 38% !important;
+  left: 0 !important;
+  right: 0 !important;
+  transform: translateY(-50%) !important;
+  justify-content: space-between !important;
+  gap: 0 !important;
+  padding: 0 4px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+ 
+.hc-hero-carousel.owl-carousel .owl-nav .owl-prev,
+.hc-hero-carousel.owl-carousel .owl-nav .owl-next {
+  pointer-events: auto;
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 50% !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  color: #1a3d2e !important;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.18) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  font-size: 0 !important;        
+  line-height: 1 !important;
+}
+.hc-hero-carousel.owl-carousel .owl-nav .owl-prev:hover,
+.hc-hero-carousel.owl-carousel .owl-nav .owl-next:hover {
+  background: #ffffff !important;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.20) !important;
+}
+ 
+/* Hide whatever Owl puts inside (span with «/») */
+.hc-hero-carousel.owl-carousel .owl-nav .owl-prev span,
+.hc-hero-carousel.owl-carousel .owl-nav .owl-next span {
+  display: none !important;
+}
+ 
+/* Draw SVG chevrons via CSS — no icon font needed */
+.hc-hero-carousel.owl-carousel .owl-nav .owl-prev::after,
+.hc-hero-carousel.owl-carousel .owl-nav .owl-next::after {
+  content: '';
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-top: 2.5px solid #1a3d2e;
+  border-right: 2.5px solid #1a3d2e;
+  border-radius: 1px;
+}
+ 
+.hc-hero-carousel.owl-carousel .owl-nav .owl-prev::after {
+  transform: rotate(-135deg) translate(-1px, 1px); /* ← left chevron */
+}
+ 
+.hc-hero-carousel.owl-carousel .owl-nav .owl-next::after {
+  transform: rotate(45deg) translate(-1px, 1px);   /* → right chevron */
+}
+ 
+/* ── Mobile ── */
+@media (max-width: 767px) {
+  .hc-pcard {
+    min-height: 220px !important;
+    border-radius: 16px !important;
+  }
+  .hc-pcard__badge {
+    font-size: 0.58rem !important;
+    padding: 4px 8px !important;
+  }
+  .hc-pcard__title {
+    font-size: 0.85rem !important;
+    margin: 10px 10px 3px !important;
+  }
+  .hc-pcard__meta {
+    font-size: 0.72rem !important;
+    margin: 0 10px 10px !important;
+  }
+  .hc-pcard__cta {
+    width: calc(100% - 20px) !important;
+    margin: auto 10px 10px !important;
+    padding: 10px 12px !important;
+    font-size: 0.78rem !important;
+  }
+}
+ 
+@media (prefers-reduced-motion: reduce) {
+  .hc-pcard:hover { transform: none !important; }
+  .hc-pcard:hover .hc-pcard__img-wrap img { transform: none !important; }
+}
+
+
+
+.p99-jsbanner--premium {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0;
+  margin-bottom: var(--ios-section-gap, 2.5rem);
+}
+
+/* --- Background panel: taller, cinematic --- */
+.p99-jsbanner--premium .p99-jsbanner__bg {
+  position: relative;
+  min-height: clamp(320px, 58vh, 580px);
+  max-height: none;
+  overflow: hidden;
+}
+
+.p99-jsbanner--premium .p99-jsbanner__bgimg {
+  width: 100%;
+  height: 100%;
+  min-height: clamp(320px, 58vh, 580px);
+  object-fit: cover;
+  object-position: center 30%;
+  display: block;
+  transition: transform 0.5s ease;
+}
+.p99-jsbanner--premium:hover .p99-jsbanner__bgimg {
+  transform: scale(1.02);
+}
+
+/* Gradient bg when no image */
+.p99-jsbanner--premium .p99-jsbanner__bg--gradient {
+  min-height: clamp(320px, 58vh, 580px);
+  background: linear-gradient(135deg, #1b5e40 0%, var(--ug-primary-mid, #00875a) 45%, #00b067 100%);
+}
+.p99-jsbanner--muted.p99-jsbanner--premium .p99-jsbanner__bg--gradient {
+  background: linear-gradient(135deg, #0d3d2a 0%, #006a4d 50%, #1b7a52 100%);
+}
+.p99-jsbanner--deal.p99-jsbanner--premium .p99-jsbanner__bg--gradient {
+  background: linear-gradient(135deg, #7c2d12 0%, #c2410c 45%, var(--ug-accent, #f4a261) 100%);
+}
+
+/* Dark gradient scrim so headline text is always readable */
+.p99-jsbanner--premium .p99-jsbanner__scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    160deg,
+    rgba(8, 30, 22, 0.18) 0%,
+    rgba(8, 30, 22, 0.42) 55%,
+    rgba(8, 30, 22, 0.72) 100%
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* --- Hero copy — inside the bg panel, bottom-left --- */
+.p99-jsbanner--premium .p99-jsbanner__hero-copy {
+  position: absolute;
+  left: clamp(1rem, 4vw, 2.75rem);
+  bottom: clamp(6rem, 16vw, 10rem); /* leave room for the lifted card rail */
+  z-index: 2;
+  max-width: 460px;
+  pointer-events: none;
+}
+
+.p99-jsbanner--premium .p99-jsbanner__hero-kicker {
+  margin: 0 0 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.p99-jsbanner--premium .p99-jsbanner__hero-title {
+  margin: 0 0 0.55rem;
+  font-family: var(--font-display, 'DM Serif Display', Georgia, serif);
+  font-style: italic;
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  font-weight: 400;
+  line-height: 1.08;
+  color: #f2e041; /* yellow like the reference */
+  text-shadow: 0 3px 28px rgba(0, 0, 0, 0.4);
+}
+
+.p99-jsbanner--premium .p99-jsbanner__hero-sub {
+  margin: 0;
+  font-size: clamp(0.9rem, 1.8vw, 1.05rem);
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.5;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.45);
+}
+
+/* --- Overlay: lifted card rail --- */
+.p99-jsbanner--premium .p99-jsbanner__overlay {
+  position: relative;
+  z-index: 3;
+  max-width: var(--ug-max-w, 1280px);
+  margin: -110px auto 0;   /* key lift — cards overlap the bg */
+  padding: 0 clamp(1rem, 3vw, 2rem) 2.5rem;
+}
+
+@media (max-width: 767px) {
+  .p99-jsbanner--premium .p99-jsbanner__overlay {
+    margin-top: -80px;
+    padding: 0 1rem 2rem;
+  }
+}
+
+/* --- Rail head: view-all + arrows in one row --- */
+.p99-jsbanner--premium .p99-jsbanner__rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-bottom: 0.875rem;
+}
+
+/* --- Arrow buttons --- */
+.p99-jsbanner__arrows {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.p99-jsbanner__arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: none;
+  background: #fff;
+  color: var(--ug-primary-mid, #00875a);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  flex-shrink: 0;
+}
+.p99-jsbanner__arrow:hover {
+  background: var(--ug-primary-soft, #e8f5e9);
+  transform: scale(1.08);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+.p99-jsbanner__arrow:active {
+  transform: scale(0.95);
+}
+.p99-jsbanner__arrow svg {
+  width: 12px;
+  height: 12px;
+}
+.p99-jsbanner__arrow--prev:disabled,
+.p99-jsbanner__arrow--next:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* For the deal (dark) variant — white arrows with dark icons */
+.p99-jsbanner--deal .p99-jsbanner__arrow {
+  background: rgba(255, 255, 255, 0.92);
+  color: #7c2d12;
+}
+
+/* --- Manual scroll rail (replaces Owl) --- */
+.p99-jsbanner--premium .p99-jsbanner__scroll-rail {
+  display: flex;
+  gap: clamp(10px, 1.8vw, 14px);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 6px 4px 16px;
+  scroll-behavior: smooth;
+}
+.p99-jsbanner--premium .p99-jsbanner__scroll-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.p99-jsbanner--premium .p99-jsbanner-slide {
+  flex: 0 0 auto;
+  width: clamp(180px, 22vw, 240px);
+  scroll-snap-align: start;
+  display: flex;
+}
+
+@media (max-width: 767px) {
+  .p99-jsbanner--premium .p99-jsbanner-slide {
+    width: clamp(160px, 44vw, 220px);
+  }
+}
+
+@media (max-width: 400px) {
+  .p99-jsbanner--premium .p99-jsbanner-slide {
+    width: 72vw;
+  }
+}
+
+/* Compact cards inside the premium rail — elevated look */
+.p99-jsbanner--premium .p99-compact-card {
+  border-radius: 18px;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.06),
+    0 12px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  background: #fff;
+  transition: transform 0.28s cubic-bezier(0.34, 1.2, 0.64, 1),
+              box-shadow 0.28s ease;
+}
+.p99-jsbanner--premium .p99-compact-card:hover {
+  transform: translateY(-5px);
+  box-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.1),
+    0 22px 48px rgba(0, 0, 0, 0.14);
+}
+
+/* View-all pill in the rail head (re-style for dark bg context) */
+.p99-jsbanner--premium .p99-jsbanner__rail-head .link-view-all {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.p99-jsbanner--premium .p99-jsbanner__rail-head .link-view-all:hover {
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ug-primary-mid, #00875a);
+  border-color: transparent;
+}
+
+/* Deal variant: orange/warm tones */
+.p99-jsbanner--deal.p99-jsbanner--premium .p99-jsbanner__hero-title {
+  color: #fff5e0;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .p99-jsbanner--premium .p99-jsbanner__scroll-rail {
+    scroll-behavior: auto;
+  }
+  .p99-jsbanner--premium:hover .p99-jsbanner__bgimg {
+    transform: none;
+  }
 }

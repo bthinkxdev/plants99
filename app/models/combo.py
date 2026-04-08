@@ -90,7 +90,7 @@ class ComboItem(TimeStampedModel):
         ordering = ('display_order', 'id')
         constraints = [
             models.UniqueConstraint(fields=('combo', 'product'), name='uniq_comboitem_combo_product'),
-            models.CheckConstraint(check=models.Q(quantity__gte=1), name='comboitem_qty_positive'),
+            models.CheckConstraint(condition=models.Q(quantity__gte=1), name='comboitem_qty_positive'),
         ]
         indexes = [models.Index(fields=('combo', 'display_order'))]
 

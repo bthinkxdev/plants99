@@ -46,7 +46,7 @@ class Wishlist(TimeStampedModel):
                 name='unique_user_simple_product_wishlist',
             ),
             models.CheckConstraint(
-                check=(
+                condition=(
                     models.Q(selected_variant__isnull=False, product__isnull=True)
                     | models.Q(selected_variant__isnull=True, product__isnull=False)
                 ),

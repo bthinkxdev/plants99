@@ -299,7 +299,7 @@ class Variant(TimeStampedModel):
 
     class Meta:
         ordering = ['display_order', 'id']
-        constraints = [models.CheckConstraint(check=models.Q(stock_quantity__gte=0), name='variant_stock_non_negative'), models.CheckConstraint(check=models.Q(price__gte=0), name='variant_price_non_negative')]
+        constraints = [models.CheckConstraint(condition=models.Q(stock_quantity__gte=0), name='variant_stock_non_negative'), models.CheckConstraint(condition=models.Q(price__gte=0), name='variant_price_non_negative')]
         indexes = [models.Index(fields=['product', 'is_active', 'stock_quantity'])]
 
     def get_attribute_values_display(self):
