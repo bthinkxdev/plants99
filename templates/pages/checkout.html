@@ -74,11 +74,11 @@
                         </div>
 
                         <div class="d-flex flex-column gap-2 mt-4 pt-3" style="border-top:1px solid var(--clr-grey-2);">
-                            <div class="d-flex align-items-center gap-2" style="font-size:var(--text-sm);color:var(--clr-black-4);">
-                                <i class="fas fa-lock" style="color:var(--clr-black);"></i> Secure checkout
+                            <div class="order-trust-item">
+                                <i class="fas fa-lock"></i> Secure checkout
                             </div>
-                            <div class="d-flex align-items-center gap-2" style="font-size:var(--text-sm);color:var(--clr-black-4);">
-                                <i class="fas fa-shield-alt" style="color:var(--clr-black);"></i> Buyer protection
+                            <div class="order-trust-item">
+                                <i class="fas fa-shield-alt"></i> Buyer protection
                             </div>
                         </div>
                     </div>
@@ -186,7 +186,11 @@
                             <label class="payment-option {% if form.payment.value == 'razorpay' and form.is_bound %}selected{% endif %}">
                                 <input type="radio" name="payment_method" value="razorpay" {% if form.payment.value == 'razorpay' and form.is_bound %}checked{% endif %}>
                                 <div class="payment-option-content">
-                                    <div class="payment-checkbox"><span class="checkmark">âœ“</span></div>
+                                    <div class="payment-checkbox">
+                                        <svg class="checkmark" viewBox="0 0 12 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M1 5l3.5 3.5L11 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                    </div>
                                     <div class="payment-details">
                                         <strong>Online Payment</strong>
                                     </div>

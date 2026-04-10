@@ -7,20 +7,20 @@
 <div class="storefront storefront--ios-home">
     {# Top Bar + Header are in base/partials #}
     {% include "sections/hero.html" %}
-    {% include "sections/home_category_heroes.html" %}
     {% include "sections/categories.html" %}
+    {% include "sections/home_category_heroes.html" %}
 
     {# Rent plants (hero focus section) #}
     {% include "sections/rent_plants_focus.html" with rent_products=rent_products kicker="Rent plants" title="Rent plants for shoots & stays" subtitle="Pick dates, pay per day, and keep it hassle-free." cta_label="See all plants" cta_url=shop_url aria_label="Rent plants" %}
 
     {# Featured Products #}
-    {% if HOME_FEATURED_ENABLED and featured_products %}
+    {% comment %} {% if HOME_FEATURED_ENABLED and featured_products %}
         {% if banners %}
         {% include "sections/banner_product_row.html" with products=featured_products row_title="Curated picks" banner_image=banners.0.image.url banner_link=banners.0.redirect_url|default:shop_url extra_class="p99-jsbanner--a" %}
         {% else %}
         {% include "sections/banner_product_row.html" with products=featured_products row_title="Curated picks" banner_link=shop_url extra_class="p99-jsbanner--a" %}
         {% endif %}
-    {% endif %}
+    {% endif %} {% endcomment %}
     {% if HOME_BESTSELLER_ENABLED and bestseller_products %}
         {% if banners and banners|length > 1 %}
         {% include "sections/banner_product_row.html" with products=bestseller_products row_title="Best sellers" banner_image=banners.1.image.url banner_link=banners.1.redirect_url|default:shop_url extra_class="p99-jsbanner--b p99-jsbanner--muted" %}
@@ -37,7 +37,7 @@
         {% endif %}
     {% endif %}
 
-    {% include "sections/rich_heading.html" with kicker="Low maintenance" title="Less care. More green." subtitle="Easy plants for busy homes — water-smart picks that still feel lush." cta_label="Shop easy-care plants" cta_url=shop_url modifier="p99-rich-band--foliage" %}
+    {% comment %} {% include "sections/rich_heading.html" with kicker="Low maintenance" title="Less care. More green." subtitle="Easy plants for busy homes — water-smart picks that still feel lush." cta_label="Shop easy-care plants" cta_url=shop_url modifier="p99-rich-band--foliage" %} {% endcomment %}
 
     {% if top_rated_products %}
     {% include "sections/product_scroller_row.html" with products=top_rated_products row_title="Shop the look" view_all_url=shop_url aria_label="Top rated plants" %}
@@ -46,7 +46,7 @@
     {% include "sections/rich_heading.html" with kicker="New arrivals" title="Fresh from the nursery" subtitle="Restocked weekly — trending plants and pots in one place." cta_label="See what's new" cta_url=shop_url modifier="p99-rich-band--soft" section_id="rich-new" %}
 
     {# Store Locator #}
-    {% include "sections/store_locator.html" %}
+    {% comment %} {% include "sections/store_locator.html" %} {% endcomment %}
 
     {# Blogs #}
     {% include "sections/blog_teaser.html" %}
@@ -58,7 +58,7 @@
     {% include "sections/subscription.html" %}
 
     {# Rewards #}
-    {% include "sections/rewards.html" %}
+    {% comment %} {% include "sections/rewards.html" %} {% endcomment %}
 
     {# About #}
     {% include "sections/about_strip.html" %}
@@ -73,21 +73,21 @@
     {% if HOME_BESTSELLER_ENABLED and bestseller_products %}
         {% include "sections/product_grid.html" with section_kicker="Customer love" section_title="Popular right now" products=bestseller_products view_all_url=shop_url %}
     {% endif %}
-    {% if HOME_DEAL_OF_DAY_ENABLED and deal_of_day_products %}
+    {% comment %} {% if HOME_DEAL_OF_DAY_ENABLED and deal_of_day_products %}
         {% include "sections/product_grid.html" with section_kicker="Limited time" section_title="Deal of the day" products=deal_of_day_products view_all_url=shop_url section_modifier="product-section--muted" %}
-    {% endif %}
+    {% endif %} {% endcomment %}
 
-    {% include "sections/dual_promo.html" %}
+    {% comment %} {% include "sections/dual_promo.html" %} {% endcomment %}
     {% include "sections/hero_secondary.html" %}
     {% include "sections/offers.html" %}
     {# Trust Badges #}
     {% include "sections/trust.html" %}
 
     {# Brand Strip #}
-    {% include "sections/brand_strip.html" %}
+    {% comment %} {% include "sections/brand_strip.html" %} {% endcomment %}
 
     {# Locations #}
-    {% include "sections/locations.html" %}
+    {% comment %} {% include "sections/locations.html" %} {% endcomment %}
 
     {# Newsletter #}
     {% include "sections/newsletter.html" %}

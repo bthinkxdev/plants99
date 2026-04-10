@@ -1615,11 +1615,11 @@ html, body {
     display: flex;
 }
 
-.justify-between {
+.justify-content-between {
     justify-content: space-between;
 }
 
-.align-center {
+.align-items-center {
     align-items: center;
 }
 
@@ -1917,3 +1917,6 @@ html, body {
     }
 }
 
+.card {
+  padding: 24px;
+}

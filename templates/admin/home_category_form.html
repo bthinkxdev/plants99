@@ -3,7 +3,7 @@
 {% block page_title %}{{ form_title|default:"Home Category" }}{% endblock %}
 {% block content %}
 
-<div class="card p-4" style="max-width: 720px;">
+<div class="card p-4" style="max-width: 800px; margin: 40px auto;">
     <p class="text-muted mb-4">Home categories appear on the homepage as a large banner with headline (name), subtitle (description), featured products, and optional shop link. They are separate from catalog categories.</p>
     <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
