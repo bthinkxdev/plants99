@@ -2,6 +2,13 @@
 {% if products %}
 <section class="best-sellers" aria-label="Best sellers">
     <div class="best-sellers__shell">
+        {% with va=view_all_url|default:banner_link %}
+        {% if va %}
+        <div class="storefront-section-actions">
+            <a href="{{ va }}" class="link-view-all">View all</a>
+        </div>
+        {% endif %}
+        {% endwith %}
         <a href="{{ banner_link|default:shop_url }}" class="best-sellers__banner-link" aria-label="Shop best sellers">
             <img
                 src="{% if banner_image %}{{ banner_image }}{% else %}{% static 'img/best_sellers.png' %}{% endif %}"

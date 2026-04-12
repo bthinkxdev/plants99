@@ -2,6 +2,13 @@
 {% if products %}
 <section class="featured-pick-rail" aria-label="Featured plants">
     <div class="featured-pick-rail__shell">
+        {% with va=view_all_url|default:banner_link %}
+        {% if va %}
+        <div class="storefront-section-actions">
+            <a href="{{ va }}" class="link-view-all">View all</a>
+        </div>
+        {% endif %}
+        {% endwith %}
         <a href="{{ banner_link|default:shop_url }}" class="featured-pick-rail__banner-link" aria-label="Shop staff featured picks">
             <img
                 src="{% if banner_image %}{{ banner_image }}{% else %}{% static 'img/ourr_pick_for_you.png' %}{% endif %}"

@@ -210,6 +210,20 @@ body.storefront .shop-breadcrumb {
   }
 }
 
+/* Phone: show full hero image when shorter than the desktop slot (no min-height crop) */
+@media (max-width: 767px) {
+  .storefront .hero-carousel-item__surface {
+    background: var(--ios-bg, #fff);
+  }
+  .storefront .hero-full-img {
+    min-height: 0;
+    max-height: min(75vh, 540px);
+    height: auto;
+    object-fit: contain;
+    object-position: center top;
+  }
+}
+
 .storefront .header-carousel.owl-carousel .owl-nav .owl-prev,
 .storefront .header-carousel.owl-carousel .owl-nav .owl-next {
   background: rgba(255, 255, 255, 0.92);
@@ -381,6 +395,122 @@ body.storefront .shop-breadcrumb {
   gap: 1rem;
   margin-bottom: 2rem;
   flex-wrap: wrap;
+}
+
+.product-section-head--banner-only {
+  margin-bottom: 0.65rem;
+}
+
+.product-section-head--banner-only .product-section-head__fill {
+  flex: 1;
+  min-width: 0;
+}
+
+/* View all row above banner (rent, best sellers, featured, deal rails) */
+.storefront-section-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 0 0.45rem 0.4rem;
+  margin: 0;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.storefront-section-actions--rent {
+  padding: 0;
+  margin: 0 0 0.45rem;
+}
+
+/* Mobile: move "View all" to section bottom (same idea as combo hub shop footer) */
+@media (max-width: 767px) {
+  .best-sellers__shell,
+  .featured-pick-rail__shell,
+  .deal-of-the-day__shell,
+  .p99-rent-focus__wrap {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .best-sellers__shell .best-sellers__banner-link,
+  .featured-pick-rail__shell .featured-pick-rail__banner-link,
+  .deal-of-the-day__shell .deal-of-the-day__banner-link,
+  .p99-rent-focus__wrap .p99-rent-focus__banner-link {
+    order: 1;
+  }
+
+  .best-sellers__shell .best-sellers__rail,
+  .featured-pick-rail__shell .featured-pick-rail__rail,
+  .deal-of-the-day__shell .deal-of-the-day__rail,
+  .p99-rent-focus__wrap .p99-rent-focus__rail {
+    order: 2;
+  }
+
+  .deal-of-the-day__shell .deal-of-the-day__timer {
+    order: 3;
+  }
+
+  .best-sellers__shell .storefront-section-actions,
+  .featured-pick-rail__shell .storefront-section-actions,
+  .deal-of-the-day__shell .storefront-section-actions,
+  .p99-rent-focus__wrap .storefront-section-actions {
+    order: 4;
+    justify-content: center;
+    padding: 0.65rem 0.45rem 0.35rem;
+    margin-top: 0.25rem;
+  }
+
+  .best-sellers__shell .storefront-section-actions .link-view-all,
+  .featured-pick-rail__shell .storefront-section-actions .link-view-all,
+  .deal-of-the-day__shell .storefront-section-actions .link-view-all,
+  .p99-rent-focus__wrap .storefront-section-actions .link-view-all {
+    width: 100%;
+    max-width: 100%;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    text-align: center;
+    white-space: normal;
+  }
+
+  .product-section--banner-top > .container.section-container {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .product-section--banner-top .product-section-banner-link {
+    order: 1;
+  }
+
+  .product-section--banner-top .product-grid-layout {
+    order: 2;
+  }
+
+  .product-section--banner-top .product-section-head--banner-only {
+    order: 3;
+    margin-top: 0.75rem;
+    margin-bottom: 0;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .product-section--banner-top .product-section-head--banner-only .product-section-head__fill {
+    display: none;
+  }
+
+  .product-section--banner-top .product-section-head--banner-only .link-view-all {
+    width: 100%;
+    max-width: 100%;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    text-align: center;
+    white-space: normal;
+  }
 }
 
 .section-kicker {
@@ -2162,28 +2292,33 @@ body.storefront .product-grid-layout > .p99-product-card {
     position: relative;
     flex: 0 0 auto;
     width: 100%;
-    aspect-ratio: 16 / 9;
-    min-height: 200px;
-    max-height: min(48vh, 320px);
+    aspect-ratio: unset;
+    min-height: 0;
+    max-height: none;
+    height: auto;
     z-index: 0;
     border-radius: 0;
     overflow: hidden;
   }
 
   .hc-hero__media-link {
-    position: absolute;
-    inset: 0;
+    position: relative;
+    display: block;
+    width: 100%;
+    inset: auto;
     min-height: 0;
   }
 
   .hc-hero__img {
-    position: absolute;
-    inset: 0;
+    position: relative;
+    display: block;
+    inset: auto;
     width: 100%;
-    height: 100%;
+    height: auto;
+    max-height: min(75vh, 420px);
     min-height: 0;
-    object-fit: cover;
-    object-position: center center;
+    object-fit: contain;
+    object-position: center top;
   }
 
   .hc-hero__scrim,
@@ -2343,6 +2478,28 @@ body.storefront .product-grid-layout > .p99-product-card {
   display: block;
   position: relative;
   z-index: 0;
+}
+
+@media (max-width: 767px) {
+  .p99-jsbanner__bg {
+    min-height: 0;
+    max-height: none;
+    height: auto;
+  }
+  .p99-jsbanner__bglink {
+    height: auto;
+    min-height: 0;
+  }
+  .p99-jsbanner__bgimg {
+    height: auto;
+    min-height: 0 !important;
+    max-height: min(70vh, 480px) !important;
+    object-fit: contain;
+    object-position: center top;
+  }
+  .p99-jsbanner__bg--gradient {
+    min-height: 200px;
+  }
 }
 
 .p99-jsbanner__veil {
@@ -2644,7 +2801,7 @@ body.storefront .hc-hero__slide > .hc-pcard {
   margin: 0 auto;
   background: rgba(255, 255, 255, 0.98);
   border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 14px;
+  border-radius: 0;
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.05);
   overflow: hidden;
   box-sizing: border-box;
@@ -6671,6 +6828,18 @@ body.storefront:has(.storefront--ios-home) {
   --store-pad-right: max(var(--ios-section-gap), env(safe-area-inset-right, 0px));
 }
 
+/* Phone: tight edge inset — a few px plus safe-area on notched devices */
+@media (max-width: 767px) {
+  .storefront {
+    --store-pad-left: max(10px, env(safe-area-inset-left, 0px));
+    --store-pad-right: max(10px, env(safe-area-inset-right, 0px));
+  }
+  .storefront.storefront--ios-home {
+    --store-pad-left: max(10px, env(safe-area-inset-left, 0px));
+    --store-pad-right: max(10px, env(safe-area-inset-right, 0px));
+  }
+}
+
 /* Kill shop-wide alternating striping on home — use grouped grey + white elevated rows only */
 .storefront.storefront--ios-home > .product-section:nth-child(even) {
   background: transparent;
@@ -6681,11 +6850,17 @@ body.storefront:has(.storefront--ios-home) {
   background: transparent;
 }
 
-.storefront.storefront--ios-home > .product-section--muted,
-.storefront.storefront--ios-home > .product-section--banner-top {
+.storefront.storefront--ios-home > .product-section--muted {
   background: var(--ios-bg-elevated);
   border: none;
   border-radius: var(--ios-radius-lg);
+  box-shadow: var(--ios-shadow-surface);
+}
+
+.storefront.storefront--ios-home > .product-section--banner-top {
+  background: var(--ios-bg-elevated);
+  border: none;
+  border-radius: 0;
   box-shadow: var(--ios-shadow-surface);
 }
 
@@ -6747,14 +6922,14 @@ body.storefront:has(.storefront--ios-home) {
 }
 
 .storefront.storefront--ios-home .hero-carousel-item {
-  border-radius: var(--ios-radius-xl);
+  border-radius: 0;
   box-shadow: var(--ios-shadow-md);
   transition: box-shadow 0.35s var(--ios-tap), transform 0.35s var(--ios-tap);
 }
 
-/* Clip image + overlays to card radius (parent may stay square due to other rules) */
+/* Banner: square corners */
 .storefront.storefront--ios-home .hero-carousel-item__surface {
-  border-radius: var(--ios-radius-xl);
+  border-radius: 0;
   overflow: hidden;
 }
 
@@ -6763,11 +6938,11 @@ body.storefront:has(.storefront--ios-home) {
 }
 
 .storefront.storefront--ios-home .hero-full-img {
-  border-radius: var(--ios-radius-xl);
+  border-radius: 0;
 }
 
 .storefront.storefront--ios-home .hero-fallback {
-  border-radius: var(--ios-radius-xl);
+  border-radius: 0;
   box-shadow: var(--ios-shadow-md);
 }
 
@@ -6834,7 +7009,7 @@ body.storefront:has(.storefront--ios-home) {
 .storefront.storefront--ios-home .deal-of-the-day__shell,
 .storefront.storefront--ios-home .best-sellers__shell,
 .storefront.storefront--ios-home .featured-pick-rail__shell {
-  border-radius: var(--ios-radius-lg);
+  border-radius: 0;
   background: var(--ios-bg-elevated);
   border: none;
   box-shadow: var(--ios-shadow-surface);
@@ -6875,7 +7050,7 @@ body.storefront:has(.storefront--ios-home) {
 }
 
 .storefront.storefront--ios-home .p99-rent-focus__wrap {
-  border-radius: var(--ios-radius-lg);
+  border-radius: 0;
   border: none;
   box-shadow: var(--ios-shadow-surface);
   background: var(--ios-bg-elevated);
@@ -6903,7 +7078,7 @@ body.storefront:has(.storefront--ios-home) {
 }
 
 .storefront.storefront--ios-home .p99-jsbanner__bg {
-  border-radius: var(--ios-radius-lg);
+  border-radius: 0;
   overflow: hidden;
 }
 
@@ -6956,6 +7131,10 @@ body.storefront:has(.storefront--ios-home) {
   border-radius: var(--ios-radius-lg);
   border: none;
   box-shadow: var(--ios-shadow-surface);
+}
+
+.storefront.storefront--ios-home .p99-reels-section--banner-top {
+  border-radius: 0;
 }
 
 .storefront.storefront--ios-home .p99-reels-section.p99-rich-band--soft {
@@ -7579,7 +7758,7 @@ body.storefront .order-line .line-info {
 }
 
 .p99-rent-focus__wrap {
-  border-radius: 20px;
+  border-radius: 0;
   border: 1px solid var(--border-subtle);
   background: var(--surface);
   box-shadow: var(--shadow-soft);
@@ -7777,11 +7956,6 @@ body.storefront .order-line .line-info {
 @media (max-width: 575px) {
   .p99-rent-focus__card { width: 220px; }
   .p99-rent-focus__rail { grid-auto-columns: minmax(220px, 1fr); }
-}
-
-.storefront.storefront--ios-home .hero-carousel-item,
-.storefront.storefront--ios-home .hero-full-img {
-  border-radius: 0 !important;
 }
 
 /* ── Card shell ── */
@@ -8039,6 +8213,30 @@ body.storefront .order-line .line-info {
 }
 .p99-jsbanner--premium:hover .p99-jsbanner__bgimg {
   transform: scale(1.02);
+}
+
+@media (max-width: 767px) {
+  .p99-jsbanner--premium .p99-jsbanner__bg {
+    min-height: 0;
+    height: auto;
+  }
+  .p99-jsbanner--premium .p99-jsbanner__bglink {
+    min-height: 0;
+    height: auto;
+  }
+  .p99-jsbanner--premium .p99-jsbanner__bgimg {
+    height: auto;
+    min-height: 0 !important;
+    max-height: min(75vh, 520px);
+    object-fit: contain;
+    object-position: center top;
+  }
+  .p99-jsbanner--premium:hover .p99-jsbanner__bgimg {
+    transform: none;
+  }
+  .p99-jsbanner--premium .p99-jsbanner__bg--gradient {
+    min-height: clamp(200px, 42vh, 320px);
+  }
 }
 
 /* Gradient bg when no image */
