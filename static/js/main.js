@@ -51,6 +51,7 @@
                 smartSpeed: 700,
                 dots: false,
                 loop: true,
+                center: true,
                 margin: 12,
                 nav: false,
                 responsiveClass: true,
@@ -71,22 +72,27 @@
         typeof $.fn.owlCarousel === 'function'
     ) {
         try {
-            $(".productList-carousel").not(".hc-hero-carousel").owlCarousel({
-                autoplay: true,
-                autoplayTimeout: 4000,
-                smartSpeed: 700,
-                dots: false,
-                loop: true,
-                margin: 24,
-                nav: false,
-                responsiveClass: true,
-                responsive: {
-                    0: { items: 1 },
-                    576: { items: 1 },
-                    768: { items: 2 },
-                    992: { items: 2 },
-                    1200: { items: 3 }
-                }
+            $(".productList-carousel").not(".hc-hero-carousel").each(function () {
+                var $el = $(this);
+                var centerHome = $el.closest(".storefront--ios-home").length > 0;
+                $el.owlCarousel({
+                    autoplay: true,
+                    autoplayTimeout: 4000,
+                    smartSpeed: 700,
+                    dots: false,
+                    loop: true,
+                    margin: 24,
+                    nav: false,
+                    center: centerHome,
+                    responsiveClass: true,
+                    responsive: {
+                        0: { items: 1 },
+                        576: { items: 1 },
+                        768: { items: 2 },
+                        992: { items: 2 },
+                        1200: { items: 3 }
+                    }
+                });
             });
         } catch (e) {  }
     }
@@ -112,6 +118,7 @@
             $c.owlCarousel({
                 items: 1,
                 margin: m[0],
+                center: true,
                 autoplay: count > 1,
                 autoplayTimeout: 4200,
                 smartSpeed: 650,
