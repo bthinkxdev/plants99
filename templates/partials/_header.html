@@ -7,33 +7,35 @@
     <span class="visually-hidden">Loading…</span>
 </div>
 
+<div class="site-header-spacer" aria-hidden="true"></div>
+<div class="site-header-zone" id="siteHeaderZone">
 <div class="site-top-strip">Free delivery on orders above ₹499 · Secure checkout · Care-first packing</div>
 <header class="site-header" id="siteHeader">
     <div class="site-header__inner">
         <div class="site-header__row1">
             <a href="{% url 'store:home' %}" class="site-brand" aria-label="{{ site_brand }} home">
                 <img src="{% static 'images/logo.png' %}" alt="{{ site_brand }}" style="height: 32px; width: 32px; object-fit: contain;">
-                <span style="margin-left: .5rem;">{{ site_brand }}</span>
+                <span class="site-brand__name ms-2 d-none d-lg-inline">{{ site_brand }}</span>
             </a>
             <div class="site-header__search-slot">
                 <form class="site-search-pill" action="{% url 'store:product_list' %}" method="get" role="search">
                     <div class="typed-ghost-wrap" data-typed-ghost="search">
-                        <span class="typed-ghost" aria-hidden="true"></span>
+                        <div class="typed-ghost-hint" aria-hidden="true">
+                            <span class="typed-ghost-prefix">Search :</span>
+                            <span class="typed-ghost"></span>
+                        </div>
                         <input type="text" name="q" placeholder="Search for plants, pots, seeds…" value="{{ request.GET.q|default:'' }}" autocomplete="off" aria-label="Search products">
                     </div>
                     <button type="submit" aria-label="Submit search"><i class="fas fa-search"></i></button>
                 </form>
             </div>
             <div class="site-header__actions">
-                <button type="button" class="site-icon-btn d-lg-none" id="desktopSearchToggle" title="Search" aria-label="Search">
-                    <i class="fas fa-search"></i>
-                </button>
-                <a href="#" class="site-icon-btn js-open-cart-drawer" title="Cart" aria-label="Shopping cart">
+                <a href="#" class="site-icon-btn d-none d-lg-inline-flex js-open-cart-drawer" title="Cart" aria-label="Shopping cart">
                     <i class="fas fa-shopping-bag"></i>
                     {% if cart_count %}<span class="site-count-badge js-cart-count">{{ cart_count }}</span>{% endif %}
                 </a>
                 {% if WISHLIST_ENABLED %}
-                <a href="{% url 'store:wishlist' %}" class="site-icon-btn {% if not user.is_authenticated %}js-wishlist-guest{% endif %}" title="Wishlist" aria-label="Wishlist">
+                <a href="{% url 'store:wishlist' %}" class="site-icon-btn d-none d-lg-inline-flex {% if not user.is_authenticated %}js-wishlist-guest{% endif %}" title="Wishlist" aria-label="Wishlist">
                     <i class="far fa-heart"></i>
                     {% if wishlist_count %}<span class="site-count-badge js-wishlist-count">{{ wishlist_count }}</span>{% endif %}
                 </a>
@@ -101,3 +103,4 @@
         {% if user.is_authenticated %}<a href="{% url 'auth:account' %}">Account</a>{% else %}<a href="{% url 'auth:login' %}">Login</a>{% endif %}
     </div>
 </header>
+</div>

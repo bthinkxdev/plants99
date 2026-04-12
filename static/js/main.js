@@ -91,6 +91,74 @@
         } catch (e) {  }
     }
 
+    function initSingleBannerRailCarousel($c) {
+        if (!$c.length || !$.fn.owlCarousel || $c.hasClass("owl-loaded")) return;
+        var count = parseInt($c.attr("data-rail-count"), 10);
+        if (!count || count < 1) {
+            count = $c.find(".deal-of-the-day__slide, .best-sellers__slide, .featured-pick-rail__slide").length;
+        }
+        var useLoop = count >= 10;
+        var comboHub = $c.closest(".combo-hub-section").length > 0;
+        var m = comboHub ? [6, 6, 8, 10, 12] : [10, 10, 12, 14, 16];
+        try {
+            $c.owlCarousel({
+                items: 1,
+                margin: m[0],
+                autoplay: count > 1,
+                autoplayTimeout: 4200,
+                smartSpeed: 650,
+                dots: false,
+                loop: useLoop,
+                rewind: !useLoop,
+                nav: false,
+                responsiveClass: true,
+                responsive: {
+                    0: { items: Math.min(2, count), margin: m[0] },
+                    480: { items: Math.min(3, count), margin: m[1] },
+                    768: { items: Math.min(4, count), margin: m[2] },
+                    992: { items: Math.min(5, count), margin: m[3] },
+                    1200: { items: Math.min(6, count), margin: m[4] }
+                }
+            });
+        } catch (e) {  }
+    }
+
+    function bestSellersRailIsWide() {
+        return window.matchMedia("(min-width: 768px)").matches;
+    }
+
+    function initHomeBannerRailCarousels() {
+        if (!$.fn.owlCarousel) return;
+        $(".deal-of-the-day__carousel, .featured-pick-rail__carousel").each(function () {
+            initSingleBannerRailCarousel($(this));
+        });
+        $(".best-sellers__carousel").each(function () {
+            if (bestSellersRailIsWide()) {
+                initSingleBannerRailCarousel($(this));
+            }
+        });
+    }
+    initHomeBannerRailCarousels();
+
+    var bestSellersOwlResizeTimer;
+    $(window).on("resize orientationchange", function () {
+        clearTimeout(bestSellersOwlResizeTimer);
+        bestSellersOwlResizeTimer = setTimeout(function () {
+            var $c = $(".best-sellers__carousel");
+            if (!$c.length) return;
+            if (bestSellersRailIsWide()) {
+                initSingleBannerRailCarousel($c);
+                if ($c.hasClass("owl-loaded")) {
+                    $c.trigger("refresh.owl.carousel");
+                }
+            } else if ($c.hasClass("owl-loaded")) {
+                try {
+                    $c.owlCarousel("destroy");
+                } catch (e) {  }
+            }
+        }, 220);
+    });
+
 
     
     if ($(".productImg-carousel").length && typeof $.fn.owlCarousel === 'function') {
@@ -372,7 +440,247 @@
     
     $(window).on('load', function () {
         $('.owl-carousel').css('min-height', '');
+        $('.deal-of-the-day__carousel.owl-loaded, .best-sellers__carousel.owl-loaded, .featured-pick-rail__carousel.owl-loaded').trigger('refresh.owl.carousel');
     });
+
+    /* Blog teaser: collapsed accordions on mobile; expanded card layout on tablet+ */
+    function syncBlogTeaserAccordion() {
+        var wide = window.matchMedia('(min-width: 768px)').matches;
+        $('.blog-teaser-section details.blog-teaser-acc').each(function () {
+            this.open = wide;
+        });
+    }
+    syncBlogTeaserAccordion();
+    $(window).on('resize', syncBlogTeaserAccordion);
+    $(document).on('click', '.blog-teaser-section details.blog-teaser-acc summary', function (e) {
+        if (window.matchMedia('(min-width: 768px)').matches) {
+            e.preventDefault();
+        }
+    });
+
+    /* Combo hub: collapsible copy on mobile; full cards on tablet+ */
+    function syncComboHubAccordion() {
+        var wide = window.matchMedia('(min-width: 768px)').matches;
+        $('.combo-hub-section details.combo-hub-acc').each(function () {
+            this.open = wide;
+        });
+    }
+    syncComboHubAccordion();
+    $(window).on('resize', syncComboHubAccordion);
+    $(document).on('click', '.combo-hub-section details.combo-hub-acc summary', function (e) {
+        if (window.matchMedia('(min-width: 768px)').matches) {
+            e.preventDefault();
+        }
+    });
+
+    /* Trust block: collapsed rows on mobile; full cards on tablet+ */
+    function syncTrustAccordion() {
+        var wide = window.matchMedia('(min-width: 768px)').matches;
+        $('.trust-section details.trust-card').each(function () {
+            this.open = wide;
+        });
+    }
+    syncTrustAccordion();
+    $(window).on('resize', syncTrustAccordion);
+    $(document).on('click', '.trust-section details.trust-card summary', function (e) {
+        if (window.matchMedia('(min-width: 768px)').matches) {
+            e.preventDefault();
+        }
+    });
+
+    /* Category strip: seamless cyclic scroll via scrollLeft (<1024px); manual drag/wheel works; auto pauses on use */
+    var categoryMarqueeStates = [];
+    var categoryMarqueeRafStarted = false;
+    var categoryMarqueeResizeTimer;
+
+    function categoryMarqueeLoopWidth(state) {
+        var m = state.marquee;
+        var seg = state.seg;
+        if (!m || !seg || !state.mq.matches) {
+            return 0;
+        }
+        var g = parseFloat(window.getComputedStyle(m).columnGap || window.getComputedStyle(m).gap);
+        if (isNaN(g) || g < 0) {
+            g = 12;
+        }
+        return seg.getBoundingClientRect().width + g;
+    }
+
+    function categoryMarqueeSyncMeasurements(state) {
+        state.loopWidth = categoryMarqueeLoopWidth(state);
+    }
+
+    function categoryMarqueeRefreshAllMeasurements() {
+        categoryMarqueeStates.forEach(categoryMarqueeSyncMeasurements);
+    }
+
+    function categoryMarqueeTick() {
+        var now = performance.now();
+        categoryMarqueeStates.forEach(function (state) {
+            if (!state.wrap.classList.contains('category-strip-scroll--marquee-active')) {
+                return;
+            }
+            if (!state.mq.matches || state.reduceMotion) {
+                return;
+            }
+            var lw = state.loopWidth;
+            if (lw <= 0) {
+                return;
+            }
+            if (state.pausedUntil > now) {
+                return;
+            }
+            var m = state.marquee;
+            state.autoNudgeAt = now;
+            state.suppress = true;
+            m.scrollLeft += state.speed;
+            while (m.scrollLeft >= lw) {
+                m.scrollLeft -= lw;
+            }
+            state.suppress = false;
+            state.lastScrollLeft = m.scrollLeft;
+        });
+        requestAnimationFrame(categoryMarqueeTick);
+    }
+
+    function categoryMarqueeBumpPause(state) {
+        state.pausedUntil = performance.now() + 2800;
+    }
+
+    function initCategoryStripMarquee() {
+        document.querySelectorAll('.category-strip-scroll[data-category-marquee]').forEach(function (wrap) {
+            if (wrap.getAttribute('data-category-marquee-init') === '1') {
+                return;
+            }
+            var marquee = wrap.querySelector('.category-strip-scroll__marquee');
+            var seg = wrap.querySelector('.category-strip-scroll__segment');
+            if (!marquee || !seg) {
+                return;
+            }
+            var clone = seg.cloneNode(true);
+            clone.setAttribute('aria-hidden', 'true');
+            clone.querySelectorAll('a[href]').forEach(function (a) {
+                a.setAttribute('tabindex', '-1');
+            });
+            marquee.appendChild(clone);
+            wrap.setAttribute('data-category-marquee-init', '1');
+            wrap.classList.add('category-strip-scroll--marquee-active');
+
+            var reduceMq = window.matchMedia('(prefers-reduced-motion: reduce)');
+            var state = {
+                wrap: wrap,
+                marquee: marquee,
+                seg: seg,
+                mq: window.matchMedia('(max-width: 1023px)'),
+                reduceMotion: reduceMq.matches,
+                loopWidth: 0,
+                suppress: false,
+                pausedUntil: 0,
+                speed: 0.36,
+                lastScrollLeft: 0,
+                autoNudgeAt: 0
+            };
+            categoryMarqueeStates.push(state);
+
+            function onScroll() {
+                var m = state.marquee;
+                var lw = state.loopWidth;
+                var t = performance.now();
+                if (lw <= 0 || !state.mq.matches) {
+                    state.lastScrollLeft = m.scrollLeft;
+                    return;
+                }
+                if (state.suppress) {
+                    state.lastScrollLeft = m.scrollLeft;
+                    return;
+                }
+                if (t - state.autoNudgeAt < 40) {
+                    state.lastScrollLeft = m.scrollLeft;
+                    return;
+                }
+                categoryMarqueeBumpPause(state);
+                state.suppress = true;
+                var sl = m.scrollLeft;
+                var prev = state.lastScrollLeft;
+                while (sl >= lw) {
+                    sl -= lw;
+                }
+                if (sl <= 0.5 && prev - sl > 2) {
+                    sl += lw;
+                }
+                m.scrollLeft = sl;
+                state.suppress = false;
+                state.lastScrollLeft = m.scrollLeft;
+            }
+
+            marquee.addEventListener('scroll', onScroll, { passive: true });
+
+            marquee.addEventListener('wheel', function (e) {
+                categoryMarqueeBumpPause(state);
+                if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) * 1.15) {
+                    return;
+                }
+                var lw = state.loopWidth;
+                if (lw <= 0 || !state.mq.matches) {
+                    return;
+                }
+                if (e.deltaX < 0 && marquee.scrollLeft < 24) {
+                    if (e.cancelable) {
+                        e.preventDefault();
+                    }
+                    state.suppress = true;
+                    var maxSl = marquee.scrollWidth - marquee.clientWidth;
+                    marquee.scrollLeft = Math.min(marquee.scrollLeft + lw, Math.max(0, maxSl - 0.5));
+                    state.suppress = false;
+                    state.lastScrollLeft = marquee.scrollLeft;
+                }
+            }, { passive: false });
+
+            ['pointerdown', 'touchstart'].forEach(function (ev) {
+                marquee.addEventListener(ev, function () {
+                    categoryMarqueeBumpPause(state);
+                }, { passive: true });
+            });
+
+            function onMqChange() {
+                categoryMarqueeSyncMeasurements(state);
+            }
+            if (state.mq.addEventListener) {
+                state.mq.addEventListener('change', onMqChange);
+            } else if (state.mq.addListener) {
+                state.mq.addListener(onMqChange);
+            }
+
+            function onReduceChange() {
+                state.reduceMotion = reduceMq.matches;
+            }
+            if (reduceMq.addEventListener) {
+                reduceMq.addEventListener('change', onReduceChange);
+            } else if (reduceMq.addListener) {
+                reduceMq.addListener(onReduceChange);
+            }
+
+            categoryMarqueeSyncMeasurements(state);
+            requestAnimationFrame(function () {
+                categoryMarqueeSyncMeasurements(state);
+                requestAnimationFrame(function () {
+                    categoryMarqueeSyncMeasurements(state);
+                });
+            });
+
+            if (!categoryMarqueeRafStarted) {
+                categoryMarqueeRafStarted = true;
+                requestAnimationFrame(categoryMarqueeTick);
+            }
+        });
+    }
+    initCategoryStripMarquee();
+
+    $(window).on('resize.categoryMarquee', function () {
+        clearTimeout(categoryMarqueeResizeTimer);
+        categoryMarqueeResizeTimer = setTimeout(categoryMarqueeRefreshAllMeasurements, 120);
+    });
+    $(window).on('load', categoryMarqueeRefreshAllMeasurements);
 
 
 })(jQuery);

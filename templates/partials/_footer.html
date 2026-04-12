@@ -182,7 +182,10 @@
             <i class="fas fa-arrow-left"></i>
         </button>
         <div class="typed-ghost-wrap" data-typed-ghost="search">
-            <span class="typed-ghost typed-ghost--mobile" aria-hidden="true"></span>
+            <div class="typed-ghost-hint typed-ghost-hint--mobile" aria-hidden="true">
+                <span class="typed-ghost-prefix">Search :</span>
+                <span class="typed-ghost typed-ghost--mobile"></span>
+            </div>
             <input type="text" name="q" id="mobileSearchInput"
                    placeholder="Search plants, pots, tools…"
                    value="{{ request.GET.q|default:'' }}"

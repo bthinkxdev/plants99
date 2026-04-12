@@ -203,6 +203,10 @@ class HomeView(TemplateView):
             if not bestseller_products and getattr(settings, 'HOME_BESTSELLER_ENABLED', True):
                 bestseller_products = _build_product_cards(base_products_qs.order_by('-total_reviews', '-average_rating', '-created_at'), 8)
             context['bestseller_products'] = bestseller_products
+            _bs = list(bestseller_products)
+            _mid = (len(_bs) + 1) // 2
+            context['bestseller_products_row1'] = _bs[:_mid]
+            context['bestseller_products_row2'] = _bs[_mid:]
             new_arrivals_qs = base_products_qs.order_by('-created_at')
             context['new_arrival_products'] = _build_product_cards(new_arrivals_qs, 26)
             top_rated_qs = base_products_qs.filter(average_rating__gte=4, total_reviews__gt=0).order_by('-average_rating', '-total_reviews', '-created_at')
@@ -240,7 +244,6 @@ class HomeView(TemplateView):
                     .order_by('-created_at')
                 )
                 rent_products = _build_product_cards(list(rent_qs), 12)
-                print(f'rent_products: {rent_products}')
                 # Ensure rental_config is present and stable in templates
                 for p in rent_products:
                     if not getattr(p, 'rental_config', None):
@@ -302,14 +305,20 @@ class HomeView(TemplateView):
             context['home_wishlist_products'] = home_wishlist_products
             try:
                 cart = CartService.get_or_create_cart(self.request)
-                cart_items = list(cart.items.filter(line_type=CartItem.LineKind.PURCHASE).values('product_id', 'selected_variant_id'))
+                cart_items = list(
+                    cart.items.filter(line_type=CartItem.LineKind.PURCHASE).values(
+                        'product_id', 'selected_variant_id', 'combo_id'
+                    )
+                )
                 context['cart_variant_ids'] = set((item['selected_variant_id'] for item in cart_items if item['selected_variant_id']))
                 context['cart_product_ids'] = set((item['product_id'] for item in cart_items))
                 context['cart_simple_product_ids'] = set((item['product_id'] for item in cart_items if not item['selected_variant_id']))
+                context['cart_combo_ids'] = set((item['combo_id'] for item in cart_items if item['combo_id']))
             except Exception:
                 context['cart_variant_ids'] = set()
                 context['cart_product_ids'] = set()
                 context['cart_simple_product_ids'] = set()
+                context['cart_combo_ids'] = set()
             return context
         except Exception as e:
             logger.error(f'Error in HomeView.get_context_data: {str(e)}', exc_info=True)
@@ -320,6 +329,8 @@ class HomeView(TemplateView):
             context['deal_of_day_products'] = []
             context['deal_products'] = []
             context['bestseller_products'] = []
+            context['bestseller_products_row1'] = []
+            context['bestseller_products_row2'] = []
             context['new_arrival_products'] = []
             context['top_rated_products'] = []
             context['budget_products'] = []
@@ -331,6 +342,7 @@ class HomeView(TemplateView):
             context['home_category_sections'] = []
             context['reels'] = []
             context['rent_products'] = []
+            context['cart_combo_ids'] = set()
             return context
 RECENTLY_VIEWED_MAX = 20
 RECENTLY_VIEWED_VARIANTS_MAX = 20

@@ -1,5 +1,5 @@
 (() => {
-  // Populated from DB (top sellers) via templates/base.html json_script.
+  // Populated from DB (10 most recently added products) via templates/base.html json_script.
   const FALLBACK_PHRASES = ["Search   plants,   pots,   seeds…"];
 
   function airyPhrase(text) {
@@ -41,9 +41,13 @@
   function shouldRunForInput(input) {
     if (!input) return false;
     if (input.disabled || input.readOnly) return false;
-    if (document.activeElement === input) return false;
     if ((input.value || "").trim().length > 0) return false;
     return true;
+  }
+
+  function setHintVisible(hint, visible) {
+    if (!hint) return;
+    hint.classList.toggle("typed-ghost-hint--hidden", !visible);
   }
 
   function setGhostVisible(ghost, visible) {
@@ -94,6 +98,7 @@
   function setupOne(wrapper) {
     const input = wrapper.querySelector('input[type="text"], input[type="search"]');
     const ghost = wrapper.querySelector(".typed-ghost");
+    const hint = wrapper.querySelector(".typed-ghost-hint");
     if (!input || !ghost) return;
 
     // Ensure native placeholder doesn't clash with our animation.
@@ -110,7 +115,9 @@
     }
 
     function syncVisibility() {
-      setGhostVisible(ghost, shouldRunForInput(input));
+      const empty = shouldRunForInput(input);
+      setHintVisible(hint, empty);
+      setGhostVisible(ghost, empty);
     }
 
     async function loop() {
@@ -146,25 +153,22 @@
       }
     }
 
-    // Pause instantly when user interacts; resume on blur if empty.
+    // Empty → show “Search :” + typed ghost (including while focused). Any character → hide overlay so text is readable.
+    // Single loop() at init runs forever; abortLoop only interrupts the current phrase.
     input.addEventListener("focus", () => {
       abortLoop();
       clearGhost(ghost);
-      setGhostVisible(ghost, false);
+      syncVisibility();
     });
     input.addEventListener("input", () => {
       abortLoop();
       clearGhost(ghost);
-      setGhostVisible(ghost, false);
+      syncVisibility();
     });
     input.addEventListener("blur", () => {
       abortLoop();
       clearGhost(ghost);
       syncVisibility();
-      // Small delay so it feels natural after leaving the field.
-      setTimeout(() => {
-        if (shouldRunForInput(input)) loop();
-      }, 280);
     });
 
     // If JS fails later, bring back native placeholder on unload.
@@ -176,6 +180,7 @@
       { once: true }
     );
 
+    syncVisibility();
     loop();
   }
 

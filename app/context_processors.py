@@ -1,7 +1,6 @@
 from django.conf import settings
 from django.core.cache import cache
-from django.db.models import Sum
-from .models import CartItem, Wishlist, ContactMessage, Combo, Order, OrderItem, Product
+from .models import CartItem, Wishlist, ContactMessage, Product
 from .services import CartService
 from .delivery_utils import delivery_enabled
 from .wishlist_utils import (
@@ -87,100 +86,33 @@ def home_section_flags(request):
 def admin_product_settings(request):
     return {'ALLOW_ATTRIBUTES_AND_VARIANTS': getattr(settings, 'ALLOW_ATTRIBUTES_AND_VARIANTS', True)}
 
-_TOP_SOLD_SEARCH_CACHE_KEY = 'ctx:top_sold_search_names:v1'
-_TOP_SOLD_SEARCH_CACHE_TTL = 300
+_RECENT_SEARCH_NAMES_CACHE_KEY = 'ctx:recent_product_search_names:v1'
+_RECENT_SEARCH_NAMES_CACHE_TTL = 120
 
 
-def get_top_sold_search_names(limit=10):
+def get_recent_product_search_names(limit=10):
     """
-    Product and combo names ranked by units sold (non-cancelled orders only).
-    Cached briefly to avoid aggregating on every page view.
+    Active product names, newest first (by created_at), for storefront search placeholders.
+    Cached briefly so list updates soon after new products are added.
     """
     if limit <= 0:
         return []
-    cached = cache.get(_TOP_SOLD_SEARCH_CACHE_KEY)
+    cached = cache.get(_RECENT_SEARCH_NAMES_CACHE_KEY)
     if cached is not None:
         return list(cached)[:limit]
-
-    # If the catalog is small, just show every product name.
-    try:
-        active_product_count = Product.objects.filter(is_active=True).count()
-    except Exception:
-        active_product_count = 0
-    if 0 < active_product_count <= limit:
-        out = list(
-            Product.objects.filter(is_active=True)
-            .order_by('name')
-            .values_list('name', flat=True)
-        )
-        out = [str(n).strip() for n in out if str(n).strip()]
-        cache.set(_TOP_SOLD_SEARCH_CACHE_KEY, out, _TOP_SOLD_SEARCH_CACHE_TTL)
-        return out[:limit]
-
-    base = OrderItem.objects.exclude(order__status=Order.Status.CANCELLED)
-    prod_rows = list(
-        base.filter(product__isnull=False, product__is_active=True)
-        .values('product_id')
-        .annotate(qty=Sum('quantity'))
-        .order_by('-qty')[: limit * 3]
+    names = list(
+        Product.objects.filter(is_active=True)
+        .order_by('-created_at')
+        .values_list('name', flat=True)[:limit]
     )
-    combo_rows = list(
-        base.filter(product__isnull=True, combo__isnull=False, combo__is_active=True)
-        .values('combo_id')
-        .annotate(qty=Sum('quantity'))
-        .order_by('-qty')[: limit * 3]
-    )
-    scored = []
-    if prod_rows:
-        pids = [r['product_id'] for r in prod_rows]
-        pid_name = dict(Product.objects.filter(pk__in=pids).values_list('id', 'name'))
-        for r in prod_rows:
-            name = pid_name.get(r['product_id'])
-            if name and str(name).strip():
-                scored.append((r['qty'] or 0, str(name).strip()))
-    if combo_rows:
-        cids = [r['combo_id'] for r in combo_rows]
-        cid_name = dict(Combo.objects.filter(pk__in=cids).values_list('id', 'name'))
-        for r in combo_rows:
-            name = cid_name.get(r['combo_id'])
-            if name and str(name).strip():
-                scored.append((r['qty'] or 0, str(name).strip()))
-
-    scored.sort(key=lambda t: -t[0])
-    seen = set()
-    out = []
-    for _qty, name in scored:
-        key = name.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append(name)
-        if len(out) >= limit:
-            break
-
-    if not out:
-        flagged = list(
-            Product.objects.filter(is_active=True, is_bestseller=True)
-            .order_by('-updated_at')
-            .values_list('name', flat=True)[:limit]
-        )
-        if flagged:
-            out = [str(n).strip() for n in flagged if str(n).strip()]
-        if not out:
-            out = list(
-                Product.objects.filter(is_active=True)
-                .order_by('-updated_at')
-                .values_list('name', flat=True)[:limit]
-            )
-            out = [str(n).strip() for n in out if str(n).strip()]
-
-    cache.set(_TOP_SOLD_SEARCH_CACHE_KEY, out, _TOP_SOLD_SEARCH_CACHE_TTL)
-    return out[:limit]
+    out = [str(n).strip() for n in names if str(n).strip()]
+    cache.set(_RECENT_SEARCH_NAMES_CACHE_KEY, out, _RECENT_SEARCH_NAMES_CACHE_TTL)
+    return out
 
 
 def search_typed_suggestions(request):
     try:
-        phrases = get_top_sold_search_names(limit=10)
+        phrases = get_recent_product_search_names(limit=10)
     except Exception:
         phrases = []
     return {'search_typed_phrases': phrases}

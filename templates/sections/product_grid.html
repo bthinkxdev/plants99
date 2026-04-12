@@ -1,7 +1,19 @@
 {% load static %}
 {% if products %}
-<section class="product-section{% if section_modifier %} {{ section_modifier }}{% endif %}">
+<section class="product-section{% if section_modifier %} {{ section_modifier }}{% endif %}{% if section_banner_image %} product-section--banner-top{% endif %}">
     <div class="container section-container">
+        {% if section_banner_image %}
+        <a href="{{ section_banner_link|default:view_all_url }}" class="product-section-banner-link"{% if section_banner_aria %} aria-label="{{ section_banner_aria }}"{% endif %}>
+            <img
+                src="{% static section_banner_image %}"
+                alt=""
+                class="product-section-banner-img"
+                width="1200"
+                height="320"
+                loading="lazy"
+                decoding="async">
+        </a>
+        {% else %}
         <div class="product-section-head">
             <div>
                 {% if section_kicker %}<p class="section-kicker">{{ section_kicker }}</p>{% endif %}
@@ -11,6 +23,7 @@
             <a href="{{ view_all_url }}" class="link-view-all">View all</a>
             {% endif %}
         </div>
+        {% endif %}
         <div class="product-grid-layout">
             {% for product in products %}
                 {% include "partials/_product_card.html" with product=product %}

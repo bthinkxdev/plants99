@@ -3,10 +3,13 @@
 {% with hc=block.home_category %}
 <section class="hc-hero{% if forloop.counter|divisibleby:2 %} hc-hero--carousel-right{% else %} hc-hero--carousel-left{% endif %}" aria-labelledby="hc-hero-title-{{ hc.id }}">
     <div class="hc-hero__media">
-        <a href="{{ hc.get_public_url }}" class="hc-hero__media-link" aria-label="{{ hc.name }} — view collection">
-            <img src="{{ hc.banner_image.url }}" alt="" class="hc-hero__img" loading="{% if forloop.first %}eager{% else %}lazy{% endif %}" width="1600" height="720" decoding="async">
-        </a>
-        <div class="hc-hero__scrim" aria-hidden="true"></div>
+        <div class="hc-hero__banner-stack">
+            <a href="{{ hc.get_public_url }}" class="hc-hero__media-link" aria-label="{{ hc.name }} — view collection">
+                <img src="{{ hc.banner_image.url }}" alt="" class="hc-hero__img" loading="{% if forloop.first %}eager{% else %}lazy{% endif %}" width="1600" height="720" decoding="async">
+            </a>
+            <div class="hc-hero__scrim" aria-hidden="true"></div>
+            <div class="hc-hero__veil" aria-hidden="true"></div>
+        </div>
         <div class="hc-hero__layout">
             <div class="hc-hero__copy">
                 <h2 id="hc-hero-title-{{ hc.id }}" class="hc-hero__title">{{ hc.name }}</h2>

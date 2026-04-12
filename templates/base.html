@@ -86,16 +86,65 @@
    PREMIUM UI — Micro-interactions, Scroll Reveal & Polish
    ============================================================ */
 
-/* 1. Header scroll shadow */
+/* 1. Fixed header zone: shadow when scrolled; hide on scroll down, show on scroll up */
 (function(){
+    var zone = document.querySelector('.site-header-zone');
     var header = document.querySelector('.site-header');
+    var spacer = document.querySelector('.site-header-spacer');
     var topStrip = document.querySelector('.site-top-strip');
-    if (!header) return;
-    function onScroll(){
-        var threshold = topStrip ? topStrip.offsetHeight + 8 : 8;
-        header.classList.toggle('site-header--scrolled', (window.pageYOffset || document.documentElement.scrollTop) > threshold);
+    if (!header || !zone || !spacer) return;
+
+    var lastScrollTop = 0;
+    var hideAfter = 72;
+    var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function syncSpacerHeight(){
+        var h = zone.offsetHeight;
+        spacer.style.height = h + 'px';
+        document.documentElement.style.setProperty('--site-header-zone-height', h + 'px');
     }
+
+    function mobileMenuOpen(){
+        var c = document.getElementById('navbarCollapse');
+        return c && c.classList.contains('show');
+    }
+
+    function onScroll(){
+        var st = window.pageYOffset || document.documentElement.scrollTop;
+        var threshold = topStrip ? topStrip.offsetHeight + 8 : 8;
+        header.classList.toggle('site-header--scrolled', st > threshold);
+
+        if (reduceMotion || mobileMenuOpen()) {
+            zone.classList.remove('site-header-zone--scroll-hidden');
+            lastScrollTop = st;
+            return;
+        }
+
+        if (st < 24) {
+            zone.classList.remove('site-header-zone--scroll-hidden');
+        } else if (st > lastScrollTop && st > hideAfter) {
+            zone.classList.add('site-header-zone--scroll-hidden');
+        } else if (st < lastScrollTop) {
+            zone.classList.remove('site-header-zone--scroll-hidden');
+        }
+        lastScrollTop = st;
+    }
+
     window.addEventListener('scroll', onScroll, {passive: true});
+    window.addEventListener('resize', syncSpacerHeight, {passive: true});
+    window.addEventListener('load', syncSpacerHeight, {passive: true});
+    if (typeof ResizeObserver !== 'undefined') {
+        try { new ResizeObserver(syncSpacerHeight).observe(zone); } catch (e) { }
+    }
+    var collapseEl = document.getElementById('navbarCollapse');
+    if (collapseEl) {
+        collapseEl.addEventListener('shown.bs.collapse', function () {
+            zone.classList.remove('site-header-zone--scroll-hidden');
+            syncSpacerHeight();
+        });
+        collapseEl.addEventListener('hidden.bs.collapse', syncSpacerHeight);
+    }
+    syncSpacerHeight();
     onScroll();
 })();
 
@@ -132,7 +181,7 @@
     var gridSelectors = [
         '.offer-cards .offer-card',
         '.trust-grid .trust-card',
-        '.blog-teaser-grid .blog-teaser-card',
+        '.blog-teaser-stack .blog-teaser-acc',
         '.p99-dual-grid .p99-dual-card'
     ];
     gridSelectors.forEach(function(sel){
