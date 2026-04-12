@@ -351,6 +351,25 @@ body.storefront .shop-breadcrumb {
   vertical-align: bottom;
 }
 
+@media (min-width: 992px) {
+  .product-section--banner-top .product-section-banner-link,
+  .p99-reels-section--banner-top .product-section-banner-link,
+  .p99-reels-section--banner-top .p99-reels-section__banner-link {
+    width: 100%;
+    max-width: min(520px, 46vw);
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+@media (min-width: 1200px) {
+  .product-section--banner-top .product-section-banner-link,
+  .p99-reels-section--banner-top .product-section-banner-link,
+  .p99-reels-section--banner-top .p99-reels-section__banner-link {
+    max-width: min(560px, 42vw);
+  }
+}
+
 .product-section--banner-top .product-grid-layout {
   margin-top: 0;
 }
@@ -2621,7 +2640,7 @@ body.storefront .hc-hero__slide > .hc-pcard {
 .deal-of-the-day__shell,
 .best-sellers__shell,
 .featured-pick-rail__shell {
-  max-width: var(--ug-max-w, 1280px);
+  max-width: none;
   margin: 0 auto;
   background: rgba(255, 255, 255, 0.98);
   border: 1px solid rgba(0, 0, 0, 0.06);
@@ -2666,6 +2685,25 @@ body.storefront .hc-hero__slide > .hc-pcard {
   padding: 0;
   display: block;
   vertical-align: bottom;
+}
+
+@media (min-width: 992px) {
+  .deal-of-the-day__banner-link,
+  .best-sellers__banner-link,
+  .featured-pick-rail__banner-link {
+    width: 100%;
+    max-width: min(520px, 46vw);
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+@media (min-width: 1200px) {
+  .deal-of-the-day__banner-link,
+  .best-sellers__banner-link,
+  .featured-pick-rail__banner-link {
+    max-width: min(560px, 42vw);
+  }
 }
 
 .deal-of-the-day__rail,
@@ -2913,6 +2951,19 @@ body.storefront .featured-pick-rail__slide > .p99-compact-card {
   align-self: stretch;
 }
 
+/* Desktop: 5 columns, wrap to next row (Owl disabled ≥992px — see main.js) */
+@media (min-width: 992px) {
+  .deal-of-the-day__carousel:not(.owl-loaded),
+  .best-sellers__carousel:not(.owl-loaded),
+  .featured-pick-rail__carousel:not(.owl-loaded) {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: clamp(10px, 1.1vw, 14px);
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
 @media (max-width: 380px) {
   .deal-of-the-day .p99-compact-card__name,
   .best-sellers .p99-compact-card__name,
@@ -2995,7 +3046,7 @@ body.storefront .featured-pick-rail__slide > .p99-compact-card {
 
 
 .p99-rich-band--soft {
-  background: linear-gradient(180deg, #fffdf7 0%, #f5f0e6 55%, #fafaf8 100%);
+  background: #ffffff;
 }
 .p99-rich-band--soft .p99-rich-band__cta {
   background: var(--ug-primary-mid);
@@ -3022,7 +3073,7 @@ body.storefront .featured-pick-rail__slide > .p99-compact-card {
 }
 
 .p99-reels-section .section-container {
-  max-width: var(--ug-max-w, 1280px);
+  max-width: none;
 }
 
 .p99-reels-head {
@@ -3034,7 +3085,7 @@ body.storefront .featured-pick-rail__slide > .p99-compact-card {
 }
 
 .p99-reels-section.p99-rich-band--soft {
-  background: linear-gradient(180deg, #fffdf7 0%, #f5f0e6 55%, #fafaf8 100%);
+  background: #ffffff;
 }
 
 .p99-reels-section__banner-link {
@@ -3193,6 +3244,23 @@ body.storefront .p99-reels-card > .p99-compact-card {
 
 @media (min-width: 576px) { .p99-reels-card { width: 168px; } }
 @media (min-width: 992px) { .p99-reels-card { width: 180px; } }
+
+@media (min-width: 992px) {
+  .p99-reels-section--banner-top .p99-reels-scroll {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: clamp(10px, 1.1vw, 14px);
+    overflow-x: visible;
+    scroll-snap-type: none;
+    padding: 6px 2px 12px;
+  }
+
+  .p99-reels-section--banner-top .p99-reels-card {
+    width: 100%;
+    max-width: none;
+    scroll-snap-align: unset;
+  }
+}
 
 .p99-reel-tile {
   border-radius: 18px;
@@ -3828,6 +3896,20 @@ body.storefront .p99-reels-card > .p99-compact-card {
 .storefront .product-section .container,
 .storefront .product-section .section-container {
   max-width: var(--ug-max-w, 1280px);
+}
+
+/* Full width between viewport gutters (same as .hc-hero), not 1280px — combo hub + banner product grids */
+.storefront .combo-hub-section .section-container,
+.storefront .combo-hub-section .container,
+.storefront .product-section--banner-top .section-container,
+.storefront .product-section--banner-top .container {
+  max-width: none;
+}
+
+@media (min-width: 992px) {
+  .storefront .product-section--banner-top .product-grid-layout {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
 }
 
 
@@ -6536,19 +6618,26 @@ body.storefront .shop-page .toolbar-right .results-count {
 /* =============================================================================
    Home page — iOS-inspired spacing, depth, and motion (home template only)
    ============================================================================= */
+/* Home: pure white canvas; horizontal inset = vertical section gap (unified rhythm) */
+html:has(body.storefront .storefront--ios-home),
+body.storefront:has(.storefront--ios-home) {
+  background-color: #ffffff;
+}
+
 .storefront.storefront--ios-home {
   --ios-bg-elevated: #ffffff;
-  --ios-bg-grouped: #f2f2f7;
+  --ios-bg-grouped: #ffffff;
   --ios-separator: rgba(60, 60, 67, 0.12);
   --ios-radius-lg: clamp(18px, 3.5vw, 24px);
   --ios-radius-xl: clamp(22px, 4vw, 28px);
   --ios-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.06);
   --ios-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06), 0 12px 40px rgba(0, 0, 0, 0.08);
   --ios-shadow-float: 0 8px 32px rgba(0, 0, 0, 0.1);
-  --ios-section-gap: clamp(2rem, 5vw, 3.5rem);
+  /* Elevated panels on white — no hairline borders */
+  --ios-shadow-surface: 0 2px 14px rgba(0, 0, 0, 0.07), 0 8px 32px rgba(0, 0, 0, 0.05);
   --ios-tap: cubic-bezier(0.25, 0.1, 0.25, 1);
   --ios-spring: cubic-bezier(0.34, 1.2, 0.64, 1);
-  background: linear-gradient(180deg, #f7f7f9 0%, var(--ios-bg-grouped) 22%, #f7f7f9 55%, #fafafa 100%);
+  background: var(--ios-bg-grouped);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
@@ -6564,11 +6653,59 @@ body.storefront .shop-page .toolbar-right .results-count {
   padding-right: var(--store-pad-right);
 }
 
-/* One spacing system across the entire home */
+/* Full width between viewport pads like .hc-hero (beats rule above — higher specificity) */
+.storefront.storefront--ios-home .p99-reels-section .section-container,
+.storefront.storefront--ios-home .combo-hub-section .section-container,
+.storefront.storefront--ios-home .combo-hub-section .container,
+.storefront.storefront--ios-home .product-section--banner-top .section-container,
+.storefront.storefront--ios-home .product-section--banner-top .container {
+  max-width: none;
+}
+
+/* One spacing system: vertical gap between sections = horizontal inset from screen edges */
 .storefront.storefront--ios-home {
   --ios-gutter: max(var(--ug-gutter, 20px), env(safe-area-inset-left, 0px));
   --ios-row-gap: clamp(12px, 2.4vw, 18px);
   --ios-section-gap: clamp(1.75rem, 4.6vw, 3.25rem);
+  --store-pad-left: max(var(--ios-section-gap), env(safe-area-inset-left, 0px));
+  --store-pad-right: max(var(--ios-section-gap), env(safe-area-inset-right, 0px));
+}
+
+/* Kill shop-wide alternating striping on home — use grouped grey + white elevated rows only */
+.storefront.storefront--ios-home > .product-section:nth-child(even) {
+  background: transparent;
+}
+
+.storefront.storefront--ios-home > .product-section.combo-hub-section,
+.storefront.storefront--ios-home > .product-section.blog-teaser-section {
+  background: transparent;
+}
+
+.storefront.storefront--ios-home > .product-section--muted,
+.storefront.storefront--ios-home > .product-section--banner-top {
+  background: var(--ios-bg-elevated);
+  border: none;
+  border-radius: var(--ios-radius-lg);
+  box-shadow: var(--ios-shadow-surface);
+}
+
+.storefront.storefront--ios-home .trust-card {
+  border: none;
+  box-shadow: var(--ios-shadow-surface);
+}
+
+.storefront.storefront--ios-home .trust-card:hover {
+  box-shadow: var(--ios-shadow-float);
+}
+
+.storefront.storefront--ios-home .hc-hero__carousel-scroll {
+  padding-left: var(--store-pad-left);
+  padding-right: var(--store-pad-right);
+}
+
+.storefront.storefront--ios-home .hc-hero-carousel.owl-carousel .owl-nav {
+  right: max(10px, var(--store-pad-right));
+  max-width: calc(100% - var(--store-pad-left) - var(--store-pad-right));
 }
 
 /* Prevent random section edge-to-edge mismatches */
@@ -6640,13 +6777,13 @@ body.storefront .shop-page .toolbar-right .results-count {
 }
 
 .storefront.storefront--ios-home .category-strip-section {
-  margin-top: 0.25rem;
+  margin-top: 0;
   margin-bottom: var(--ios-section-gap);
   padding: clamp(1.25rem, 3vw, 1.75rem) 0 clamp(1.35rem, 3vw, 1.85rem);
   background: var(--ios-bg-elevated);
   border: none;
-  border-radius: 0;
-  box-shadow: 0 1px 0 var(--ios-separator);
+  border-radius: var(--ios-radius-lg);
+  box-shadow: var(--ios-shadow-surface);
 }
 
 .storefront.storefront--ios-home .category-strip-scroll {
@@ -6675,7 +6812,7 @@ body.storefront .shop-page .toolbar-right .results-count {
 
 .storefront.storefront--ios-home .category-strip-item {
   border-radius: var(--ios-radius-lg);
-  border: 1px solid var(--ios-separator);
+  border: none;
   box-shadow: var(--ios-shadow-sm);
   transition: transform 0.3s var(--ios-spring), box-shadow 0.3s var(--ios-tap);
 }
@@ -6699,8 +6836,8 @@ body.storefront .shop-page .toolbar-right .results-count {
 .storefront.storefront--ios-home .featured-pick-rail__shell {
   border-radius: var(--ios-radius-lg);
   background: var(--ios-bg-elevated);
-  border-color: var(--ios-separator);
-  box-shadow: var(--ios-shadow-sm);
+  border: none;
+  box-shadow: var(--ios-shadow-surface);
 }
 
 .storefront.storefront--ios-home .deal-of-the-day__banner-link,
@@ -6730,6 +6867,18 @@ body.storefront .shop-page .toolbar-right .results-count {
   border: none;
   background: transparent;
   padding: 0.35rem 0.55rem 0.5rem;
+}
+
+.storefront.storefront--ios-home .p99-rent-focus {
+  margin-top: 0;
+  margin-bottom: var(--ios-section-gap);
+}
+
+.storefront.storefront--ios-home .p99-rent-focus__wrap {
+  border-radius: var(--ios-radius-lg);
+  border: none;
+  box-shadow: var(--ios-shadow-surface);
+  background: var(--ios-bg-elevated);
 }
 
 .storefront.storefront--ios-home .deal-of-the-day .p99-compact-card,
@@ -6779,7 +6928,10 @@ body.storefront .shop-page .toolbar-right .results-count {
 
 .storefront.storefront--ios-home .p99-rich-band {
   margin: var(--ios-section-gap) 0;
-  padding: clamp(2.75rem, 7vw, 4.25rem) var(--ug-gutter, 20px);
+  padding-top: clamp(2.75rem, 7vw, 4.25rem);
+  padding-bottom: clamp(2.75rem, 7vw, 4.25rem);
+  padding-left: var(--store-pad-left);
+  padding-right: var(--store-pad-right);
 }
 
 .storefront.storefront--ios-home .p99-rich-band__title {
@@ -6796,14 +6948,18 @@ body.storefront .shop-page .toolbar-right .results-count {
 
 .storefront.storefront--ios-home .p99-reels-section {
   margin-bottom: var(--ios-section-gap);
-  padding: clamp(2.25rem, 5vw, 3rem) 0;
+  padding-top: clamp(2.25rem, 5vw, 3rem);
+  padding-bottom: clamp(2.25rem, 5vw, 3rem);
+  padding-left: 0;
+  padding-right: 0;
   background: var(--ios-bg-elevated);
-  border-radius: 0;
-  box-shadow: 0 1px 0 var(--ios-separator);
+  border-radius: var(--ios-radius-lg);
+  border: none;
+  box-shadow: var(--ios-shadow-surface);
 }
 
 .storefront.storefront--ios-home .p99-reels-section.p99-rich-band--soft {
-  background: linear-gradient(180deg, #fffdf7 0%, #f5f0e6 55%, #fafaf8 100%);
+  background: var(--ios-bg-elevated);
 }
 
 .storefront.storefront--ios-home .p99-reels-scroll,
@@ -6827,10 +6983,8 @@ body.storefront .shop-page .toolbar-right .results-count {
 }
 
 .storefront.storefront--ios-home .product-section--muted {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: saturate(140%) blur(16px);
-  -webkit-backdrop-filter: saturate(140%) blur(16px);
-  box-shadow: 0 1px 0 var(--ios-separator);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .storefront.storefront--ios-home .product-section-head {
@@ -6913,11 +7067,13 @@ body.storefront .shop-page .toolbar-right .results-count {
 
 .storefront.storefront--ios-home .p99-newsletter {
   margin: var(--ios-section-gap) 0;
+  background: transparent;
 }
 
 .storefront.storefront--ios-home .p99-newsletter-card {
   border-radius: var(--ios-radius-lg);
-  box-shadow: var(--ios-shadow-sm);
+  border: none;
+  box-shadow: var(--ios-shadow-surface);
 }
 
 .storefront.storefront--ios-home .p99-about,
@@ -6942,11 +7098,12 @@ body.storefront .shop-page .toolbar-right .results-count {
 
 .storefront.storefront--ios-home .combo-hub-section {
   padding: clamp(0.85rem, 2.8vw, 1.35rem) 0;
-  box-shadow: 0 1px 0 var(--ios-separator);
+  box-shadow: none;
+  border: none;
 }
 
 .storefront.storefront--ios-home .combo-hub-section__lower {
-  border-color: var(--ios-separator);
+  border: none;
 }
 
 .storefront.storefront--ios-home .combo-hub-acc--why {
@@ -6964,6 +7121,54 @@ body.storefront .shop-page .toolbar-right .results-count {
 
 .storefront.storefront--ios-home .featured-pick-rail--hub .featured-pick-rail__shell {
   border-radius: var(--ios-radius-lg);
+}
+
+@media (max-width: 767px) {
+  .storefront.storefront--ios-home .combo-hub-section__lower {
+    border: none !important;
+    box-shadow: var(--ios-shadow-surface) !important;
+  }
+
+  .storefront.storefront--ios-home .combo-hub-acc:not(:last-child) {
+    border-bottom: none !important;
+  }
+}
+
+.storefront.storefront--ios-home .blog-teaser-stack {
+  border: none;
+  box-shadow: var(--ios-shadow-surface);
+}
+
+.storefront.storefront--ios-home .blog-teaser-acc:not(:last-child) {
+  border-bottom: none;
+}
+
+@media (min-width: 768px) {
+  .storefront.storefront--ios-home .blog-teaser-acc {
+    border: none;
+    box-shadow: var(--ios-shadow-surface);
+  }
+
+  .storefront.storefront--ios-home .blog-teaser-acc:hover {
+    border-color: transparent;
+    box-shadow: var(--ios-shadow-float);
+  }
+
+  .storefront.storefront--ios-home .combo-hub-acc--why {
+    border: none;
+    box-shadow: var(--ios-shadow-surface);
+  }
+
+  .storefront.storefront--ios-home .combo-hub-acc--offer {
+    border: none;
+    box-shadow: var(--ios-shadow-surface);
+  }
+}
+
+@media (max-width: 767px) {
+  .storefront.storefront--ios-home .hc-hero__carousel {
+    box-shadow: 0 -10px 36px rgba(0, 0, 0, 0.08);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -7367,6 +7572,12 @@ body.storefront .order-line .line-info {
 .p99-rent-focus {
   margin: clamp(1.25rem, 3vw, 2rem) 0;
 }
+
+/* Match home category heroes: full width between viewport gutters only (no 1280px cap). */
+.storefront .p99-rent-focus .section-container {
+  max-width: none;
+}
+
 .p99-rent-focus__wrap {
   border-radius: 20px;
   border: 1px solid var(--border-subtle);
@@ -7531,6 +7742,36 @@ body.storefront .order-line .line-info {
 .p99-rent-focus__btn:hover {
   transform: translateY(-1px);
   background: #111c33;
+}
+
+@media (min-width: 992px) {
+  .p99-rent-focus__rail {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: clamp(10px, 1.1vw, 14px);
+    overflow-x: visible;
+    scroll-snap-type: none;
+    padding: 10px 2px 8px;
+  }
+
+  .p99-rent-focus__card {
+    width: 100%;
+    max-width: none;
+    scroll-snap-align: unset;
+  }
+
+  .p99-rent-focus__banner-link {
+    width: 100%;
+    max-width: min(520px, 46vw);
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+@media (min-width: 1200px) {
+  .p99-rent-focus__banner-link {
+    max-width: min(560px, 42vw);
+  }
 }
 
 @media (max-width: 575px) {

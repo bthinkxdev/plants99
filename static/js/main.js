@@ -91,8 +91,16 @@
         } catch (e) {  }
     }
 
+    function homeBannerRailShouldUseOwl($c) {
+        if ($c.hasClass("best-sellers__carousel")) {
+            return window.matchMedia("(min-width: 768px) and (max-width: 991px)").matches;
+        }
+        return window.matchMedia("(max-width: 991px)").matches;
+    }
+
     function initSingleBannerRailCarousel($c) {
         if (!$c.length || !$.fn.owlCarousel || $c.hasClass("owl-loaded")) return;
+        if (!homeBannerRailShouldUseOwl($c)) return;
         var count = parseInt($c.attr("data-rail-count"), 10);
         if (!count || count < 1) {
             count = $c.find(".deal-of-the-day__slide, .best-sellers__slide, .featured-pick-rail__slide").length;
@@ -116,46 +124,42 @@
                     0: { items: Math.min(2, count), margin: m[0] },
                     480: { items: Math.min(3, count), margin: m[1] },
                     768: { items: Math.min(4, count), margin: m[2] },
-                    992: { items: Math.min(5, count), margin: m[3] },
-                    1200: { items: Math.min(6, count), margin: m[4] }
+                    992: { items: Math.min(5, count), margin: m[3] }
                 }
             });
         } catch (e) {  }
     }
 
-    function bestSellersRailIsWide() {
-        return window.matchMedia("(min-width: 768px)").matches;
+    function syncHomeBannerRailCarousel($c) {
+        if (!$c.length || !$.fn.owlCarousel) return;
+        var want = homeBannerRailShouldUseOwl($c);
+        var loaded = $c.hasClass("owl-loaded");
+        if (want && !loaded) {
+            initSingleBannerRailCarousel($c);
+        } else if (want && loaded) {
+            $c.trigger("refresh.owl.carousel");
+        } else if (!want && loaded) {
+            try {
+                $c.owlCarousel("destroy");
+            } catch (e) {  }
+        }
     }
 
     function initHomeBannerRailCarousels() {
         if (!$.fn.owlCarousel) return;
-        $(".deal-of-the-day__carousel, .featured-pick-rail__carousel").each(function () {
-            initSingleBannerRailCarousel($(this));
-        });
-        $(".best-sellers__carousel").each(function () {
-            if (bestSellersRailIsWide()) {
-                initSingleBannerRailCarousel($(this));
-            }
+        $(".deal-of-the-day__carousel, .featured-pick-rail__carousel, .best-sellers__carousel").each(function () {
+            syncHomeBannerRailCarousel($(this));
         });
     }
     initHomeBannerRailCarousels();
 
-    var bestSellersOwlResizeTimer;
+    var homeBannerRailResizeTimer;
     $(window).on("resize orientationchange", function () {
-        clearTimeout(bestSellersOwlResizeTimer);
-        bestSellersOwlResizeTimer = setTimeout(function () {
-            var $c = $(".best-sellers__carousel");
-            if (!$c.length) return;
-            if (bestSellersRailIsWide()) {
-                initSingleBannerRailCarousel($c);
-                if ($c.hasClass("owl-loaded")) {
-                    $c.trigger("refresh.owl.carousel");
-                }
-            } else if ($c.hasClass("owl-loaded")) {
-                try {
-                    $c.owlCarousel("destroy");
-                } catch (e) {  }
-            }
+        clearTimeout(homeBannerRailResizeTimer);
+        homeBannerRailResizeTimer = setTimeout(function () {
+            $(".deal-of-the-day__carousel, .featured-pick-rail__carousel, .best-sellers__carousel").each(function () {
+                syncHomeBannerRailCarousel($(this));
+            });
         }, 220);
     });
 
