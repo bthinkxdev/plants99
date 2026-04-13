@@ -8685,3 +8685,51 @@ body.storefront .order-line .line-info {
   font-size: 0.875rem;
   width: 16px;
 }
+
+/* view all button - alignment */
+.deal-of-the-day__shell,
+.best-sellers__shell,
+.featured-pick-rail__shell {
+  position: relative;
+}
+
+.deal-of-the-day__shell .storefront-section-actions,
+.best-sellers__shell .storefront-section-actions,
+.featured-pick-rail__shell .storefront-section-actions {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 2;
+}
+
+@media (max-width: 767px) {
+  .deal-of-the-day__shell .storefront-section-actions,
+  .best-sellers__shell .storefront-section-actions,
+  .featured-pick-rail__shell .storefront-section-actions {
+    position: static;
+    display: flex;
+    justify-content: center;
+    margin-top: 1rem;
+  }
+}
+
+/* Add to cart button - alignment */
+
+.storefront .tpc-actions-bleed .tpc-add-btn,
+.storefront form.tpc-actions-bleed .tpc-add-btn {
+  border-radius: 0 0 16px 16px !important;
+  width: 100% !important;
+  display: block !important;
+}
+
+.storefront .tpc-body {
+  padding-bottom: 0 !important;
+}
+
+.storefront .tpc-actions-bleed {
+  margin-left: -1rem !important;
+  margin-right: -1rem !important;
+  margin-bottom: 0 !important;
+  width: calc(100% + 2rem) !important;
+}
+

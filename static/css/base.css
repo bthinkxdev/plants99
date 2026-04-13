@@ -710,6 +710,9 @@ body.storefront {
 .site-mobile-nav {
   padding: 12px 0;
   border-top: 1px solid var(--border-subtle);
+  max-height: calc(100dvh - 120px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .site-mobile-nav a.site-mobile-nav__parent-link {
   font-weight: 700;
@@ -1916,3 +1919,62 @@ img.img-loaded {
   font-size: 0.78rem;
 }
 
+.tpc-arrow {
+    display: none !important;
+}
+@media (max-width: 767px) {
+  .shop-page .shop-toolbar {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .shop-page .shop-toolbar__right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  .shop-page .shop-toolbar__count {
+    display: none;
+  }
+}
+
+/* mobile category - slider */
+
+.mobile-acc__btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--primary-green);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  text-align: left;
+}
+
+.mobile-acc__chevron {
+  transition: transform 0.25s ease;
+  font-size: 1.1rem;
+}
+
+.mobile-acc.is-open .mobile-acc__chevron {
+  transform: rotate(90deg);
+}
+
+.mobile-acc__body {
+  display: block;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.mobile-acc.is-open .mobile-acc__body {
+  max-height: 500px;
+}

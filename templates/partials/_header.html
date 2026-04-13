@@ -89,10 +89,22 @@
         <a href="{% url 'store:product_list' %}">Shop all</a>
         {% for item in nav_category_menu %}
         {% with p=item.parent ch=item.children %}
+        {% if ch %}
+        <div class="mobile-acc">
+            <button class="mobile-acc__btn" type="button">
+                {{ p.name }}
+                <span class="mobile-acc__chevron">&#8250;</span>
+            </button>
+            <div class="mobile-acc__body">
+                <a href="{% url 'store:product_list' %}?category={{ p.slug }}" class="site-mobile-nav__child-link">All {{ p.name }}</a>
+                {% for c in ch %}
+                <a href="{% url 'store:product_list' %}?category={{ c.slug }}" class="site-mobile-nav__child-link">{{ c.name }}</a>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
         <a href="{% url 'store:product_list' %}?category={{ p.slug }}" class="site-mobile-nav__parent-link">{{ p.name }}</a>
-        {% for c in ch %}
-        <a href="{% url 'store:product_list' %}?category={{ c.slug }}" class="site-mobile-nav__child-link">{{ c.name }}</a>
-        {% endfor %}
+        {% endif %}
         {% endwith %}
         {% endfor %}
         <a href="{% url 'store:product_list' %}?combo=1">Combos</a>
@@ -103,4 +115,11 @@
         {% if user.is_authenticated %}<a href="{% url 'auth:account' %}">Account</a>{% else %}<a href="{% url 'auth:login' %}">Login</a>{% endif %}
     </div>
 </header>
+<script>
+document.querySelectorAll('.mobile-acc__btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    btn.closest('.mobile-acc').classList.toggle('is-open');
+  });
+});
+</script>
 </div>

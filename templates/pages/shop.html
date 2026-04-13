@@ -117,13 +117,13 @@
                         {% endif %}
                         {% endwith %}
                     </a>
-                    {% if WISHLIST_ENABLED %}
+                    {% comment %} {% if WISHLIST_ENABLED %}
                     <button type="button"
                             class="product-wishlist js-wishlist-toggle {% if variant.id in wishlist_variant_ids %}in-wishlist{% endif %}"
                             data-variant-id="{{ variant.id }}" title="Wishlist" aria-label="Wishlist">
                         <i class="far fa-heart"></i>
                     </button>
-                    {% endif %}
+                    {% endif %} {% endcomment %}
                     
                 </div>
                 <div class="product-body">
@@ -148,7 +148,9 @@
                         {% endif %}
                     </div>
                     {% if variant.id in cart_variant_ids or variant.product_id in cart_product_ids %}
-                    <a href="#" class="product-cta border-0 d-inline-block text-center text-decoration-none js-open-cart-drawer">View Cart</a>
+                    <div class="product-add-form">
+                        <a href="#" class="product-cta border-0 text-decoration-none js-open-cart-drawer">View Cart</a>
+                    </div>
                     {% else %}
                     <form method="post" action="{% url 'store:cart_add' %}" class="product-add-form">
                         {% csrf_token %}
@@ -204,7 +206,9 @@
     {% endif %}
 </div>
                     {% if product.id in cart_simple_product_ids %}
-                    <a href="#" class="product-cta border-0 d-inline-block text-center text-decoration-none js-open-cart-drawer">View Cart</a>
+                    <div class="product-add-form">
+                        <a href="#" class="product-cta border-0 text-decoration-none js-open-cart-drawer">View Cart</a>
+                    </div>
                     {% else %}
                     <form method="post" action="{% url 'store:cart_add' %}" class="product-add-form">
                         {% csrf_token %}

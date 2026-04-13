@@ -45,26 +45,32 @@
     
     if ($(".hc-hero-carousel").length && typeof $.fn.owlCarousel === 'function') {
         try {
-            $(".hc-hero-carousel").owlCarousel({
-                autoplay: true,
-                autoplayTimeout: 4000,
-                smartSpeed: 700,
-                dots: false,
-                loop: true,
-                center: true,
-                margin: 12,
-                nav: false,
-                responsiveClass: true,
-                responsive: {
-                    0: { items: 2.5, margin: 10 },
-                    480: { items: 2.5, margin: 11 },
-                    576: { items: 2.5, margin: 12 },
-                    768: { items: 2, margin: 20 },
-                    992: { items: 2, margin: 24 },
-                    1200: { items: 3, margin: 24 }
-                }
+            $(".hc-hero-carousel").each(function () {
+                var $el = $(this);
+                var itemCount = $el.children().length;
+                var useLoop = itemCount >= 6;
+                $el.owlCarousel({
+                    autoplay: true,
+                    autoplayTimeout: 4000,
+                    smartSpeed: 700,
+                    dots: false,
+                    loop: useLoop,
+                    rewind: !useLoop,
+                    center: false,
+                    margin: 12,
+                    nav: false,
+                    responsiveClass: true,
+                    responsive: {
+                        0:    { items: Math.min(2, itemCount), margin: 10 },
+                        480:  { items: Math.min(2, itemCount), margin: 11 },
+                        576:  { items: Math.min(2, itemCount), margin: 12 },
+                        768:  { items: Math.min(2, itemCount), margin: 20 },
+                        992:  { items: Math.min(2, itemCount), margin: 24 },
+                        1200: { items: Math.min(3, itemCount), margin: 24 }
+                    }
+                });
             });
-        } catch (e) {  }
+        } catch (e) { console.error('hc-hero-carousel init failed', e); }
     }
 
     if (
