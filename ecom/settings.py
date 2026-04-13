@@ -5,8 +5,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config('DJANGO_SECRET_KEY')
 DEBUG = config('DJANGO_DEBUG', cast=bool)
 DEBUG_TRACE = config('DEBUG_TRACE', default=False, cast=bool)
-ALLOWED_HOSTS_STR = config('ALLOWED_HOSTS')
-ALLOWED_HOSTS = [host.strip().strip('\'"') for host in ALLOWED_HOSTS_STR.split(',') if host.strip()]
+# ALLOWED_HOSTS_STR = config('ALLOWED_HOSTS')
+ALLOWED_HOSTS = ["plants99.bthinkx.com", "localhost", "127.0.0.1"]
+# ALLOWED_HOSTS = [host.strip().strip('\'"') for host in ALLOWED_HOSTS_STR.split(',') if host.strip()]
 if DEBUG:
     ALLOWED_HOSTS = ['*']
 else:
