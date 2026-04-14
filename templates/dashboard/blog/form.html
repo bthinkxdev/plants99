@@ -13,7 +13,7 @@
     <a href="{% url 'admin_panel:blog_list' %}" class="btn btn-secondary">Back</a>
   </div>
 
-  <div class="product-listing-body">
+  <div class="product-listing-body" style="padding: 1.5rem;">
     <form method="post" enctype="multipart/form-data" class="admin-form">
       {% csrf_token %}
       {% if form.non_field_errors %}

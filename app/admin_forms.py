@@ -308,7 +308,7 @@ class RentalConfigForm(forms.ModelForm):
         model = RentalConfig
         fields = ['is_rent_enabled', 'rent_price_per_day', 'rent_description', 'rent_instructions']
         widgets = {
-            'is_rent_enabled': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'is_rent_enabled': forms.CheckboxInput(attrs={'class': 'toggle-input'}),  # changed
             'rent_price_per_day': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': 0, 'placeholder': '0.00'}),
             'rent_description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Short rental description'}),
             'rent_instructions': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'Return, care, delivery/collection instructions'}),

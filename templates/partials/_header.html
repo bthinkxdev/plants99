@@ -77,7 +77,7 @@
             {% endfor %}
             <a href="{% url 'store:product_list' %}" class="site-nav-link {% if active_page == 'collection' %}is-active{% endif %}">Shop all</a>
             <a href="{% url 'store:product_list' %}?rent=1" class="site-nav-link {% if request.GET.rent == '1' %}is-active{% endif %}">Rental</a>
-            <a href="{% url 'store:product_list' %}?plant_type=outdoor" class="site-nav-link">Outdoor</a>
+            {% comment %} <a href="{% url 'store:product_list' %}?plant_type=outdoor" class="site-nav-link">Outdoor</a> {% endcomment %}
             <a href="{% url 'store:product_list' %}?combo=1" class="site-nav-link">Combos</a>
             <a href="{% url 'store:product_list' %}?sort=price_asc" class="site-nav-link">Offers</a>
             <a href="{% url 'store:contact' %}" class="site-nav-link {% if active_page == 'contact' %}is-active{% endif %}">Plant care</a>
