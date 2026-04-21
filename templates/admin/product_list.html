@@ -125,7 +125,7 @@
 
         {% if products %}
             
-            <div class="list-cards">
+            {% comment %} <div class="list-cards">
                 {% for product in products %}
                     <div class="list-card">
                         <div class="list-card-header" style="flex-wrap: wrap;">
@@ -198,7 +198,7 @@
                         </div>
                     </div>
                 {% endfor %}
-            </div>
+            </div> {% endcomment %}
 
             
             <div class="list-table product-listing-table-wrap">
@@ -236,6 +236,8 @@
                                         {% if product.is_combo_product %}<span class="product-tag" style="background:#fff3e0;color:#e65100;">Combo</span>{% endif %}
                                         {% if product.is_featured %}<span class="product-tag product-tag-featured">Featured</span>{% endif %}
                                         {% if product.is_bestseller %}<span class="product-tag product-tag-bestseller">Bestseller</span>{% endif %}
+                                        {% if product.is_out_of_stock %}<span class="product-tag" style="background:#fce4ec;color:#b71c1c;">Out of stock</span>
+                                        {% elif product.is_low_stock %}<span class="product-tag" style="background:#fff8e1;color:#e65100;">⚠ Low stock</span>{% endif %}
                                     </div>
                                 </div>
                             </div>

@@ -8,7 +8,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.generic import DetailView, View
 from .models import Product, ProductAttribute, ProductAttributeValue, ProductComboItem, ProductImage, RentalConfig, Variant, VariantAttributeValue, VariantImage
-from .admin_forms import ProductBasicEditForm, RentalConfigForm, _validate_image_file
+from .admin_forms import ProductBasicEditForm, RentalConfigForm, _validate_image_file, ProductDeliveryStateForm
 logger = logging.getLogger(__name__)
 
 def _normalize_payload(data):
@@ -63,6 +63,7 @@ class ProductEditView(DetailView):
         context['base_images'] = list(ProductImage.objects.filter(product=self.object).order_by('display_order', '-is_primary', 'id')[:3])
         cfg, _ = RentalConfig.objects.get_or_create(product=self.object)
         context['rental_form'] = RentalConfigForm(instance=cfg)
+        context['delivery_form'] = ProductDeliveryStateForm(product=self.object)
         return context
 
 class ProductUpdateBasicView(View):

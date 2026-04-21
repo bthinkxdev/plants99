@@ -90,10 +90,14 @@
     {# Locations #}
     {% comment %} {% include "sections/locations.html" %} {% endcomment %}
 
-    {# Newsletter #}
-    {% include "sections/newsletter.html" %}
+    {% comment %} {# Newsletter #}
+    {% include "sections/newsletter.html" %} {% endcomment %}
 
-    {% include "sections/rich_heading.html" with title="Ready when you are" subtitle="Free delivery thresholds, secure checkout, and care notes on every plant page." cta_label="Start shopping" cta_url=shop_url modifier="p99-rich-band--footer" section_id="rich-close" %}
+    {# Testimonials #}
+    {% include "sections/testimonials.html" %}
+
+    {% comment %} {% include "sections/rich_heading.html" with title="Ready when you are" subtitle="Free delivery thresholds, secure checkout, and care notes on every plant page." cta_label="Start shopping" cta_url=shop_url modifier="p99-rich-band--footer" section_id="rich-close" %} {% endcomment %}
+    {% include "sections/rich_heading.html" with title="Ready when you are" subtitle="Secure checkout and care notes on every plant page." cta_label="Start shopping" cta_url=shop_url modifier="p99-rich-band--footer" section_id="rich-close" %}
 </div>
 {% endblock %}
 

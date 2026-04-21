@@ -1273,3 +1273,53 @@
     loadAttributes();
     loadVariants();
 })();
+
+// ── Delivery States chips ──────────────────────────────────────────────────
+(function () {
+    var section = document.getElementById('delivery-states-section');
+    if (!section) return;
+
+    function updateCounter() {
+        var n = section.querySelectorAll('.ds-chip-checked').length;
+        var el = document.getElementById('ds-counter');
+        if (el) el.textContent = n + ' state' + (n === 1 ? '' : 's') + ' selected';
+    }
+
+    // Use 'change' on the hidden checkboxes — fires AFTER the browser has
+    // already toggled checked, so we just read the final value. No double-toggle.
+    section.addEventListener('change', function (e) {
+        if (e.target.type !== 'checkbox' || e.target.name !== 'states') return;
+        var chip = e.target.closest('.ds-chip');
+        if (!chip) return;
+        chip.classList.toggle('ds-chip-checked', e.target.checked);
+        updateCounter();
+    });
+
+    var selectAll = document.getElementById('ds-select-all');
+    var clearAll  = document.getElementById('ds-clear-all');
+
+    if (selectAll) {
+        selectAll.addEventListener('click', function () {
+            section.querySelectorAll('.ds-chip input[type=checkbox]').forEach(function (cb) {
+                cb.checked = true;
+                var chip = cb.closest('.ds-chip');
+                if (chip) chip.classList.add('ds-chip-checked');
+            });
+            updateCounter();
+        });
+    }
+
+    if (clearAll) {
+        clearAll.addEventListener('click', function () {
+            section.querySelectorAll('.ds-chip input[type=checkbox]').forEach(function (cb) {
+                cb.checked = false;
+                var chip = cb.closest('.ds-chip');
+                if (chip) chip.classList.remove('ds-chip-checked');
+            });
+            updateCounter();
+        });
+    }
+
+    updateCounter();
+})();
+// ── End Delivery States ────────────────────────────────────────────────────

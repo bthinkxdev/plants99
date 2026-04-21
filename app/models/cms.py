@@ -54,3 +54,44 @@ class Reel(TimeStampedModel):
 
     def __str__(self):
         return self.title or f'Reel #{self.pk}'
+    
+class Testimonial(TimeStampedModel):
+    """
+    Customer testimonial shown on the storefront homepage.
+    Managed entirely from the admin dashboard (no customer-side submission).
+    """
+ 
+    RATING_CHOICES = [(i, str(i)) for i in range(1, 6)]   # 1 – 5 stars
+ 
+    name          = models.CharField(max_length=120)
+    photo         = models.ImageField(
+                        upload_to='testimonials/',
+                        blank=True,
+                        null=True,
+                        help_text='Square portrait recommended (min 200 × 200 px).',
+                    )
+    rating        = models.PositiveSmallIntegerField(
+                        choices=RATING_CHOICES,
+                        default=5,
+                        db_index=True,
+                    )
+    description   = models.TextField(help_text='The review / testimonial text.')
+    is_verified   = models.BooleanField(
+                        default=True,
+                        help_text='Shows a "Verified Buyer" badge on the storefront.',
+                    )
+    is_active     = models.BooleanField(default=True, db_index=True)
+    display_order = models.PositiveIntegerField(
+                        default=0,
+                        db_index=True,
+                        help_text='Lower numbers appear first.',
+                    )
+ 
+    class Meta:
+        ordering = ['display_order', '-created_at']
+        indexes  = [models.Index(fields=['is_active', 'display_order'])]
+        verbose_name        = 'testimonial'
+        verbose_name_plural = 'testimonials'
+ 
+    def __str__(self):
+        return f'{self.name} — {self.rating}★'

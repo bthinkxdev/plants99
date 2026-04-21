@@ -1,37 +1,42 @@
-"""Pincode serviceability check — in-memory, no external API."""
+"""
+DEPRECATED — Pincode-based delivery is replaced by state-based delivery.
 
-from functools import lru_cache
+This module is kept only so that any stale imports don't cause hard crashes
+during the transition period. Remove it entirely once all references are gone.
+
+See: app/services/state_delivery_service.py
+"""
+
+import warnings
 from typing import Optional, Tuple
-
-from django.conf import settings
-
-
-@lru_cache(maxsize=1)
-def _allowed_pincode_payload() -> Tuple[frozenset, Tuple[str, ...]]:
-    raw = getattr(settings, 'ALLOWED_SERVICE_PINCODES', ())
-    out = set()
-    for p in raw:
-        s = ''.join((c for c in str(p) if c.isdigit()))
-        if len(s) == 6:
-            out.add(s)
-    frozen = frozenset(out)
-    return frozen, tuple(sorted(frozen))
-
-
-def _allowed_normalized() -> frozenset:
-    return _allowed_pincode_payload()[0]
 
 
 def normalize_pincode(pincode: Optional[str]) -> str:
+    warnings.warn(
+        "pincode.normalize_pincode() is deprecated. "
+        "Delivery is now state-based. See state_delivery_service.py.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     if not pincode:
-        return ''
-    return ''.join((c for c in str(pincode).strip() if c.isdigit()))
+        return ""
+    return "".join(c for c in str(pincode).strip() if c.isdigit())
 
 
 def is_pincode_serviceable(pincode: Optional[str]) -> bool:
-    n = normalize_pincode(pincode)
-    return len(n) == 6 and n in _allowed_normalized()
+    warnings.warn(
+        "pincode.is_pincode_serviceable() is deprecated. "
+        "Delivery is now state-based. Always returns False.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return False
 
 
 def allowed_pincode_list() -> Tuple[str, ...]:
-    return _allowed_pincode_payload()[1]
+    warnings.warn(
+        "pincode.allowed_pincode_list() is deprecated. Returns empty tuple.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return ()

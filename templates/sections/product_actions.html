@@ -8,18 +8,19 @@
 </div>
 {% endif %}
 
-<div class="pdp-pincode-check mb-3 pdp-card p-3 border rounded-2"
-     id="pdpPincodeModule"
-     data-combo="{{ product.is_combo_product|yesno:'true,false' }}"
-     data-pincode-url="{{ pincode_check_url }}">
-    <label class="form-label small fw-bold mb-1" for="pdpPincodeInput">Delivery availability</label>
+{% if not product.is_legacy_combo %}
+<div class="pdp-state-check mb-3 pdp-card p-3 border rounded-2" id="pdpStateModule">
+    <label class="form-label small fw-bold mb-1">Check delivery availability</label>
     <div class="d-flex flex-wrap gap-2 align-items-center">
-        <input type="text" class="form-control form-control-sm pdp-pincode-input" style="max-width:9rem;" maxlength="6" inputmode="numeric" placeholder="PIN code" id="pdpPincodeInput" autocomplete="postal-code">
-        <button type="button" class="btn btn-sm btn-outline-dark" id="pdpPincodeBtn">Check</button>
-        <span class="small" id="pdpPincodeResult" aria-live="polite"></span>
+        <select class="form-select form-select-sm" style="max-width:16rem;"
+                id="pdpStateSelect" aria-label="Select your state">
+            <option value="">Select your state…</option>
+        </select>
+        <span class="small fw-semibold" id="pdpStateResult" aria-live="polite"></span>
     </div>
-    <p class="text-muted small mt-1 mb-0">We serve {{ serviceable_pincode_count }} Kerala PIN codes.</p>
+    <p class="text-muted small mt-1 mb-0" id="pdpStateHint" style="display:none;"></p>
 </div>
+{% endif %}
 
 {% if product.is_rent_available %}
 <div class="pdp-offer-mode mb-3 pdp-card p-3 border rounded-2" id="pdpOfferMode" data-purchase-only="{{ purchase_only_pdp|yesno:'true,false' }}" data-rental-only="{{ rental_only_pdp|yesno:'true,false' }}">
@@ -38,6 +39,30 @@
         <div class="small mt-2 fw-semibold" id="pdpRentalPriceLine"></div>
     </div>
 </div>
+{% endif %}
+
+{% if product.is_simple_product %}
+    {% with threshold=product.low_stock_threshold|default:5 %}
+        {% if not product.is_combo_product %}
+            {% if product.base_stock and product.base_stock > 0 %}
+                {% if product.base_stock <= threshold %}
+                    <div class="stock-indicator small mb-2" style="color:#c00;">
+                        <i class="fas fa-exclamation-circle me-1"></i> Only {{ product.base_stock }} left in stock!
+                    </div>
+                {% else %}
+                    <div class="stock-indicator small mb-2 text-muted">
+                        <i class="fas fa-check-circle me-1"></i> In Stock
+                    </div>
+                {% endif %}
+            {% else %}
+                <div class="stock-indicator small mb-2" style="color:#c00;">
+                    <i class="fas fa-times-circle me-1"></i> Out of Stock
+                </div>
+            {% endif %}
+        {% endif %}
+    {% endwith %}
+{% else %}
+    <div class="stock-indicator small mb-2 text-muted"></div>
 {% endif %}
 
 {% if attributes_grouped %}
@@ -64,12 +89,12 @@
 </div>
 {% endif %}
 
-{% if product.is_giftable and product.purchase_enabled %}
+{% comment %} {% if product.is_giftable and product.purchase_enabled %}
 <div class="form-check form-switch mb-3" id="pdpGiftWrap">
     <input class="form-check-input" type="checkbox" id="pdpGiftToggle" name="pdp_gift_visual">
     <label class="form-check-label small" for="pdpGiftToggle">Send as a gift (gift message at checkout when available)</label>
 </div>
-{% endif %}
+{% endif %} {% endcomment %}
 
 <form method="post" action="{% url 'store:cart_add' %}" id="addToCartForm" class="product-add-form mb-3" data-simple-product="{{ product.is_simple_product|yesno:'true,false' }}" data-cart-url="#" data-pincode-url="{{ pincode_check_url }}" data-purchase-in-cart="{{ pdp_purchase_in_cart|yesno:'true,false' }}">
     {% csrf_token %}
@@ -120,3 +145,7 @@
     </button>
     {% endif %}
 </form>
+
+<script>
+window.productId = {{ product.id }};
+</script>

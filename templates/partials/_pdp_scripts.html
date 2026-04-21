@@ -2,6 +2,7 @@
 {{ ordered_attributes|json_script:"ordered-attributes" }}
 {% if product.is_rent_available %}{{ product_rental_rates|json_script:"product-rental-rates" }}{% endif %}
 {{ pdp_rental_keys_in_cart|json_script:"pdp-rental-keys-cart" }}
+<script>window.productId = {{ product.id }};</script>
 
 <script>
 (function(){
@@ -1325,5 +1326,95 @@
             else addToCartForm.submit();
         });
     }
+})();
+
+(function () {
+    var module = document.getElementById('pdpStateModule');
+    if (!module) return;
+
+    var select  = document.getElementById('pdpStateSelect');
+    var result  = document.getElementById('pdpStateResult');
+    var hint    = document.getElementById('pdpStateHint');
+    var pid     = window.productId || null;
+
+    if (!select || !pid) return;
+
+    // ── Load deliverable states from seller config ─────────────────────────
+    var statesUrl = '/api/delivery/states/?product_id=' + encodeURIComponent(pid);
+
+    fetch(statesUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            var states = data.states || [];
+            if (states.length === 0) {
+                module.style.display = 'none';
+                return;
+            }
+
+            // Group by region for <optgroup>
+            var REGION_LABELS = {
+                south:     'South India',
+                west:      'West India',
+                central:   'Central India',
+                east:      'East India',
+                north:     'North India',
+                northeast: 'North-East India',
+                ut:        'Union Territories'
+            };
+            var REGION_ORDER = ['south','west','central','east','north','northeast','ut'];
+            var grouped = {};
+            states.forEach(function (s) {
+                if (!grouped[s.region]) grouped[s.region] = [];
+                grouped[s.region].push(s);
+            });
+
+            REGION_ORDER.forEach(function (region) {
+                var group = grouped[region];
+                if (!group || group.length === 0) return;
+                var og = document.createElement('optgroup');
+                og.label = REGION_LABELS[region] || region;
+                group.forEach(function (s) {
+                    var opt = document.createElement('option');
+                    opt.value = s.id;
+                    opt.textContent = s.name + ' (' + s.code + ')';
+                    og.appendChild(opt);
+                });
+                select.appendChild(og);
+            });
+
+            hint.textContent = 'Delivered to ' + states.length + ' state' + (states.length === 1 ? '' : 's');
+            hint.style.display = '';
+        })
+        .catch(function () {
+            module.style.display = 'none';
+        });
+
+    // ── On state select — show serviceable or not ──────────────────────────
+    select.addEventListener('change', function () {
+        var stateId = select.value;
+        result.textContent = '';
+        result.className = 'small fw-semibold';
+
+        if (!stateId) return;
+
+        var checkUrl = '/api/delivery/state/?product_id=' + encodeURIComponent(pid)
+                     + '&state_id=' + encodeURIComponent(stateId);
+
+        fetch(checkUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.serviceable) {
+                    result.textContent = '✓ Delivery available';
+                    result.style.color = '#16a34a';
+                } else {
+                    result.textContent = '✗ Not deliverable';
+                    result.style.color = '#dc2626';
+                }
+            })
+            .catch(function () {
+                result.textContent = 'Could not check. Try again.';
+                result.style.color = '#6b7280';
+            });
+    });
 })();
 </script>

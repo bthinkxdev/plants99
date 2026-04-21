@@ -13,10 +13,10 @@ from .services.category_tree import build_active_category_tree
 
 def site_contact_context(request):
     return {
-        'site_phone': getattr(settings, 'SITE_PHONE', '+91 8891923189'),
-        'site_whatsapp': getattr(settings, 'SITE_WHATSAPP', '918891923189'),
+        'site_phone': getattr(settings, 'SITE_PHONE', '+91 7559947750'),
+        'site_whatsapp': getattr(settings, 'SITE_WHATSAPP', '917559947750'),
         'site_email': getattr(settings, 'SITE_EMAIL', 'support@plants99.com'),
-        'site_instagram': getattr(settings, 'SITE_INSTAGRAM', 'plants99'),
+        'site_instagram': getattr(settings, 'SITE_INSTAGRAM', 'plants_.99'),
     }
 
 def cart_context(request):

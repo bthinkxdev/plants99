@@ -13,7 +13,7 @@
                 <div class="checkout-card success-main-card wow fadeInLeft" data-wow-delay="0.1s">
                     <div class="success-header">
                         <div class="success-icon-badge">
-                            <span class="success-icon-check">âœ“</span>
+                            <span class="success-icon-check">✓</span>
                         </div>
                         <div class="success-header-text">
                             <p class="success-pill">Order confirmed</p>
@@ -21,7 +21,7 @@
                                 Thank you{% if order.address and order.address.full_name %}, {{ order.address.full_name }}{% endif %}!
                             </h2>
                             <p class="success-subtitle">
-                                Your order has been received and is being processed. Weâ€™ll share updates on WhatsApp and SMS when itâ€™s packed, shipped and out for delivery.
+                                Your order has been received and is being processed. We'll share updates on WhatsApp and SMS when it's packed, shipped and out for delivery.
                             </p>
                         </div>
                     </div>
@@ -33,13 +33,13 @@
                         </div>
                         <div class="success-meta-item">
                             <span class="label">Placed on</span>
-                            <span class="value">{{ order.created_at|date:"M d, Y Â· h:i A" }}</span>
+                            <span class="value">{{ order.created_at|date:"M d, Y · h:i A" }}</span>
                         </div>
                         <div class="success-meta-item">
                             <span class="label">Payment</span>
                             <span class="value">
                                 {% if order.payment %}
-                                    {{ order.payment.get_method_display }} Â· {{ order.payment.get_status_display }}
+                                    {{ order.payment.get_method_display }} · {{ order.payment.get_status_display }}
                                 {% else %}
                                     {{ order.get_status_display }}
                                 {% endif %}
@@ -85,7 +85,7 @@
                     </div>
 
                     <p class="success-footer-note">
-                        Weâ€™ll also send your invoice and tracking link as soon as the shipment is created.
+                        We'll also send your invoice and tracking link as soon as the shipment is created.
                     </p>
                 </div>
             </div>
@@ -99,7 +99,7 @@
                         <div class="success-item-row">
                             <div class="item-main">
                                 <div class="item-title">{{ item.product_name }}</div>
-                                <div class="item-meta">{{ item.variant_snapshot }} Â· Qty: {{ item.quantity }}</div>
+                                <div class="item-meta">{{ item.variant_snapshot }} · Qty: {{ item.quantity }}</div>
                             </div>
                             <div class="item-price">&#8377;{{ item.line_total }}</div>
                         </div>
@@ -125,5 +125,3 @@
     </div>
 </section>
 {% endblock %}
-
-

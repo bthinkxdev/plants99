@@ -311,6 +311,64 @@
         </form>
     </div>
 
+    <div class="edit-section" id="delivery-states-section">
+    <h4 class="section-heading"><span class="section-num">1B</span> Delivery states</h4>
+    <p class="section-hint">
+        Tick every state this product can be shipped to.
+        South India is listed first since the shop is based in Kerala.
+    </p>
+
+    <form method="post"
+          action="{% url 'admin_panel:product_delivery_states_update' product.pk %}">
+        {% csrf_token %}
+
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem;">
+            <div style="display:flex; gap:0.5rem;">
+                <button type="button" class="btn btn-sm btn-secondary" id="ds-select-all">
+                    Select all
+                </button>
+                <button type="button" class="btn btn-sm btn-secondary" id="ds-clear-all">
+                    Clear all
+                </button>
+            </div>
+            <span id="ds-counter" style="font-size:0.8125rem; color:#6b7280;"></span>
+        </div>
+
+        {% for region_label, states in delivery_form.get_states_by_region %}
+        <div style="margin-bottom:1.25rem;">
+            <p style="font-size:0.75rem; font-weight:600; text-transform:uppercase;
+                      letter-spacing:0.05em; color:#6b7280; margin:0 0 0.5rem;
+                      padding-bottom:0.375rem; border-bottom:1px solid #e5e7eb;">
+                {{ region_label }}
+            </p>
+            <div style="display:flex; flex-wrap:wrap; gap:0.375rem;">
+                {% for state in states %}
+                {% with is_checked=state.pk|stringformat:"i" %}
+                <label class="ds-chip {% if state in delivery_form.fields.states.queryset and state.pk in delivery_form.fields.states.initial %}ds-chip-checked{% endif %}"
+                       data-state-id="{{ state.pk }}">
+                    <input type="checkbox"
+                           name="states"
+                           value="{{ state.pk }}"
+                           {% if state.pk in delivery_form.fields.states.initial %}checked{% endif %}>
+                    <span class="ds-chip-box">✓</span>
+                    <span>{{ state.name }}</span>
+                    <span class="ds-chip-code">{{ state.code }}</span>
+                </label>
+                {% endwith %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+
+        <div style="display:flex; align-items:center; gap:0.75rem;
+                    margin-top:1rem; padding-top:1rem; border-top:1px solid #e5e7eb;">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-check"></i> Save delivery states
+            </button>
+        </div>
+    </form>
+</div>
+
     {% if ALLOW_ATTRIBUTES_AND_VARIANTS %}
     
     <div class="edit-section">

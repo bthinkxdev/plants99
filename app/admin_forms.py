@@ -4,7 +4,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.forms.formsets import DELETION_FIELD_NAME
-from .models import Banner, BlogPost, Category, Combo, Product, HomeCategory, HomeCategoryProduct, Reel
+from .models import Banner, BlogPost, Category, Combo, Product, HomeCategory, HomeCategoryProduct, Reel, Testimonial
 from .models import RentalConfig
 logger = logging.getLogger(__name__)
 
@@ -361,3 +361,129 @@ class ComboForm(forms.ModelForm):
     def clean_image(self):
         return _validate_image_file(self.cleaned_data.get('image'), required=False)
 
+class ProductDeliveryStateForm(forms.Form):
+    """
+    Multi-checkbox form: seller picks which states this product delivers to.
+ 
+    Used in the product edit page (seller / admin dashboard).
+    Groups states by region (South first) to guide the seller logically:
+    "Start with Kerala, expand to nearby states before farther ones."
+    """
+ 
+    states = forms.ModelMultipleChoiceField(
+        queryset=None,          # set in __init__
+        widget=forms.CheckboxSelectMultiple,
+        required=False,
+        label="Deliverable States",
+        help_text=(
+            "Tick every state this product can be shipped to. "
+            "Since the shop is in Kerala, start with South India. "
+            "Selling to Tamil Nadu should come before Jammu & Kashmir."
+        ),
+    )
+ 
+    def __init__(self, *args, product=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.product = product
+ 
+        from app.models import DeliveryState
+        self.fields["states"].queryset = (
+            DeliveryState.objects
+            .filter(is_active=True)
+            .order_by("display_order", "name")
+        )
+ 
+        # Pre-select currently assigned states
+        if product:
+            from app.models import ProductDeliveryState
+            current_ids = set(
+                ProductDeliveryState.objects
+                .filter(product=product)
+                .values_list("state_id", flat=True)
+            )
+            self.fields["states"].initial = [int(pk) for pk in current_ids]
+ 
+    def save(self):
+        """Atomically replace the product's delivery state list."""
+        if not self.product:
+            return
+        from app.services.state_delivery_service import set_product_delivery_states
+        selected = self.cleaned_data.get("states", [])
+        set_product_delivery_states(
+            self.product.pk,
+            [s.pk for s in selected],
+        )
+ 
+    def get_states_by_region(self):
+        """
+        Returns ordered list of (region_label, [DeliveryState, ...]) tuples.
+        Used in templates for grouped rendering.
+        """
+        from app.services.state_delivery_service import get_states_by_region
+ 
+        REGION_LABELS = {
+            "south":     "South India",
+            "west":      "West India",
+            "central":   "Central India",
+            "east":      "East India",
+            "north":     "North India",
+            "northeast": "North-East India",
+            "ut":        "Union Territories",
+        }
+        grouped = get_states_by_region()
+        return [
+            (REGION_LABELS.get(region, region), states)
+            for region, states in grouped.items()
+        ]
+ 
+class TestimonialForm(forms.ModelForm):
+ 
+    class Meta:
+        model  = Testimonial         
+        fields = [
+            'name',
+            'photo',
+            'rating',
+            'description',
+            'is_verified',
+            'is_active',
+            'display_order',
+        ]
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Customer name',
+            }),
+            'photo': forms.FileInput(attrs={
+                'class': 'form-control',
+                'accept': 'image/*',
+            }),
+            'rating': forms.Select(attrs={
+                'class': 'form-control',
+            }),
+            'description': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 4,
+                'placeholder': 'What did the customer say?',
+            }),
+            'is_verified': forms.CheckboxInput(attrs={
+                'class': 'form-check-input',
+            }),
+            'is_active': forms.CheckboxInput(attrs={
+                'class': 'form-check-input',
+            }),
+            'display_order': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': 0,
+                'placeholder': '0',
+            }),
+        }
+ 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['photo'].required       = False
+        self.fields['display_order'].required = False
+ 
+    def clean_photo(self):
+        photo = self.cleaned_data.get('photo')
+        return _validate_image_file(photo, required=False)

@@ -91,6 +91,10 @@
                     <i class="fas fa-clapperboard"></i>
                     <span>Reels</span>
                 </a>
+                <a href="{% url 'admin_panel:testimonial_list' %}" class="nav-item {% if active_menu == 'testimonials' %}active{% endif %}">
+                    <i class="fas fa-quote-left"></i>
+                    <span>Testimonials</span>
+                </a>
                 <a href="{% url 'admin_panel:message_list' %}" class="nav-item {% if active_menu == 'messages' %}active{% endif %}">
                     <i class="fas fa-envelope"></i>
                     <span class="nav-item-label">

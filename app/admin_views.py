@@ -7,8 +7,8 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.contrib.auth.decorators import user_passes_test
 from django.db import connection, transaction, IntegrityError
-from django.db.models import Count, Max, Sum, Q, F, ProtectedError
-from django.db.models.functions import TruncDate
+from django.db.models import Count, Max, Sum, Q, F, ProtectedError, Value
+from django.db.models.functions import TruncDate, Coalesce
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
@@ -16,9 +16,9 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView, View
-from .models import Banner, BlogPost, CartItem, Category, Combo, ComboItem, ContactMessage, HomeCategory, Order, OrderItem, Product, ProductAttributeValue, Reel, Review, Shipment, Variant, VariantImage
+from .models import Banner, BlogPost, CartItem, Category, Combo, ComboItem, ContactMessage, HomeCategory, Order, OrderItem, Product, ProductAttributeValue, Reel, Review, Shipment, Variant, VariantImage, Testimonial
 from django.conf import settings
-from .admin_forms import AdminLoginForm, BannerForm, BlogPostForm, CategoryForm, ComboForm, HomeCategoryForm, ProductBasicEditForm, ReelForm, RentalConfigForm, _validate_image_file
+from .admin_forms import AdminLoginForm, BannerForm, BlogPostForm, CategoryForm, ComboForm, HomeCategoryForm, ProductBasicEditForm, ReelForm, RentalConfigForm, _validate_image_file, TestimonialForm
 from .utils.debug_trace import Trace
 from .admin_product_edit_views import ProductCreateBasicView as BaseProductCreateBasicView, ProductEditView as BaseProductEditView, ProductUpdateBasicView as BaseProductUpdateBasicView, ProductToggleActiveView as BaseProductToggleActiveView, ProductAttributesListApiView as BaseProductAttributesListApiView, ProductAttributeCreateApiView as BaseProductAttributeCreateApiView, ProductAttributesReorderApiView as BaseProductAttributesReorderApiView, ProductAttributeUpdateApiView as BaseProductAttributeUpdateApiView, ProductAttributeDeleteApiView as BaseProductAttributeDeleteApiView, ProductAttributeValueCreateApiView as BaseProductAttributeValueCreateApiView, ProductAttributeValuesReorderApiView as BaseProductAttributeValuesReorderApiView, ProductAttributeValueUpdateApiView as BaseProductAttributeValueUpdateApiView, ProductAttributeValueDeleteApiView as BaseProductAttributeValueDeleteApiView, ProductVariantsListApiView as BaseProductVariantsListApiView, VariantCreateApiView as BaseVariantCreateApiView, VariantUpdateApiView as BaseVariantUpdateApiView, VariantDeleteApiView as BaseVariantDeleteApiView, VariantUploadImageView as BaseVariantUploadImageView, VariantImageDeleteView as BaseVariantImageDeleteView, VariantImageSetPrimaryView as BaseVariantImageSetPrimaryView, VariantImageReorderView as BaseVariantImageReorderView, ProductImageUploadView as BaseProductImageUploadView, ProductImageDeleteView as BaseProductImageDeleteView, ProductImageSetPrimaryView as BaseProductImageSetPrimaryView, ProductImageReorderView as BaseProductImageReorderView, ProductComboComponentsListApiView as BaseProductComboComponentsListApiView, ProductComboCandidateProductsApiView as BaseProductComboCandidateProductsApiView, ProductComboComponentAddApiView as BaseProductComboComponentAddApiView, ProductComboComponentUpdateApiView as BaseProductComboComponentUpdateApiView, ProductComboComponentDeleteApiView as BaseProductComboComponentDeleteApiView
 logger = logging.getLogger(__name__)
@@ -248,7 +248,14 @@ class AdminDashboardView(StaffRequiredMixin, TemplateView):
         revenue_this_month = Order.objects.filter(created_at__date__gte=last_30_days).aggregate(total=Sum('total'))['total'] or 0
         order_status = Order.objects.values('status').annotate(count=Count('id'))
         total_products = Product.objects.filter(is_active=True).count()
-        low_stock_products = Variant.objects.filter(is_active=True, stock_quantity__lte=5, stock_quantity__gt=0).count()
+        _low = getattr(settings, 'LOW_STOCK_THRESHOLD', 5)
+        low_stock_variants = Variant.objects.filter(
+            is_active=True, stock_quantity__gt=0, stock_quantity__lte=_low
+        ).count()
+        low_stock_simple = Product.objects.filter(is_active=True).annotate(
+            _vc=Count('variants')
+        ).filter(_vc=0, base_stock__gt=0, base_stock__lte=_low).count()
+        low_stock_products = low_stock_variants + low_stock_simple
         out_of_stock_products = Variant.objects.filter(is_active=True, stock_quantity=0).count()
         recent_orders = Order.objects.select_related('address').order_by('-created_at')[:10]
         top_rows = list(OrderItem.objects.filter(order__created_at__gte=last_30_days).exclude(order__status=Order.Status.CANCELLED).values('product_id').annotate(total_sold=Sum('quantity'), revenue=Sum(F('quantity') * F('unit_price'))).order_by('-total_sold')[:5])
@@ -483,9 +490,13 @@ class ProductListView(StaffRequiredMixin, ListView):
         context['filter_category'] = self.request.GET.get('category', '')
         context['filter_status'] = self.request.GET.get('status', '')
         context['filter_offer'] = self.request.GET.get('offer', '')
+        _low = getattr(settings, 'LOW_STOCK_THRESHOLD', 5)
         for product in context['products']:
             product.inventory_count = product.get_stock()
             product.display_price = product.get_price()
+            stock = product.inventory_count
+            product.is_low_stock = 0 < stock <= _low
+            product.is_out_of_stock = stock == 0
         return context
 
 
@@ -1346,6 +1357,8 @@ class DashboardReelToggleActiveView(StaffRequiredMixin, View):
         messages.success(request, 'Reel status updated.')
         return redirect('admin_panel:reel_list')
 
+class ReviewBulkActionView(StaffRequiredMixin, View):
+
     @transaction.atomic
     def post(self, request, *args, **kwargs):
         action = request.POST.get('action')
@@ -1358,21 +1371,25 @@ class DashboardReelToggleActiveView(StaffRequiredMixin, View):
         except (TypeError, ValueError):
             messages.error(request, 'Invalid review selection.')
             return redirect('admin_panel:review_list')
-        reviews = list(Review.objects.select_for_update().select_related('product').filter(id__in=ids_int))
+        reviews = list(
+            Review.objects.select_for_update()
+            .select_related('product')
+            .filter(id__in=ids_int)
+        )
         if not reviews:
             messages.info(request, 'No reviews found for the selected IDs.')
             return redirect('admin_panel:review_list')
         updated_products = set()
         if action == 'approve':
             for r in reviews:
-                if not r.is_approved and (not r.is_deleted):
+                if not r.is_approved and not r.is_deleted:
                     r.is_approved = True
                     r.save(update_fields=['is_approved'])
                     updated_products.add(r.product_id)
             messages.success(request, 'Selected reviews have been approved.')
         elif action == 'unapprove':
             for r in reviews:
-                if r.is_approved and (not r.is_deleted):
+                if r.is_approved and not r.is_deleted:
                     r.is_approved = False
                     r.save(update_fields=['is_approved'])
                     updated_products.add(r.product_id)
@@ -1386,7 +1403,6 @@ class DashboardReelToggleActiveView(StaffRequiredMixin, View):
             messages.success(request, 'Selected reviews have been deleted.')
         else:
             messages.error(request, 'Unknown action.')
-            return redirect('admin_panel:review_list')
         return redirect('admin_panel:review_list')
 
 class ShipmentRetryView(StaffRequiredMixin, View):
@@ -1450,3 +1466,126 @@ class ShipmentCancelView(StaffRequiredMixin, View):
             logger.error('Unexpected error cancelling shipment for order %s: %s', order_number, exc, exc_info=True)
             messages.error(request, 'Unexpected error while cancelling shipment.')
         return redirect('admin_panel:order_detail', order_number=order_number)
+
+class ProductDeliveryStatesUpdateView(View):
+    """
+    POST endpoint called from the product edit page delivery-states section.
+    Atomically replaces the product's delivery state list.
+ 
+    POST /admin/products/<pk>/delivery-states/
+    """
+ 
+    def post(self, request, pk):
+        from app.models import Product
+        from app.admin_forms import ProductDeliveryStateForm
+ 
+        product = get_object_or_404(Product, pk=pk)
+        form = ProductDeliveryStateForm(request.POST, product=product)
+ 
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Delivery states updated successfully.")
+        else:
+            for field, errs in form.errors.items():
+                for err in errs:
+                    messages.error(request, f"{field}: {err}")
+ 
+        return redirect("admin_panel:product_edit", pk=product.pk)
+    
+class TestimonialListView(StaffRequiredMixin, ListView):
+    model               = Testimonial        # imported from .models
+    template_name       = 'dashboard/testimonials/list.html'
+    context_object_name = 'testimonials'
+    paginate_by         = 20
+ 
+    def get_queryset(self):
+        qs     = Testimonial.objects.all()
+        status = (self.request.GET.get('status') or '').strip().lower()
+        if status == 'active':
+            qs = qs.filter(is_active=True)
+        elif status == 'inactive':
+            qs = qs.filter(is_active=False)
+        return qs.order_by('display_order', '-created_at')
+ 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['active_menu']   = 'testimonials'
+        context['filter_status'] = self.request.GET.get('status', '')
+        return context
+ 
+ 
+class TestimonialCreateView(StaffRequiredMixin, CreateView):
+    model         = Testimonial
+    form_class    = TestimonialForm          # imported from .admin_forms
+    template_name = 'dashboard/testimonials/form.html'
+    success_url   = reverse_lazy('admin_panel:testimonial_list')
+ 
+    def form_valid(self, form):
+        messages.success(self.request, 'Testimonial created successfully.')
+        return super().form_valid(form)
+ 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['active_menu'] = 'testimonials'
+        context['form_title']  = 'Add Testimonial'
+        return context
+ 
+ 
+class TestimonialUpdateView(StaffRequiredMixin, UpdateView):
+    model         = Testimonial
+    form_class    = TestimonialForm
+    template_name = 'dashboard/testimonials/form.html'
+    success_url   = reverse_lazy('admin_panel:testimonial_list')
+ 
+    def form_valid(self, form):
+        messages.success(self.request, 'Testimonial updated successfully.')
+        return super().form_valid(form)
+ 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['active_menu'] = 'testimonials'
+        context['form_title']  = f'Edit: {self.object.name}'
+        return context
+ 
+ 
+class TestimonialDeleteView(StaffRequiredMixin, DeleteView):
+    model       = Testimonial
+    success_url = reverse_lazy('admin_panel:testimonial_list')
+ 
+    def post(self, request, *args, **kwargs):
+        obj  = self.get_object()
+        name = obj.name
+ 
+        # Clean up the photo file from storage to avoid orphaned files
+        if obj.photo:
+            try:
+                photo_name = obj.photo.name
+                storage    = obj.photo.storage
+                Testimonial.objects.filter(pk=obj.pk).update(photo=None)
+                try:
+                    storage.delete(photo_name)
+                except Exception:
+                    pass
+            except Exception as e:
+                logger.warning('Failed to delete testimonial photo: %s', e)
+ 
+        try:
+            Testimonial.objects.filter(pk=obj.pk).delete()
+            messages.success(request, f"Testimonial by '{name}' deleted.")
+        except Exception as e:
+            messages.error(request, f'Error deleting testimonial: {e}')
+ 
+        return redirect(self.success_url)
+ 
+ 
+class TestimonialToggleActiveView(StaffRequiredMixin, View):
+    """Quick active/inactive toggle from the list page."""
+ 
+    def post(self, request, pk):
+        testimonial            = get_object_or_404(Testimonial, pk=pk)
+        testimonial.is_active  = not testimonial.is_active
+        testimonial.save(update_fields=['is_active', 'updated_at'])
+        state = 'activated' if testimonial.is_active else 'deactivated'
+        messages.success(request, f'Testimonial {state}.')
+        return redirect('admin_panel:testimonial_list')
+ 

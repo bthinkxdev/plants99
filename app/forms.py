@@ -61,108 +61,186 @@ class CartUpdateForm(forms.Form):
     quantity = forms.IntegerField(min_value=0)
 
 class CheckoutForm(forms.Form):
-    selected_address = forms.IntegerField(required=False, widget=forms.HiddenInput())
-    use_new_address = forms.BooleanField(required=False, initial=False, widget=forms.HiddenInput())
-    full_name = forms.CharField(max_length=120, required=False)
-    email = forms.EmailField(required=False)
-    phone = forms.CharField(max_length=20, required=False)
-    address_line = forms.CharField(widget=forms.Textarea(attrs={'rows': 3}), required=False, label='Address')
-    city = forms.CharField(max_length=80, required=False)
-    state = forms.CharField(max_length=80, required=False)
-    pincode = forms.CharField(max_length=10, required=False)
-    payment = forms.ChoiceField(choices=[('cod', 'Cash on Delivery'), ('razorpay', 'Online Payment')], widget=forms.RadioSelect)
-
+    selected_address   = forms.IntegerField(required=False, widget=forms.HiddenInput())
+    use_new_address    = forms.BooleanField(required=False, initial=False, widget=forms.HiddenInput())
+ 
+    # Address fields (kept as-is for snapshot / display)
+    full_name          = forms.CharField(max_length=120, required=False)
+    email              = forms.EmailField(required=False)
+    phone              = forms.CharField(max_length=20, required=False)
+    address_line       = forms.CharField(widget=forms.Textarea(attrs={"rows": 3}), required=False, label="Address")
+    city               = forms.CharField(max_length=80, required=False)
+    state              = forms.CharField(max_length=80, required=False)
+    pincode            = forms.CharField(max_length=10, required=False)
+ 
+    # ── NEW: structured delivery state (replaces pincode serviceability check) ─
+    delivery_state     = forms.IntegerField(
+        required=False,
+        widget=forms.HiddenInput(),
+        help_text="PK of the DeliveryState the customer selected on the PDP.",
+    )
+ 
+    payment = forms.ChoiceField(
+        choices=[("cod", "Cash on Delivery"), ("razorpay", "Online Payment")],
+        widget=forms.RadioSelect,
+    )
+ 
     def __init__(self, *args, **kwargs):
-        self.user = kwargs.pop('user', None)
+        self.user              = kwargs.pop("user", None)
+        # ── NEW: receive cart product IDs for cross-product delivery validation ─
+        self._cart_product_ids = kwargs.pop("cart_product_ids", [])
         super().__init__(*args, **kwargs)
-        self.fields['payment'].initial = 'cod'
+        self.fields["payment"].initial = "cod"
         for field in self.fields.values():
             if isinstance(field.widget, (forms.RadioSelect, forms.HiddenInput)):
                 continue
-            existing = field.widget.attrs.get('class', '')
-            field.widget.attrs['class'] = f'{existing} form-input'.strip()
-
+            existing = field.widget.attrs.get("class", "")
+            field.widget.attrs["class"] = f"{existing} form-input".strip()
+ 
+    # ── Validation ─────────────────────────────────────────────────────────────
+ 
     def clean(self):
         try:
-            cleaned_data = super().clean()
-            selected_address = cleaned_data.get('selected_address')
-            use_new_address = cleaned_data.get('use_new_address')
-            is_guest = not self.user
-            delivery_on = delivery_enabled()
+            cleaned_data    = super().clean()
+            selected_address = cleaned_data.get("selected_address")
+            use_new_address  = cleaned_data.get("use_new_address")
+            is_guest         = not self.user
+            delivery_on      = delivery_enabled()
+ 
             if is_guest and delivery_on:
                 use_new_address = True
-                cleaned_data['use_new_address'] = True
+                cleaned_data["use_new_address"] = True
                 selected_address = None
+ 
+            # ── Resolve address fields ─────────────────────────────────────────
             if selected_address and (not use_new_address) and self.user:
                 try:
-                    address = Address.objects.get(pk=selected_address, user=self.user, is_snapshot=False)
-                    cleaned_data['full_name'] = address.full_name
-                    cleaned_data['phone'] = address.phone
-                    cleaned_data['email'] = address.email
-                    cleaned_data['address_line'] = address.address_line
-                    cleaned_data['city'] = address.city
-                    cleaned_data['state'] = address.state
-                    cleaned_data['pincode'] = address.pincode
+                    address = Address.objects.get(
+                        pk=selected_address, user=self.user, is_snapshot=False
+                    )
+                    cleaned_data["full_name"]    = address.full_name
+                    cleaned_data["phone"]        = address.phone
+                    cleaned_data["email"]        = address.email
+                    cleaned_data["address_line"] = address.address_line
+                    cleaned_data["city"]         = address.city
+                    cleaned_data["state"]        = address.state
+                    cleaned_data["pincode"]      = address.pincode
+                    # Carry over saved delivery_state if present
+                    if not cleaned_data.get("delivery_state") and address.delivery_state_id:
+                        cleaned_data["delivery_state"] = address.delivery_state_id
                 except Address.DoesNotExist:
-                    raise forms.ValidationError('Selected address not found.')
-                except Exception as e:
-                    raise forms.ValidationError('Failed to retrieve address. Please try again.')
+                    raise forms.ValidationError("Selected address not found.")
+                except Exception:
+                    raise forms.ValidationError("Failed to retrieve address. Please try again.")
             else:
-                if not use_new_address and (not selected_address):
+                if not use_new_address and not selected_address:
                     try:
                         if self.user and Address.objects.filter(user=self.user, is_snapshot=False).exists():
-                            raise forms.ValidationError('Please select an address or add a new one.')
+                            raise forms.ValidationError("Please select an address or add a new one.")
                         else:
                             use_new_address = True
-                            cleaned_data['use_new_address'] = True
-                    except Exception as e:
-                        raise forms.ValidationError('Failed to retrieve addresses. Please try again.')
+                            cleaned_data["use_new_address"] = True
+                    except forms.ValidationError:
+                        raise
+                    except Exception:
+                        raise forms.ValidationError("Failed to retrieve addresses. Please try again.")
+ 
                 if use_new_address and delivery_on:
-                    required_fields = ['full_name', 'phone', 'address_line', 'city', 'state', 'pincode']
+                    required_fields = ["full_name", "phone", "address_line", "city", "state", "pincode"]
                     if is_guest:
-                        required_fields = ['full_name', 'email', 'phone', 'address_line', 'city', 'state', 'pincode']
+                        required_fields = ["full_name", "email", "phone", "address_line", "city", "state", "pincode"]
                     for field in required_fields:
                         if not cleaned_data.get(field):
-                            self.add_error(field, 'This field is required.')
-                    if cleaned_data.get('phone'):
-                        self._validate_phone(cleaned_data.get('phone'))
-                    if cleaned_data.get('pincode'):
-                        self._validate_pincode(cleaned_data.get('pincode'))
+                            self.add_error(field, "This field is required.")
+ 
+                    if cleaned_data.get("phone"):
+                        self._validate_phone(cleaned_data.get("phone"))
+ 
+                    # ── Pincode format check (kept for address capture) ─────────
+                    # no longer check serviceability by pincode,
+                    # but we still validate format so the address looks correct.
+                    if cleaned_data.get("pincode"):
+                        self._validate_pincode_format(cleaned_data.get("pincode"))
+ 
+            # ── NEW: Delivery state serviceability check ───────────────────────
+            if delivery_on:
+                state_id = cleaned_data.get("delivery_state")
+                self._validate_delivery_state(state_id, self._cart_product_ids)
+ 
             return cleaned_data
+ 
         except forms.ValidationError:
             raise
-        except Exception as e:
-            raise forms.ValidationError('An error occurred. Please try again.')
-
+        except Exception:
+            raise forms.ValidationError("An error occurred. Please try again.")
+ 
+    def _validate_delivery_state(self, state_id, product_ids):
+        """
+        Ensure:
+        1. A delivery state was selected.
+        2. Every product in the cart ships to that state.
+        """
+        if not state_id:
+            self.add_error(
+                "delivery_state",
+                "Please select your delivery state.",
+            )
+            return
+ 
+        from app.models import DeliveryState
+        from app.services.state_delivery_service import is_state_deliverable_for_product
+ 
+        try:
+            state = DeliveryState.objects.get(pk=state_id, is_active=True)
+        except DeliveryState.DoesNotExist:
+            self.add_error("delivery_state", "Invalid delivery state selected.")
+            return
+ 
+        # Check every product in the cart
+        for pid in product_ids:
+            if pid and not is_state_deliverable_for_product(int(pid), state_id):
+                self.add_error(
+                    "delivery_state",
+                    f"One or more items in your cart do not ship to {state.name}. "
+                    f"Please review your cart or choose a different state.",
+                )
+                return
+ 
     def _validate_phone(self, phone):
         if not phone:
-            self.add_error('phone', 'Phone number is required.')
+            self.add_error("phone", "Phone number is required.")
             return
         phone = phone.strip()
-        cleaned_phone = phone.replace('+91', '').replace('-', '').replace(' ', '').replace('(', '').replace(')', '')
-        if not cleaned_phone.isdigit():
-            self.add_error('phone', 'Phone number should contain only digits (and optional +91 prefix).')
+        cleaned = phone.replace("+91", "").replace("-", "").replace(" ", "").replace("(", "").replace(")", "")
+        if not cleaned.isdigit():
+            self.add_error("phone", "Phone number should contain only digits (and optional +91 prefix).")
             return
-        if len(cleaned_phone) != 10:
-            self.add_error('phone', 'Phone number must be exactly 10 digits.')
+        if len(cleaned) != 10:
+            self.add_error("phone", "Phone number must be exactly 10 digits.")
             return
-        if cleaned_phone[0] not in ['6', '7', '8', '9']:
-            self.add_error('phone', 'Phone number should start with 6, 7, 8, or 9.')
-
-    def _validate_pincode(self, pincode):
+        if cleaned[0] not in ["6", "7", "8", "9"]:
+            self.add_error("phone", "Phone number should start with 6, 7, 8, or 9.")
+ 
+    def _validate_pincode_format(self, pincode):
+        """
+        Format-only check (not serviceability).
+        Still run so the address field looks correct.
+        """
         if not pincode:
-            self.add_error('pincode', 'PIN code is required.')
+            self.add_error("pincode", "PIN code is required.")
             return
-        pincode = pincode.strip()
-        cleaned_pincode = pincode.replace('-', '').replace(' ', '')
-        if not cleaned_pincode.isdigit():
-            self.add_error('pincode', 'PIN code should contain only digits.')
+        cleaned = pincode.strip().replace("-", "").replace(" ", "")
+        if not cleaned.isdigit():
+            self.add_error("pincode", "PIN code should contain only digits.")
             return
-        if len(cleaned_pincode) != 6:
-            self.add_error('pincode', 'PIN code must be exactly 6 digits.')
+        if len(cleaned) != 6:
+            self.add_error("pincode", "PIN code must be exactly 6 digits.")
             return
-        if cleaned_pincode[0] == '0':
-            self.add_error('pincode', 'PIN code cannot start with 0.')
+        if cleaned[0] == "0":
+            self.add_error("pincode", "PIN code cannot start with 0.")
+ 
+    # Keep old name as alias during transition
+    _validate_pincode = _validate_pincode_format
 
 class ContactForm(forms.ModelForm):
 

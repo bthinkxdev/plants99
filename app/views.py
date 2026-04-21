@@ -17,7 +17,7 @@ import logging
 logger = logging.getLogger(__name__)
 from .auth_decorators import LoginRequiredForActionMixin
 from .forms import CartAddForm, CartUpdateForm, CheckoutForm, ContactForm, NewsletterForm, ReviewForm
-from .models import Banner, CartItem, Category, Combo, ComboItem, HomeCategory, HomeCategoryProduct, Order, OrderItem, Payment, Product, ProductComboItem, Reel, Review, Variant, Cart, Wishlist, Shipment
+from .models import Banner, CartItem, Category, Combo, ComboItem, HomeCategory, HomeCategoryProduct, Order, OrderItem, Payment, Product, ProductComboItem, Reel, Review, Variant, Cart, Wishlist, Shipment, Testimonial
 from .services import CartError, CartService, OrderService, StockError, send_order_confirmation_email_async
 from .services.product_service import ProductDetailService, get_pdp_queryset
 from .services.catalog import active_variant_qs, apply_plant_filters_to_product_qs, apply_plant_filters_to_variant_qs, collection_card_items, collection_combo_cards
@@ -319,6 +319,13 @@ class HomeView(TemplateView):
                 context['cart_product_ids'] = set()
                 context['cart_simple_product_ids'] = set()
                 context['cart_combo_ids'] = set()
+            try:
+                context['testimonials'] = list(
+                    Testimonial.objects.filter(is_active=True)
+                    .order_by('display_order', '-created_at')[:12]
+                )
+            except Exception:
+                context['testimonials'] = []
             return context
         except Exception as e:
             logger.error(f'Error in HomeView.get_context_data: {str(e)}', exc_info=True)
@@ -343,6 +350,7 @@ class HomeView(TemplateView):
             context['reels'] = []
             context['rent_products'] = []
             context['cart_combo_ids'] = set()
+            context['testimonials'] = [] 
             return context
 RECENTLY_VIEWED_MAX = 20
 RECENTLY_VIEWED_VARIANTS_MAX = 20
@@ -460,22 +468,141 @@ class ProductPdpSeoFragmentView(View):
         return render(request, 'sections/product_seo.html', {'product': product})
 
 
-class PincodeServiceabilityView(View):
-
+class ProductDeliveryStatesView(View):
+    """
+    Return the deliverable state list for a product.
+    Called on initial PDP load to populate the state dropdown.
+ 
+    GET /api/delivery/states/?product_id=42
+ 
+    Response:
+    {
+        "states": [
+            {"id": 1, "name": "Kerala",     "code": "KL", "region": "south"},
+            {"id": 2, "name": "Tamil Nadu", "code": "TN", "region": "south"},
+            ...
+        ]
+    }
+    """
+ 
     def get(self, request, *args, **kwargs):
-        from .services import availability_service
-        pin = request.GET.get('pincode', '')
-        line_type = request.GET.get('line_type', 'purchase')
-        combo = request.GET.get('combo', '').lower() in ('1', 'true', 'yes')
-        payload = availability_service.serviceability_for_product(pincode=pin, product_is_combo=combo, line_type=line_type)
-        return JsonResponse(
-            {
-                'serviceable': payload['serviceable'],
-                'normalized': payload['normalized'],
-                'detail': payload,
-                'message': payload['message_available'] if payload['serviceable'] else payload['message_unavailable'],
-            }
-        )
+        from app.services.state_delivery_service import get_deliverable_states_for_product
+ 
+        raw = request.GET.get("product_id", "")
+        try:
+            product_id = int(raw)
+        except (ValueError, TypeError):
+            return JsonResponse(
+                {"states": [], "error": "product_id is required and must be an integer."},
+                status=400,
+            )
+ 
+        states = get_deliverable_states_for_product(product_id)
+        return JsonResponse({
+            "states": [
+                {
+                    "id":     s.id,
+                    "name":   s.name,
+                    "code":   s.code,
+                    "region": s.region,
+                }
+                for s in states
+            ]
+        })
+ 
+ 
+class StateServiceabilityView(View):
+    """
+    Check if a specific state is serviceable for a product.
+    Called when the customer selects a state on the PDP dropdown.
+ 
+    GET /api/delivery/state/?product_id=42&state_id=5
+ 
+    Response (serviceable):
+    {
+        "serviceable": true,
+        "state_id": 5,
+        "state_name": "Tamil Nadu",
+        "deliverable_states": [...],
+        "message": "Delivery available to Tamil Nadu ✓"
+    }
+ 
+    Response (not serviceable):
+    {
+        "serviceable": false,
+        "state_id": 30,
+        "state_name": "West Bengal",
+        "deliverable_states": [...],
+        "message": "Sorry, we don't currently deliver to West Bengal."
+    }
+    """
+ 
+    def get(self, request, *args, **kwargs):
+        from app.services.state_delivery_service import serviceability_payload
+ 
+        raw_product = request.GET.get("product_id", "")
+        raw_state   = request.GET.get("state_id", "")
+ 
+        try:
+            product_id = int(raw_product)
+        except (ValueError, TypeError):
+            return JsonResponse(
+                {"serviceable": False, "message": "product_id is required."},
+                status=400,
+            )
+ 
+        try:
+            state_id = int(raw_state) if raw_state else None
+        except (ValueError, TypeError):
+            state_id = None
+ 
+        payload = serviceability_payload(product_id=product_id, state_id=state_id)
+        return JsonResponse(payload)
+ 
+ 
+class ComboDeliveryStatesView(View):
+    """
+    Return deliverable states for a combo (intersection of all components).
+    Called on initial Combo PDP load.
+ 
+    GET /api/delivery/states/combo/?combo_id=7
+    """
+ 
+    def get(self, request, *args, **kwargs):
+        from app.services.state_delivery_service import serviceability_payload_for_combo
+ 
+        raw = request.GET.get("combo_id", "")
+        try:
+            combo_id = int(raw)
+        except (ValueError, TypeError):
+            return JsonResponse(
+                {"states": [], "error": "combo_id is required."},
+                status=400,
+            )
+ 
+        payload = serviceability_payload_for_combo(combo_id=combo_id, state_id=None)
+        return JsonResponse({"states": payload["deliverable_states"]})
+ 
+ 
+# ── Legacy stub — keeps old PDP JS working until templates are updated ─────────
+ 
+class PincodeServiceabilityView(View):
+    """
+    DEPRECATED. Kept so old AJAX calls don't 404 during template migration.
+    Always returns serviceable=false with a migration message.
+    Remove once all templates use the new state-based endpoints.
+    """
+ 
+    def get(self, request, *args, **kwargs):
+        return JsonResponse({
+            "serviceable": False,
+            "normalized": "",
+            "message": (
+                "PIN code checks are no longer used. "
+                "Please select your state from the dropdown."
+            ),
+            "_deprecated": True,
+        })
 
 
 class ProductReviewCreateView(LoginRequiredForActionMixin, View):
@@ -658,7 +785,8 @@ def _serialize_variant_for_json(variant, detail_url=None):
                 pass
     image_url = card_images[0] if card_images else '/static/images/banner.png'
     has_stock = (variant.stock_quantity or 0) > 0
-    is_low_stock = 0 < (variant.stock_quantity or 0) <= 5
+    _threshold = getattr(product, 'low_stock_threshold', None) or getattr(settings, 'LOW_STOCK_THRESHOLD', 5)
+    is_low_stock = 0 < (variant.stock_quantity or 0) <= _threshold
     category_name = product.category.name if getattr(product, 'category', None) else ''
     avg_rating = getattr(product, 'average_rating', None)
     if avg_rating is not None:
@@ -1232,8 +1360,9 @@ class RemoveCartItemView(View):
             return redirect(next_url)
         is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
         if is_ajax:
-            return JsonResponse({'success': True})
-        return _redirect_open_cart()
+            cart = CartService.get_or_create_cart(request)
+            item_count = sum(item.quantity for item in cart.items.all())
+            return JsonResponse({'success': True, 'cart_count': item_count})
 
 class CheckoutView(TemplateView):
     template_name = 'pages/checkout.html'

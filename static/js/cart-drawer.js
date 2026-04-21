@@ -210,7 +210,7 @@
   }
 
   
-  function removeItem(itemId) {
+function removeItem(itemId) {
     var row = itemsEl.querySelector('[data-id="' + itemId + '"]');
     if (row) row.classList.add('is-removing');
 
@@ -223,7 +223,11 @@
           'X-Requested-With': 'XMLHttpRequest',
         },
       })
-        .then(fetchCart)
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.cart_count !== undefined) syncAllBadges(data.cart_count);
+          fetchCart();
+        })
         .catch(fetchCart);
     }, 230);
   }
@@ -232,10 +236,10 @@
   function recomputeTotal() {
     var total = 0;
     itemsEl.querySelectorAll('.cd-item').forEach(function (row) {
-      var priceText = (row.querySelector('.cd-item__price') || {}).textContent || '';
+      var priceEl = row.querySelector('.cd-item__price');
+      var unitPrice = parseFloat((priceEl && priceEl.getAttribute('data-unit')) || 0);
       var qty = parseInt((row.querySelector('.cd-qty__val') || {}).textContent, 10) || 1;
-      var price = parseFloat(priceText.replace(/[^0-9.]/g, '')) || 0;
-      total += price * qty;
+      total += unitPrice * qty;
     });
     totalEl.textContent = fmtPrice(total);
   }

@@ -74,23 +74,11 @@
             {% endif %}
         </div>
 
-        {% if v.id in cart_variant_ids or product.id in cart_product_ids %}
         <div class="position-relative tpc-actions-bleed">
-            <button type="button" class="tpc-add-btn w-100 js-open-cart-drawer">
-                <i class="fas fa-shopping-cart me-1"></i> View cart
-            </button>
+            <a href="{% url 'store:product_detail' product.slug %}?variant={{ v.id }}" class="tpc-add-btn w-100 d-block text-center">
+                View product
+            </a>
         </div>
-        {% else %}
-        <form method="post" action="{% url 'store:cart_add' %}" class="tpc-form product-add-form tpc-actions-bleed">
-            {% csrf_token %}
-            <input type="hidden" name="product_id" value="{{ product.id }}">
-            <input type="hidden" name="variant_id" value="{{ v.id }}">
-            <input type="hidden" name="quantity" value="1">
-            <button type="submit" class="tpc-add-btn w-100">
-                Add to cart
-            </button>
-        </form>
-        {% endif %}
     </div>
 
 </div>
@@ -167,22 +155,11 @@
             {% endif %}
         </div>
 
-        {% if product.id in cart_simple_product_ids %}
         <div class="position-relative tpc-actions-bleed">
-            <button type="button" class="tpc-add-btn w-100 js-open-cart-drawer">
-                View cart
-            </button>
+            <a href="{% url 'store:product_detail' product.slug %}" class="tpc-add-btn w-100 d-block text-center">
+                View product
+            </a>
         </div>
-        {% else %}
-        <form method="post" action="{% url 'store:cart_add' %}" class="tpc-form product-add-form tpc-actions-bleed">
-            {% csrf_token %}
-            <input type="hidden" name="product_id" value="{{ product.id }}">
-            <input type="hidden" name="quantity" value="1">
-            <button type="submit" class="tpc-add-btn w-100">
-                Add to cart
-            </button>
-        </form>
-        {% endif %}
     </div>
 
 </div>

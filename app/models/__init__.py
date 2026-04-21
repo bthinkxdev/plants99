@@ -1,4 +1,4 @@
-from .base import TimeStampedModel
+﻿from .base import TimeStampedModel
 from .category import Category, HomeCategory, HomeCategoryProduct
 from .product import (
     Product,
@@ -18,7 +18,8 @@ from .cart import Cart, CartItem
 from .order import Address, Order, OrderItem, Payment, Shipment
 from .review import ProductReview, Review
 from .engagement import Banner, ContactMessage, NewsletterSubscription, OTPRequest, UserProfile, Wishlist
-from .cms import BlogPost, Reel
+from .cms import BlogPost, Reel, Testimonial
+from .delivery import DeliveryState, ProductDeliveryState
 from .rental import RentalBooking, RentalConfig
 
 __all__ = [
@@ -55,6 +56,7 @@ __all__ = [
     'RentalBooking',
     'RentalConfig',
     'Shipment',
+    'Testimonial',
     'TimeStampedModel',
     'UserProfile',
     'Variant',
@@ -62,3 +64,4 @@ __all__ = [
     'VariantImage',
     'Wishlist',
 ]
+

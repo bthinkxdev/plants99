@@ -55,10 +55,10 @@ EMAIL_HOST_USER = config('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 ADMIN_NOTIFICATION_EMAILS = ['adithyamc@bthinkx.com']
-SITE_PHONE = config('SITE_PHONE', default='+91 8891923189')
-SITE_WHATSAPP = config('SITE_WHATSAPP', default='918891923189')
+SITE_PHONE = config('SITE_PHONE', default='+91 7559947750')
+SITE_WHATSAPP = config('SITE_WHATSAPP', default='917559947750')
 SITE_EMAIL = config('SITE_EMAIL', default='plants99@gmail.com')
-SITE_INSTAGRAM = config('SITE_INSTAGRAM', default='plants99')
+SITE_INSTAGRAM = config('SITE_INSTAGRAM', default='plants_.99')
 SITE_BRAND = config('SITE_BRAND', default='Plants 99')
 SITE_TAGLINE = config('SITE_TAGLINE', default='Bring nature home')
 RZP_CLIENT_ID = config('RZP_CLIENT_ID')
@@ -91,4 +91,4 @@ else:
     STORAGES = {'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'}, 'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'}}
     MEDIA_ROOT = BASE_DIR / 'media'
     MEDIA_URL = '/media/'
-ALLOWED_SERVICE_PINCODES = ('682001', '682002', '682003', '682016', '695001', '695002', '673001', '673002', '686001', '688001')
+# ALLOWED_SERVICE_PINCODES = ('682001', '682002', '682003', '682016', '695001', '695002', '673001', '673002', '686001', '688001')
