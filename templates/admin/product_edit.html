@@ -368,6 +368,43 @@
         </div>
     </form>
 </div>
+     
+    <div class="edit-section" id="pot-addons-section">
+        <h4 class="section-heading"><span class="section-num">1C</span> Pot Add-ons</h4>
+        <p class="section-hint">
+            Link pots from the <strong>Pots</strong> category that customers can optionally add to this plant.
+            Click any pot tile below to link it. Both products remain independently sellable.
+        </p>
+        
+        {% comment %} Warning — only shown if no pots category exists  {% endcomment %}
+        <div id="pot-category-warning" style="display:none;background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:.75rem 1rem;margin-bottom:1rem;color:#92400e;font-size:.85rem;">
+            ⚠️ No active category with slug <code>pot</code> or <code>pots</code> found.
+            Create that category and add pot products under it first.
+        </div>
+        
+        
+        <div style="margin-bottom:1.25rem;">
+            <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;">
+            <span style="font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;">Linked pots</span>
+            <span id="pot-addons-count" style="background:#e5e7eb;color:#374151;font-size:.72rem;font-weight:700;padding:1px 8px;border-radius:12px;">0</span>
+            </div>
+            <div id="pot-addons-list">
+            <div id="pot-addons-empty" style="color:#9ca3af;font-size:.85rem;padding:.5rem 0;">
+                No pot add-ons linked yet. Click a pot below to link it.
+            </div>
+            </div>
+        </div>
+        
+        <div>
+            <div style="font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:.6rem;">
+            Available pots (click to link)
+            </div>
+            <div id="pot-candidates-grid" style="display:flex;flex-wrap:wrap;gap:10px;">
+            <span style="color:#9ca3af;font-size:.85rem;">Loading…</span>
+            </div>
+        </div>
+    </div>
+
 
     {% if ALLOW_ATTRIBUTES_AND_VARIANTS %}
     

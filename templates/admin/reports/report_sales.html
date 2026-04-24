@@ -10,8 +10,8 @@
         <div class="card-header report-card-header">
             <h3 class="card-title">Sales Report</h3>
             <div class="report-export-buttons">
-                <a href="{% url 'admin_panel:report_export' 'sales' 'csv' %}" class="btn btn-sm btn-outline" id="reportExportCsv">CSV</a>
-                <a href="{% url 'admin_panel:report_export' 'sales' 'xlsx' %}" class="btn btn-sm btn-outline" id="reportExportXlsx" data-format="xlsx">Excel</a>
+                <a href="{% url 'admin_panel:report_export' 'sales' 'csv' %}" class="btn btn-sm btn-outline" id="reportExportCsv" target="_blank">CSV</a>
+                <a href="{% url 'admin_panel:report_export' 'sales' 'xlsx' %}" class="btn btn-sm btn-outline" id="reportExportXlsx" data-format="xlsx" target="_blank">Excel</a>
             </div>
         </div>
         <div class="card-body">

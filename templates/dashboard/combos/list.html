@@ -15,7 +15,7 @@
 <div class="card">
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover mb-0">
+            <table class="table table-hover mb-0 combo-table">
                 <thead>
                     <tr>
                         <th>Bundle</th>
@@ -28,22 +28,24 @@
                 <tbody>
                     {% for c in combos %}
                     <tr>
-                        <td>
+                        <td data-label="Bundle">
                             <strong>{{ c.name }}</strong>
                             {% if c.show_in_combos_nav %}<span class="badge badge-info ml-1" style="font-size:0.65rem;">Shop nav</span>{% endif %}
                             {% if c.legacy_product_id %}<span class="badge badge-secondary ml-1" style="font-size:0.65rem;">Migrated</span>{% endif %}
                         </td>
-                        <td>{{ c.combo_line_count }}</td>
-                        <td>{% if c.price %}₹{{ c.price }}{% else %}—{% endif %}</td>
-                        <td>
+                        <td data-label="Lines">{{ c.combo_line_count }}</td>
+                        <td data-label="Price">{% if c.price %}₹{{ c.price }}{% else %}—{% endif %}</td>
+                        <td data-label="Status">
                             {% if not c.is_active %}<span class="badge badge-secondary">Inactive</span>
                             {% elif not c.purchase_enabled %}<span class="badge badge-warning text-dark">Purchase off</span>
                             {% else %}<span class="badge badge-success">Active</span>{% endif %}
                         </td>
-                        <td><a href="{% url 'admin_panel:combo_edit' c.pk %}" class="btn btn-sm btn-outline-primary">Edit</a></td>
+                        <td data-label="">
+                            <a href="{% url 'admin_panel:combo_edit' c.pk %}" class="btn btn-sm btn-outline-primary">Edit</a>
+                        </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="5" class="text-center text-muted py-4">No combo bundles yet. Create one to get started.</td></tr>
+                    <tr><td colspan="5" class="text-center text-muted py-4">No combo bundles yet.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

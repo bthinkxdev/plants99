@@ -36,7 +36,7 @@
         {% include "sections/featured_pick_rail.html" with products=featured_products banner_link=shop_url view_all_url=shop_url %}
     {% endif %}
 
-    {% include "sections/combo_hub_section.html" %}
+    <div id="home-combos-container"></div>
 
     {% if HOME_DEAL_OF_DAY_ENABLED and deal_of_day_products %}
         {% if banners and banners|length > 2 %}
@@ -62,7 +62,7 @@
     {# Blogs #}
 
     {# Video reels with direct conversion #}
-    {% include "sections/reels.html" with reels=reels title="Video reels" aria_label="Video reels" section_banner_image="img/reel.png" section_banner_link=shop_url section_banner_aria="Video reels — shop featured plants" section_id="section-reels" %}
+    <div id="home-reels-container"></div>
 
     {# Subscription #}
     {% comment %} {% include "sections/subscription.html" %} {% endcomment %}
@@ -94,7 +94,7 @@
     {% include "sections/newsletter.html" %} {% endcomment %}
 
     {# Testimonials #}
-    {% include "sections/testimonials.html" %}
+    <div id="home-testimonials-container"></div>
 
     {% comment %} {% include "sections/rich_heading.html" with title="Ready when you are" subtitle="Free delivery thresholds, secure checkout, and care notes on every plant page." cta_label="Start shopping" cta_url=shop_url modifier="p99-rich-band--footer" section_id="rich-close" %} {% endcomment %}
     {% include "sections/rich_heading.html" with title="Ready when you are" subtitle="Secure checkout and care notes on every plant page." cta_label="Start shopping" cta_url=shop_url modifier="p99-rich-band--footer" section_id="rich-close" %}
@@ -104,4 +104,34 @@
 {% block extra_js %}
 {{ block.super }}
 <script src="{% static 'js/deal-day-countdown.js' %}"></script>
+<script>
+(function () {
+  'use strict';
+  const LAZY_SECTIONS = {
+    'home-reels-container':        '{% url "store:home_reels" %}',
+    'home-testimonials-container': '{% url "store:home_testimonials" %}',
+    'home-combos-container':       '{% url "store:home_combos" %}',
+  };
+  function observeSection(containerId, url) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const observer = new IntersectionObserver((entries, obs) => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        obs.unobserve(el);
+        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+          .then(r => r.ok ? r.text() : '')
+          .then(html => { if (html) el.innerHTML = html; })
+          .catch(() => {});
+      });
+    }, { rootMargin: '200px' });
+    observer.observe(el);
+  }
+  function init() {
+    Object.entries(LAZY_SECTIONS).forEach(([id, url]) => observeSection(id, url));
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
 {% endblock %}

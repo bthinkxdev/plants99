@@ -52,4 +52,8 @@ urlpatterns = [
     path('shipping/', views.StaticPageView.as_view(template_name='pages/shipping.html', extra_context={'active_page': 'shipping'}), name='shipping'),
     path('webhooks/shiprocket/', ShiprocketWebhookView.as_view(), name='shiprocket_webhook'),
     path('api/cart/drawer/', views.CartDrawerView.as_view(), name='cart_drawer'),
+
+    path('api/home/reels/', views.HomeLazyReelsView.as_view(), name='home_reels'),
+    path('api/home/testimonials/', views.HomeLazyTestimonialsView.as_view(), name='home_testimonials'),
+    path('api/home/combos/', views.HomeLazyCombosView.as_view(), name='home_combos'),
 ]

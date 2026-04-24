@@ -1323,3 +1323,278 @@
     updateCounter();
 })();
 // ── End Delivery States ────────────────────────────────────────────────────
+
+
+// ── Pot Add-ons ────────────────────────────────────────────────────────────
+(function () {
+  'use strict';
+ 
+  var app = document.getElementById('product-edit-app');
+  if (!app) return;
+ 
+  var PRODUCT_PK = parseInt(app.dataset.productId, 10);
+  var BASE_URL   = '/dashboard/products/' + PRODUCT_PK;
+ 
+  var listEl       = document.getElementById('pot-addons-list');
+  var emptyEl      = document.getElementById('pot-addons-empty');
+  var countBadge   = document.getElementById('pot-addons-count');
+  var warningEl    = document.getElementById('pot-category-warning');
+  var candidatesEl = document.getElementById('pot-candidates-grid');
+ 
+  if (!listEl) return;
+ 
+  var _addons     = [];
+  var _candidates = [];
+ 
+  function csrfToken() {
+    var el = document.querySelector('[name=csrfmiddlewaretoken]');
+    return el ? el.value : '';
+  }
+ 
+  function fmtPrice(p) {
+    return '₹' + parseFloat(p).toFixed(2);
+  }
+ 
+  // ── Pot tile (used in candidates grid) ────────────────────────────────────
+  function makeTile(p, isLinked) {
+    var tile = document.createElement('div');
+    tile.style.cssText = [
+      'display:flex', 'flex-direction:column', 'align-items:center',
+      'width:110px', 'padding:10px 8px 8px', 'gap:6px',
+      'border:2px solid ' + (isLinked ? '#15803d' : '#e5e7eb'),
+      'border-radius:12px', 'background:' + (isLinked ? '#f0fdf4' : '#fff'),
+      'cursor:' + (isLinked ? 'default' : 'pointer'),
+      'transition:border-color .15s,box-shadow .15s',
+      'position:relative', 'text-align:center', 'flex-shrink:0'
+    ].join(';');
+ 
+    // Image
+    var imgWrap = document.createElement('div');
+    imgWrap.style.cssText = 'width:68px;height:68px;border-radius:8px;overflow:hidden;background:#f3f4f6;display:flex;align-items:center;justify-content:center;flex-shrink:0;';
+ 
+    if (p.image_url) {
+      var img = document.createElement('img');
+      img.src = p.image_url;
+      img.alt = p.name;
+      img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+      img.onerror = function () {
+        imgWrap.innerHTML = '<span style="font-size:1.8rem;">🪴</span>';
+      };
+      imgWrap.appendChild(img);
+    } else {
+      imgWrap.innerHTML = '<span style="font-size:1.8rem;">🪴</span>';
+    }
+    tile.appendChild(imgWrap);
+ 
+    // Name
+    var name = document.createElement('div');
+    name.textContent = p.name;
+    name.style.cssText = 'font-size:.72rem;font-weight:600;color:#111;line-height:1.2;word-break:break-word;max-width:94px;';
+    tile.appendChild(name);
+ 
+    // Price
+    var price = document.createElement('div');
+    price.textContent = fmtPrice(p.price || p.pot_price || 0);
+    price.style.cssText = 'font-size:.7rem;font-weight:700;color:#15803d;';
+    tile.appendChild(price);
+ 
+    // Out of stock badge
+    var oos = (p.stock != null ? p.stock : (p.base_stock || 0)) <= 0;
+    if (oos && !isLinked) {
+      var oosEl = document.createElement('div');
+      oosEl.textContent = 'Out of stock';
+      oosEl.style.cssText = 'font-size:.62rem;color:#dc2626;font-weight:500;';
+      tile.appendChild(oosEl);
+      tile.style.opacity = '0.45';
+      tile.style.cursor  = 'not-allowed';
+      return tile; // no click for OOS
+    }
+ 
+    // Linked checkmark overlay
+    if (isLinked) {
+      var check = document.createElement('div');
+      check.innerHTML = '✓';
+      check.style.cssText = [
+        'position:absolute', 'top:5px', 'right:6px',
+        'width:18px', 'height:18px', 'border-radius:50%',
+        'background:#15803d', 'color:#fff',
+        'font-size:.65rem', 'font-weight:800',
+        'display:flex', 'align-items:center', 'justify-content:center'
+      ].join(';');
+      tile.appendChild(check);
+      return tile;
+    }
+ 
+    // Hover
+    tile.addEventListener('mouseenter', function () {
+      tile.style.borderColor = '#16a34a';
+      tile.style.boxShadow   = '0 0 0 3px rgba(22,163,74,.15)';
+    });
+    tile.addEventListener('mouseleave', function () {
+      tile.style.borderColor = '#e5e7eb';
+      tile.style.boxShadow   = '';
+    });
+ 
+    return tile;
+  }
+ 
+  // ── Render linked pots list ────────────────────────────────────────────────
+  function renderLinked() {
+    listEl.querySelectorAll('.pot-linked-row').forEach(function (el) { el.remove(); });
+    countBadge.textContent = _addons.length;
+    emptyEl.style.display  = _addons.length > 0 ? 'none' : '';
+ 
+    _addons.forEach(function (addon) {
+      var row = document.createElement('div');
+      row.className = 'pot-linked-row';
+      row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:8px 4px;border-bottom:1px solid #f3f4f6;';
+ 
+      // Image
+      var imgWrap = document.createElement('div');
+      imgWrap.style.cssText = 'width:48px;height:48px;border-radius:8px;overflow:hidden;background:#f3f4f6;display:flex;align-items:center;justify-content:center;flex-shrink:0;';
+      if (addon.image_url) {
+        var img = document.createElement('img');
+        img.src = addon.image_url;
+        img.alt = addon.name;
+        img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+        img.onerror = function () { imgWrap.innerHTML = '<span style="font-size:1.4rem;">🪴</span>'; };
+        imgWrap.appendChild(img);
+      } else {
+        imgWrap.innerHTML = '<span style="font-size:1.4rem;">🪴</span>';
+      }
+      row.appendChild(imgWrap);
+ 
+      // Info
+      var info = document.createElement('div');
+      info.style.flex = '1';
+      var stockBadge = addon.in_stock
+        ? '<span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:10px;font-size:.68rem;font-weight:600;">In Stock (' + addon.stock + ')</span>'
+        : '<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:10px;font-size:.68rem;font-weight:600;">Out of Stock</span>';
+      info.innerHTML = '<div style="font-weight:600;font-size:.85rem;color:#111;">' + addon.name + '</div>'
+                     + '<div style="font-size:.78rem;color:#6b7280;margin-top:2px;">' + fmtPrice(addon.price) + ' &nbsp; ' + stockBadge + '</div>';
+      row.appendChild(info);
+ 
+      // Remove button
+      var removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.title = 'Remove';
+      removeBtn.style.cssText = 'border:none;background:none;cursor:pointer;color:#dc2626;font-size:1rem;padding:4px 6px;border-radius:6px;flex-shrink:0;';
+      removeBtn.innerHTML = '✕';
+      removeBtn.addEventListener('click', function () { removeAddon(addon.id); });
+      row.appendChild(removeBtn);
+ 
+      listEl.appendChild(row);
+    });
+ 
+    renderCandidates();
+  }
+ 
+  // ── Render candidates grid ─────────────────────────────────────────────────
+  function renderCandidates() {
+    if (!candidatesEl) return;
+    candidatesEl.innerHTML = '';
+ 
+    var linkedIds = _addons.map(function (a) { return a.pot_product_id; });
+ 
+    // Show linked pots as green checked tiles first
+    _addons.forEach(function (addon) {
+      var tile = makeTile({
+        id: addon.pot_product_id,
+        name: addon.name,
+        price: addon.price,
+        image_url: addon.image_url,
+        stock: addon.stock,
+      }, true);
+      candidatesEl.appendChild(tile);
+    });
+ 
+    // Then unlinked candidates
+    var available = _candidates.filter(function (p) {
+      return linkedIds.indexOf(p.id) === -1;
+    });
+ 
+    if (available.length === 0 && _addons.length === 0) {
+      candidatesEl.innerHTML = '<p style="color:#9ca3af;font-size:.85rem;margin:0;">No pots available in the Pots category yet.</p>';
+      return;
+    }
+ 
+    available.forEach(function (p) {
+      var tile = makeTile(p, false);
+      tile.addEventListener('click', function () { addAddon(p.id); });
+      candidatesEl.appendChild(tile);
+    });
+  }
+ 
+  // ── Load linked addons ─────────────────────────────────────────────────────
+  function loadAddons() {
+    fetch(BASE_URL + '/pot-addons/', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        _addons = data.pot_addons || [];
+        renderLinked();
+      })
+      .catch(function (err) { console.error('pot addons load error', err); });
+  }
+ 
+  // ── Load all candidates ────────────────────────────────────────────────────
+  function loadCandidates() {
+    fetch(BASE_URL + '/pot-candidates/?q=', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.warning && warningEl) {
+          warningEl.style.display = '';
+          warningEl.textContent   = '⚠️ ' + data.warning;
+        }
+        _candidates = data.products || [];
+        renderCandidates();
+      })
+      .catch(function (err) { console.error('pot candidates load error', err); });
+  }
+ 
+  // ── Add addon ──────────────────────────────────────────────────────────────
+  function addAddon(potProductId) {
+    fetch(BASE_URL + '/pot-addons/add/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({ pot_product_id: potProductId }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.success) {
+          _addons.push(data.pot_addon);
+          renderLinked();
+        } else {
+          var msg = data.errors && (data.errors.__all__ || data.errors.pot_product_id)
+            ? (data.errors.__all__ || data.errors.pot_product_id)[0]
+            : 'Could not add pot.';
+          alert(msg);
+        }
+      })
+      .catch(function () { alert('Failed to add pot. Please try again.'); });
+  }
+ 
+  // ── Remove addon ───────────────────────────────────────────────────────────
+  function removeAddon(rowId) {
+    if (!confirm('Remove this pot add-on?')) return;
+    fetch(BASE_URL + '/pot-addons/' + rowId + '/delete/', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.success) {
+          _addons = _addons.filter(function (a) { return a.id !== rowId; });
+          renderLinked();
+        } else {
+          alert('Could not remove pot.');
+        }
+      })
+      .catch(function () { alert('Failed to remove pot.'); });
+  }
+ 
+  // ── Boot ───────────────────────────────────────────────────────────────────
+  loadCandidates();
+  loadAddons();
+ 
+})();
+// ── End Pot Add-ons ────────────────────────────────────────────────────────

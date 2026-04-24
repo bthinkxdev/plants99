@@ -1,7 +1,21 @@
 from django.contrib import admin
 from .models import Address, Banner, BlogPost, Cart, CartItem, Category, ContactMessage, HomeCategory, HomeCategoryProduct, NewsletterSubscription, Order, OrderItem, Payment, Product, ProductAttribute, ProductAttributeValue, ProductComboItem, ProductContent, ProductFAQ, ProductHighlight, ProductSpecification, ProductWhatsInBoxItem, Reel, Review, Variant, VariantAttributeValue, VariantImage, Wishlist
 
+from django.core.cache import caches
 
+def _invalidate_home_cache():
+    try:
+        c = caches['locmem']
+        for key in [
+            'home_product_data_v1',
+            'home_shop_categories_v1',
+            'home_reels_v1',
+            'home_testimonials_v1',
+            'home_combos_v1',
+        ]:
+            c.delete(key)
+    except Exception:
+        pass
 class HomeCategoryProductInline(admin.TabularInline):
     model = HomeCategoryProduct
     extra = 0
@@ -37,6 +51,10 @@ class HomeCategoryAdmin(admin.ModelAdmin):
     search_fields = ('name', 'slug', 'description')
     prepopulated_fields = {'slug': ('name',)}
     inlines = (HomeCategoryProductInline,)
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        _invalidate_home_cache()
 
 class ProductComboItemInline(admin.TabularInline):
     model = ProductComboItem
@@ -103,6 +121,10 @@ class ProductAdmin(admin.ModelAdmin):
         ('Ratings (read only)', {'fields': ('average_rating', 'total_reviews'), 'classes': ('collapse',)}),
     )
 
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        _invalidate_home_cache()
+
 class ProductAttributeValueInline(admin.TabularInline):
     model = ProductAttributeValue
     extra = 0
@@ -130,6 +152,10 @@ class VariantAdmin(admin.ModelAdmin):
     list_filter = ('product', 'is_active', 'pot_size', 'includes_pot')
     inlines = [VariantImageInline]
     ordering = ('product', 'display_order', 'id')
+
+    def save_model(self, request, obj, form, change):  
+        super().save_model(request, obj, form, change)
+        _invalidate_home_cache()
 
 @admin.register(VariantImage)
 class VariantImageAdmin(admin.ModelAdmin):
@@ -229,8 +255,21 @@ class ReelAdmin(admin.ModelAdmin):
     search_fields = ('title', 'caption')
     readonly_fields = ('created_at', 'updated_at')
 
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        _invalidate_home_cache()
+
 
 @admin.register(Review)
 class ReviewAdmin(admin.ModelAdmin):
     list_display = ('product', 'user', 'rating', 'is_approved', 'is_deleted', 'created_at')
     list_filter = ('is_approved', 'is_deleted', 'rating')
+
+@admin.register(Banner)
+class BannerAdmin(admin.ModelAdmin):
+    list_display = ('title', 'is_active', 'display_order', 'created_at')
+    list_filter = ('is_active',)
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        _invalidate_home_cache()

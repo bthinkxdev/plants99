@@ -1,6 +1,7 @@
 from django.urls import path
 from . import admin_views
 from . import admin_report_views
+from . import admin_pot_addon_views
 app_name = 'admin_panel'
 
 urlpatterns = [
@@ -112,5 +113,10 @@ urlpatterns = [
     path('testimonials/<int:pk>/update/', admin_views.TestimonialUpdateView.as_view(), name='testimonial_update'),
     path('testimonials/<int:pk>/delete/', admin_views.TestimonialDeleteView.as_view(), name='testimonial_delete'),
     path('testimonials/<int:pk>/toggle-active/', admin_views.TestimonialToggleActiveView.as_view(), name='testimonial_toggle_active'),
-
+    #Pot addons
+    path('products/<int:pk>/pot-addons/', admin_pot_addon_views.ProductPotAddonsListApiView.as_view(), name='product_pot_addons_list'),
+    path('products/<int:pk>/pot-addons/add/', admin_pot_addon_views.ProductPotAddonAddApiView.as_view(), name='product_pot_addon_add'),
+    path('products/<int:pk>/pot-addons/<int:row_id>/delete/', admin_pot_addon_views.ProductPotAddonDeleteApiView.as_view(), name='product_pot_addon_delete'),
+    path('products/<int:pk>/pot-addons/reorder/', admin_pot_addon_views.ProductPotAddonReorderApiView.as_view(), name='product_pot_addons_reorder'),
+    path('products/<int:pk>/pot-candidates/', admin_pot_addon_views.ProductPotCandidatesApiView.as_view(), name='product_pot_candidates'),
 ]

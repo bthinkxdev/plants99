@@ -538,6 +538,7 @@
             mainImg.src = variant.image;
         }
         if (typeof syncStickyFromDom === 'function') syncStickyFromDom();
+        if (typeof window.pdpUpdatePotTotal === 'function') window.pdpUpdatePotTotal()
     }
 
     function matchesSelectionUpToLevel(variant, levelIndex) {

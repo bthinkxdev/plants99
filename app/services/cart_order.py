@@ -181,9 +181,9 @@ class CartService:
             if item.combo_id:
                 cls.add_combo_item(user_cart, item.combo, item.quantity, line_type=item.line_type, is_gift=gift)
             elif item.selected_variant_id:
-                cls.add_item(user_cart, item.selected_variant, item.quantity, line_type=item.line_type, rental_billing=rb, rental_units=ru, rental_start_date=rs, rental_end_date=re, is_gift=gift)
+                cls.add_item(user_cart, item.selected_variant, item.quantity, line_type=item.line_type, rental_billing=rb, rental_units=ru, rental_start_date=rs, rental_end_date=re, is_gift=gift, selected_pot_id=item.selected_pot_id)
             else:
-                cls.add_item(user_cart, item.product, item.quantity, line_type=item.line_type, rental_billing=rb, rental_units=ru, rental_start_date=rs, rental_end_date=re, is_gift=gift)
+                cls.add_item(user_cart, item.product, item.quantity, line_type=item.line_type, rental_billing=rb, rental_units=ru, rental_start_date=rs, rental_end_date=re, is_gift=gift, selected_pot_id=item.selected_pot_id)
         session_cart.status = Cart.Status.ABANDONED
         session_cart.save(update_fields=['status'])
 
@@ -257,6 +257,7 @@ class CartService:
         rental_start_date=None,
         rental_end_date=None,
         is_gift=False,
+        selected_pot_id=None
     ):
         from django.core.exceptions import ValidationError as DjangoValidationError
         from ..models import Product
@@ -265,6 +266,30 @@ class CartService:
         max_qty = getattr(settings, 'MAX_CART_QTY', 10)
         quantity = max(1, min(int(quantity), max_qty))
         gift_flag = bool(is_gift)
+
+        # ── Pot addon validation ───────────────────────────────────────────────
+        selected_pot = None
+        pot_unit_price_val = None
+        if selected_pot_id and line_type == CartItem.LineKind.PURCHASE:
+            from ..models import Category as _Cat
+            pot_cat_ids = list(
+                _Cat.objects.filter(slug__in=['pot', 'pots'], is_active=True)
+                .values_list('id', flat=True)
+            )
+            if pot_cat_ids:
+                selected_pot = Product.objects.filter(
+                    pk=int(selected_pot_id),
+                    is_active=True,
+                    category_id__in=pot_cat_ids,
+                ).first()
+                if not selected_pot:
+                    raise CartError('Selected pot is not available.')
+                if (selected_pot.base_stock or 0) <= 0:
+                    raise StockError(f'"{selected_pot.name}" is out of stock.')
+                if not selected_pot.base_price or selected_pot.base_price <= 0:
+                    raise CartError(f'"{selected_pot.name}" does not have a valid price.')
+                pot_unit_price_val = selected_pot.base_price
+
         rkey = ''
         unit_price = None
         rent_bill = ''
@@ -307,7 +332,7 @@ class CartService:
                         raise StockError('This item is out of stock.')
                     if quantity > base_stock:
                         raise StockError('Requested quantity exceeds available stock.')
-                item = CartItem.objects.filter(cart=cart, product=product, selected_variant__isnull=True, line_type=line_type, rental_key=rkey, is_gift=gift_flag).first()
+                item = CartItem.objects.filter(cart=cart, product=product, selected_variant__isnull=True, line_type=line_type, rental_key=rkey, is_gift=gift_flag, selected_pot=selected_pot).first()
                 if item:
                     new_quantity = min(item.quantity + quantity, max_qty)
                     if product.is_combo_product:
@@ -317,9 +342,11 @@ class CartService:
                         raise StockError('Requested quantity exceeds available stock.')
                     item.quantity = new_quantity
                     item.unit_price = unit_price
-                    item.save(update_fields=['quantity', 'unit_price', 'updated_at'])
+                    item.selected_pot = selected_pot
+                    item.pot_unit_price = pot_unit_price_val
+                    item.save(update_fields=['quantity', 'unit_price', 'selected_pot', 'pot_unit_price', 'updated_at'])
                     return item
-                return CartItem.objects.create(cart=cart, product=product, selected_variant=None, quantity=quantity, unit_price=unit_price, line_type=line_type, rental_key=rkey, rental_billing_period=rent_bill, rental_period_count=rent_count, rental_start_date=rental_start_date, rental_end_date=rental_end_date, is_gift=gift_flag)
+                return CartItem.objects.create(cart=cart, product=product, selected_variant=None, quantity=quantity, unit_price=unit_price, line_type=line_type, rental_key=rkey, rental_billing_period=rent_bill, rental_period_count=rent_count, rental_start_date=rental_start_date, rental_end_date=rental_end_date, is_gift=gift_flag, selected_pot=selected_pot, pot_unit_price=pot_unit_price_val)
             try:
                 unit_price = compute_rental_line_unit_price(product, days=rent_count)
             except DjangoValidationError as exc:
@@ -358,16 +385,18 @@ class CartService:
             if quantity > v.stock_quantity:
                 raise StockError('Requested quantity exceeds available stock.')
             unit_price = v.price
-            item = CartItem.objects.filter(cart=cart, selected_variant=v, line_type=line_type, rental_key=rkey, is_gift=gift_flag).first()
+            item = CartItem.objects.filter(cart=cart, selected_variant=v, line_type=line_type, rental_key=rkey, is_gift=gift_flag, selected_pot=selected_pot).first()
             if item:
                 new_quantity = min(item.quantity + quantity, max_qty)
                 if new_quantity > v.stock_quantity:
                     raise StockError('Requested quantity exceeds available stock.')
                 item.quantity = new_quantity
                 item.unit_price = unit_price
-                item.save(update_fields=['quantity', 'unit_price', 'updated_at'])
+                item.selected_pot = selected_pot
+                item.pot_unit_price = pot_unit_price_val
+                item.save(update_fields=['quantity', 'unit_price', 'selected_pot', 'pot_unit_price', 'updated_at'])
                 return item
-            return CartItem.objects.create(cart=cart, product=product, selected_variant=v, quantity=quantity, unit_price=unit_price, line_type=line_type, rental_key=rkey, rental_billing_period=rent_bill, rental_period_count=rent_count, is_gift=gift_flag)
+            return CartItem.objects.create(cart=cart, product=product, selected_variant=v, quantity=quantity, unit_price=unit_price, line_type=line_type, rental_key=rkey, rental_billing_period=rent_bill, rental_period_count=rent_count, is_gift=gift_flag, selected_pot=selected_pot, pot_unit_price=pot_unit_price_val)
         if not getattr(v, 'is_active', True) or (v.stock_quantity or 0) <= 0:
             raise StockError('This item is out of stock.')
         if quantity > v.stock_quantity:
@@ -597,8 +626,8 @@ class OrderService:
                     hsn_code = getattr(c, 'hsn_code', None) or None
                     gst_percentage = c.gst_percentage
                 snap = snapshot or c.name
-                if item.is_gift and snap:
-                    snap = f'{snap} · Gift'
+                # if item.is_gift and snap:
+                #     snap = f'{snap} · Gift'
                 order_item = OrderItem.objects.create(
                     order=order,
                     product=None,
@@ -620,6 +649,8 @@ class OrderService:
                     taxable_value=taxable_value,
                     gst_amount=gst_amount,
                     is_gift=item.is_gift,
+                    selected_pot_name=(item.selected_pot.name if item.selected_pot_id and item.selected_pot else ''),
+                    pot_unit_price=item.pot_unit_price,
                 )
                 if form_data.get('payment') != Payment.Method.RAZORPAY:
                     for row in c.items.all():
@@ -638,13 +669,14 @@ class OrderService:
             hsn_code = None
             gst_percentage = None
             if getattr(product, 'is_gst_applicable', False) and getattr(product, 'gst_percentage', None) is not None:
-                taxable_value = item.unit_price * item.quantity
+                line_base = item.unit_price + (item.pot_unit_price or 0)
+                taxable_value = line_base * item.quantity
                 gst_amount = taxable_value * (product.gst_percentage / Decimal('100'))
-                hsn_code = getattr(product, 'hsn_code', None) or None
-                gst_percentage = product.gst_percentage
             snap = snapshot or product.name
-            if item.is_gift and snap:
-                snap = f'{snap} · Gift'
+            if item.selected_pot_id and item.selected_pot:
+                snap = f'{snap} + {item.selected_pot.name}'
+            # if item.is_gift and snap:
+            #     snap = f'{snap} · Gift'
             order_item = OrderItem.objects.create(
                 order=order,
                 product=product,
@@ -666,6 +698,8 @@ class OrderService:
                 taxable_value=taxable_value,
                 gst_amount=gst_amount,
                 is_gift=item.is_gift,
+                selected_pot_name=item.selected_pot.name if item.selected_pot_id else '',
+                pot_unit_price=item.pot_unit_price,
             )
             # Create rental booking for lifecycle management
             if item.line_type == CartItem.LineKind.RENTAL:
@@ -701,6 +735,10 @@ class OrderService:
                     Variant.objects.filter(pk=item.selected_variant_id).update(stock_quantity=F('stock_quantity') - item.quantity)
                 else:
                     Product.objects.filter(pk=product.pk).update(base_stock=F('base_stock') - item.quantity)
+                if item.selected_pot_id:
+                    Product.objects.filter(pk=item.selected_pot_id).update(
+                        base_stock=F('base_stock') - item.quantity
+                    )
         Payment.objects.create(order=order, method=form_data.get('payment', Payment.Method.COD), amount=totals.total)
         if clear_cart:
             cart.status = Cart.Status.ORDERED

@@ -86,11 +86,33 @@ class CartItem(TimeStampedModel):
     rental_end_date = models.DateField(null=True, blank=True, db_index=True)
     is_gift = models.BooleanField(default=False, db_index=True, help_text='Gift wrap / gift order flag for this line.')
 
+    # ── Pot add-on (optional) ──────────────────────────────────────────────────
+    selected_pot = models.ForeignKey(
+        'Product',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='cart_items_as_pot',
+        help_text='Optional pot product added alongside this plant.',
+    )
+    pot_unit_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        help_text='Snapshot of pot price at time of adding to cart.',
+    )
+
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=['cart', 'selected_variant', 'line_type', 'rental_key', 'is_gift'], name='uniq_cart_variant_line', condition=models.Q(selected_variant__isnull=False)),
             models.UniqueConstraint(
-                fields=['cart', 'product', 'line_type', 'rental_key', 'is_gift'],
+                fields=['cart', 'selected_variant', 'line_type', 'rental_key', 'is_gift', 'selected_pot'],
+                name='uniq_cart_variant_line',
+                condition=models.Q(selected_variant__isnull=False),
+            ),
+            models.UniqueConstraint(
+                fields=['cart', 'product', 'line_type', 'rental_key', 'is_gift', 'selected_pot'],
                 name='uniq_cart_simple_line',
                 condition=models.Q(selected_variant__isnull=True, combo__isnull=True),
             ),
@@ -106,10 +128,16 @@ class CartItem(TimeStampedModel):
                 ),
                 name='cartitem_combo_xor_product',
             ),
-            models.CheckConstraint(condition=models.Q(quantity__gte=1), name='cartitem_qty_positive'),
+            models.CheckConstraint(
+                condition=models.Q(quantity__gte=1),
+                name='cartitem_qty_positive',
+            ),
         ]
-        indexes = [models.Index(fields=['cart', 'product']), models.Index(fields=['cart', 'line_type']), models.Index(fields=['cart', 'combo'])]
-
+        indexes = [
+            models.Index(fields=['cart', 'product']),
+            models.Index(fields=['cart', 'line_type']),
+            models.Index(fields=['cart', 'combo']),
+        ]
     def rental_label(self) -> str:
         if self.line_type != self.LineKind.RENTAL or not self.rental_billing_period or not self.rental_period_count:
             return ''
@@ -136,12 +164,23 @@ class CartItem(TimeStampedModel):
         if self.line_type == self.LineKind.RENTAL:
             lbl = self.rental_label()
             if lbl:
-                return f'{base} · Rent: {lbl}' if base else f'Rent: {lbl}'
+                base = f'{base} · Rent: {lbl}' if base else f'Rent: {lbl}'
+        if self.selected_pot_id and self.selected_pot:
+            pot_label = f'+ {self.selected_pot.name}'
+            base = f'{base} · {pot_label}' if base else pot_label
         return base
 
     @property
     def line_total(self):
-        return self.unit_price * self.quantity
+        pot_price = (self.pot_unit_price or 0) * self.quantity
+        return (self.unit_price * self.quantity) + pot_price
+
+    @property
+    def pot_line_total(self):
+        """Just the pot portion of this line."""
+        if not self.selected_pot_id or not self.pot_unit_price:
+            return 0
+        return self.pot_unit_price * self.quantity
 
     def get_display_image_url(self):
         if self.combo_id and self.combo:

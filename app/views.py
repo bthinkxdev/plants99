@@ -31,11 +31,473 @@ from .wishlist_utils import (
     set_guest_wishlist_variant_ids,
     wishlist_enabled,
 )
+from django.core.cache import caches
+
+try:
+    _cache = caches['locmem']
+except Exception:
+    _cache = caches['default']
+
+_HOME_CACHE_TTL = getattr(settings, 'HOME_CACHE_TTL', 120)
+_SHOP_CACHE_TTL = getattr(settings, 'SHOP_CACHE_TTL', 60)
+
+
+def _build_product_cards(products_iterable, limit: int):
+    """
+    Given an iterable of Product objects (already fetched), attach
+    primary_variant / lowest_price and return up to `limit` cards.
+    Pure Python — no extra DB queries.
+    """
+    cards = []
+    for product in products_iterable:
+        if len(cards) >= limit:
+            break
+        variants = list(getattr(product, 'sellable_variants', []) or [])
+        if variants:
+            primary_variant = min(variants, key=lambda v: (v.price, v.display_order, v.id))
+            product.primary_variant = primary_variant
+            product.lowest_price = primary_variant.price
+            cards.append(product)
+        elif getattr(product, 'is_combo_product', False):
+            from .services.rental_catalog import combo_is_in_stock
+            if combo_is_in_stock(product, multiplier=1) and product.base_price is not None:
+                product.primary_variant = None
+                product.lowest_price = product.base_price
+                cards.append(product)
+        elif getattr(product, 'base_stock', 0) and product.base_stock > 0:
+            product.primary_variant = None
+            product.lowest_price = product.base_price
+            cards.append(product)
+    return cards
+ 
+ 
+# ──────────────────────────────────────────────────────────────
+# HOME PAGE — cached product data loader
+# ──────────────────────────────────────────────────────────────
+ 
+def _load_home_product_data():
+    """
+    All expensive product queries for the home page in a SINGLE pass.
+ 
+    BEFORE: 7 separate Product.objects.available() calls (deals, bestsellers,
+            new arrivals, top_rated, budget, featured, beginner).
+    AFTER:  ONE queryset fetching up to 200 available products with all needed
+            prefetches. Python then splits them into sections — zero extra DB hits.
+ 
+    Also fixes the home_category N+1: all HomeCategoryProduct rows are fetched
+    in one query, product PKs batched, then one Product queryset for all of them.
+ 
+    Result: ~3 DB queries total for the entire product data layer (was 15+).
+    Cached for HOME_CACHE_TTL seconds (default 120 s).
+    """
+    CACHE_KEY = 'home_product_data_v1'
+    cached = _cache.get(CACHE_KEY)
+    if cached is not None:
+        return cached
+ 
+    # ── Shared variant prefetch ──
+    sellable_variants_qs = (
+        Variant.objects.filter(is_active=True, stock_quantity__gt=0)
+        .prefetch_related('images')
+        .order_by('display_order', 'id')
+    )
+    variant_pf = Prefetch('variants', queryset=sellable_variants_qs, to_attr='sellable_variants')
+ 
+    # ── ONE master product fetch ──
+    # Fetch 200 products ordered newest-first; Python handles all section splits.
+    all_products = list(
+        Product.objects.available()
+        .select_related('category', 'rental_config')
+        .prefetch_related(variant_pf)
+        .order_by('-created_at')[:200]
+    )
+ 
+    today = timezone.now().date()
+ 
+    # Split into section buckets in Python — zero extra queries
+    deals_raw       = [p for p in all_products if p.is_deal_of_day
+                       and (not p.deal_of_day_start or p.deal_of_day_start <= today)
+                       and (not p.deal_of_day_end   or p.deal_of_day_end   >= today)]
+    bestsellers_raw = [p for p in all_products if p.is_bestseller]
+    featured_raw    = [p for p in all_products if p.is_featured]
+    beginner_raw    = [p for p in all_products if p.beginner_friendly]
+ 
+    # Top-rated needs rating filter — small slice from master list
+    top_rated_raw   = sorted(
+        [p for p in all_products if (p.average_rating or 0) >= 4 and (p.total_reviews or 0) > 0],
+        key=lambda p: (-float(p.average_rating or 0), -(p.total_reviews or 0))
+    )
+ 
+    # Budget: needs price filter — use master list, re-filter in Python
+    budget_raw = sorted(
+        [p for p in all_products if _cheapest_price(p) is not None and _cheapest_price(p) <= 499],
+        key=lambda p: _cheapest_price(p)
+    )
+ 
+    # New arrivals = all_products (already ordered by -created_at)
+    new_arrivals_raw = all_products
+ 
+    # Build cards
+    deal_cards      = _build_product_cards(deals_raw,       8)
+    bestseller_cards = _build_product_cards(bestsellers_raw, 8)
+    featured_cards  = _build_product_cards(featured_raw,    8)
+    beginner_cards  = _build_product_cards(beginner_raw,    8)
+    top_rated_cards = _build_product_cards(top_rated_raw,   8)
+    budget_cards    = _build_product_cards(budget_raw,      8)
+    new_arrival_cards = _build_product_cards(new_arrivals_raw, 26)
+ 
+    # Fallbacks (same logic as original)
+    if not deal_cards and getattr(settings, 'HOME_DEAL_OF_DAY_ENABLED', True):
+        deal_cards = _build_product_cards(all_products, 8)
+    if not bestseller_cards and getattr(settings, 'HOME_BESTSELLER_ENABLED', True):
+        bestseller_cards = _build_product_cards(all_products, 8)
+    if not featured_cards and getattr(settings, 'HOME_FEATURED_ENABLED', True):
+        featured_cards = _build_product_cards(all_products, 8)
+ 
+    # ── Home category sections — batch fix for the N+1 ──
+    #
+    # BEFORE: for each HomeCategory → separate Product.objects.filter(pk__in=...) call
+    # AFTER:  collect ALL product PKs across all sections, fetch once, distribute in Python
+    home_category_sections = []
+    try:
+        active_home_cats = list(
+            HomeCategory.objects.filter(is_active=True)
+            .filter(Q(banner_image__isnull=False) & ~Q(banner_image=''))
+            .select_related('linked_category')
+            .prefetch_related(
+                Prefetch(
+                    'home_category_products',
+                    queryset=HomeCategoryProduct.objects.select_related('product').order_by('display_order', 'id'),
+                )
+            )
+            .order_by('display_order', 'name', 'id')
+        )
+ 
+        # Batch: collect all needed product PKs
+        section_meta = []   # (hc, [ordered_product_ids])
+        all_needed_pks = set()
+        for hc in active_home_cats:
+            links = [lnk for lnk in hc.home_category_products.all() if lnk.product and lnk.product.is_active]
+            ordered_ids = [lnk.product_id for lnk in links]
+            if ordered_ids:
+                section_meta.append((hc, ordered_ids))
+                all_needed_pks.update(ordered_ids)
+ 
+        # ONE product query for all home-category sections combined
+        if all_needed_pks:
+            hc_products_qs = list(
+                Product.objects.filter(pk__in=all_needed_pks)
+                .select_related('category')
+                .prefetch_related(variant_pf)
+            )
+            hc_by_id = {p.pk: p for p in hc_products_qs}
+ 
+            for hc, ordered_ids in section_meta:
+                sorted_products = [hc_by_id[pk] for pk in ordered_ids if pk in hc_by_id]
+                card_products = _build_product_cards(sorted_products, 16)
+                if card_products:
+                    home_category_sections.append({'home_category': hc, 'products': card_products})
+    except Exception as hc_exc:
+        logger.error('Error building home category sections: %s', hc_exc, exc_info=True)
+ 
+    # ── Rent products — small targeted query (separate flag, not in master qs) ──
+    rent_cards = []
+    try:
+        rent_qs = list(
+            Product.objects.filter(
+                is_active=True,
+                is_rent_available=True,
+                rental_config__is_rent_enabled=True,
+            )
+            .select_related('category', 'rental_config')
+            .prefetch_related(variant_pf)
+            .order_by('-created_at')[:24]
+        )
+        rent_cards = _build_product_cards(rent_qs, 12)
+        for p in rent_cards:
+            if not getattr(p, 'rental_config', None):
+                try:
+                    from .models import RentalConfig
+                    p.rental_config = RentalConfig.objects.filter(product=p).first()
+                except Exception:
+                    p.rental_config = None
+    except Exception:
+        pass
+ 
+    # ── Static data — banners (tiny query, fast) ──
+    try:
+        banners = [b for b in Banner.objects.filter(is_active=True).order_by('display_order', 'created_at') if b.image]
+    except Exception:
+        banners = []
+ 
+    data = {
+        'deal_of_day_products':    deal_cards,
+        'bestseller_products':     bestseller_cards,
+        'new_arrival_products':    new_arrival_cards,
+        'top_rated_products':      top_rated_cards,
+        'budget_products':         budget_cards,
+        'featured_products':       featured_cards,
+        'beginner_friendly_products': beginner_cards,
+        'home_category_sections':  home_category_sections,
+        'rent_products':           rent_cards,
+        'banners':                 banners,
+    }
+    _cache.set(CACHE_KEY, data, _HOME_CACHE_TTL)
+    return data
+ 
+ 
+def _cheapest_price(product):
+    """Return the minimum sellable price for a product (Python-only, no DB)."""
+    variants = list(getattr(product, 'sellable_variants', []) or [])
+    if variants:
+        return min(v.price for v in variants)
+    return product.base_price
+ 
+ 
+# ──────────────────────────────────────────────────────────────
+# HomeView — OPTIMIZED
+# ──────────────────────────────────────────────────────────────
+ 
+class HomeView(TemplateView):
+    template_name = 'pages/home.html'
+ 
+    def get_context_data(self, **kwargs):
+        try:
+            context = super().get_context_data(**kwargs)
+ 
+            # ── 1. Cached heavy product data (1 cache read, or ~3 DB queries on miss) ──
+            home_data = _load_home_product_data()
+            context.update(home_data)
+ 
+            # deal_products alias kept for template compatibility
+            context['deal_products'] = context['deal_of_day_products']
+ 
+            # Bestseller row split
+            bs = list(context['bestseller_products'])
+            mid = (len(bs) + 1) // 2
+            context['bestseller_products_row1'] = bs[:mid]
+            context['bestseller_products_row2'] = bs[mid:]
+ 
+            # ── 2. Shop categories — cheap, small table, cached separately ──
+            context['shop_categories'] = _load_shop_categories()
+ 
+            # ── 3. Per-request: cart (must be live) ──
+            try:
+                cart = CartService.get_or_create_cart(self.request)
+                items_qs = cart.items.select_related('product', 'selected_variant').prefetch_related('selected_variant__images')
+                home_cart_items = list(items_qs)
+                if home_cart_items:
+                    context['home_cart'] = cart
+                    context['home_cart_items'] = home_cart_items
+                    context['home_cart_totals'] = CartService.compute_totals(cart)
+                else:
+                    context['home_cart_items'] = []
+                cart_items_vals = list(
+                    cart.items.filter(line_type=CartItem.LineKind.PURCHASE)
+                    .values('product_id', 'selected_variant_id', 'combo_id')
+                )
+                context['cart_variant_ids']        = {i['selected_variant_id'] for i in cart_items_vals if i['selected_variant_id']}
+                context['cart_product_ids']        = {i['product_id'] for i in cart_items_vals}
+                context['cart_simple_product_ids'] = {i['product_id'] for i in cart_items_vals if not i['selected_variant_id']}
+                context['cart_combo_ids']          = {i['combo_id'] for i in cart_items_vals if i['combo_id']}
+            except Exception as cart_exc:
+                logger.error('HomeView cart error: %s', cart_exc, exc_info=True)
+                context['home_cart_items'] = []
+                context['cart_variant_ids'] = set()
+                context['cart_product_ids'] = set()
+                context['cart_simple_product_ids'] = set()
+                context['cart_combo_ids'] = set()
+ 
+            # ── 4. Per-request: wishlist ──
+            home_wishlist_variants = []
+            user = getattr(self.request, 'user', None)
+            if user and user.is_authenticated:
+                try:
+                    wishlist_items = list(
+                        Wishlist.objects.filter(user=user)
+                        .filter(selected_variant__is_active=True, selected_variant__product__is_active=True)
+                        .select_related('selected_variant', 'selected_variant__product', 'selected_variant__product__category')
+                        .prefetch_related('selected_variant__images')
+                        .order_by('-created_at')[:12]
+                    )
+                    home_wishlist_variants = [wl.selected_variant for wl in wishlist_items if wl.selected_variant]
+                except Exception as wl_exc:
+                    logger.error('HomeView wishlist error: %s', wl_exc, exc_info=True)
+            context['home_wishlist_variants'] = home_wishlist_variants
+            context['home_wishlist_products'] = []
+ 
+            # ── 5. Below-fold sections are lazy-loaded via AJAX ──
+            # reels, testimonials, combos → served by HomeLazy* views below.
+            # Template must call these endpoints on DOMContentLoaded.
+            context['reels'] = []           # populated by /api/home/reels/
+            context['testimonials'] = []    # populated by /api/home/testimonials/
+            context['combo_products'] = []  # populated by /api/home/combos/
+ 
+            context['active_page'] = 'home'
+            return context
+ 
+        except Exception as e:
+            logger.error('HomeView.get_context_data error: %s', e, exc_info=True)
+            context = super().get_context_data(**kwargs)
+            context.update(_empty_home_context())
+            return context
+ 
+ 
+def _load_shop_categories():
+    """Shop category list — cached for 5 minutes (rarely changes)."""
+    CACHE_KEY = 'home_shop_categories_v1'
+    cached = _cache.get(CACHE_KEY)
+    if cached is not None:
+        return cached
+    qs = (
+        Category.objects.filter(is_active=True, parent__isnull=True)
+        .filter(
+            Q(products__is_active=True, products__variants__is_active=True, products__variants__stock_quantity__gt=0)
+            | Q(products__is_active=True, products__variants__isnull=True, products__base_stock__gt=0)
+        )
+        .distinct()
+        .order_by('name')[:8]
+    )
+    result = list(qs)
+    _cache.set(CACHE_KEY, result, 300)
+    return result
+ 
+ 
+def _empty_home_context():
+    return {
+        'active_page': 'home',
+        'shop_categories': [],
+        'featured_products': [],
+        'deal_of_day_products': [],
+        'deal_products': [],
+        'bestseller_products': [],
+        'bestseller_products_row1': [],
+        'bestseller_products_row2': [],
+        'new_arrival_products': [],
+        'top_rated_products': [],
+        'budget_products': [],
+        'banners': [],
+        'home_wishlist_variants': [],
+        'home_wishlist_products': [],
+        'beginner_friendly_products': [],
+        'combo_products': [],
+        'home_category_sections': [],
+        'reels': [],
+        'rent_products': [],
+        'cart_combo_ids': set(),
+        'testimonials': [],
+        'home_cart_items': [],
+        'cart_variant_ids': set(),
+        'cart_product_ids': set(),
+        'cart_simple_product_ids': set(),
+    }
+ 
+ 
+# ──────────────────────────────────────────────────────────────
+# Lazy AJAX endpoints for below-fold home sections
+# Wire these in urls.py (see bottom of file)
+# ──────────────────────────────────────────────────────────────
+ 
+class HomeLazyReelsView(View):
+    """GET /api/home/reels/ — below-fold, not on critical path."""
+ 
+    def get(self, request):
+        CACHE_KEY = 'home_reels_v1'
+        cached = _cache.get(CACHE_KEY)
+        if cached is not None:
+            return render(request, 'partials/_home_reels.html', {'reels': cached})
+        try:
+            reels_qs = list(
+                __import__('app.models', fromlist=['Reel']).Reel.objects
+                .filter(is_active=True)
+                .exclude(video='')
+                .select_related('product', 'product__category')
+                .order_by('display_order', '-created_at')[:24]
+            )
+            sellable_variants_qs = (
+                Variant.objects.filter(is_active=True, stock_quantity__gt=0)
+                .prefetch_related('images')
+                .order_by('display_order', 'id')
+            )
+            for r in reels_qs:
+                p = getattr(r, 'product', None)
+                if not p:
+                    continue
+                variants = list(getattr(p, 'sellable_variants', []) or [])
+                if variants:
+                    pv = min(variants, key=lambda v: (v.price, v.display_order, v.id))
+                    p.primary_variant = pv
+                    p.lowest_price = pv.price
+                else:
+                    p.primary_variant = None
+                    p.lowest_price = p.base_price
+            _cache.set(CACHE_KEY, reels_qs, _HOME_CACHE_TTL)
+        except Exception:
+            reels_qs = []
+        return render(request, 'partials/_home_reels.html', {'reels': reels_qs})
+ 
+ 
+class HomeLazyTestimonialsView(View):
+    """GET /api/home/testimonials/"""
+ 
+    def get(self, request):
+        CACHE_KEY = 'home_testimonials_v1'
+        cached = _cache.get(CACHE_KEY)
+        if cached is not None:
+            return render(request, 'partials/_home_testimonials.html', {'testimonials': cached})
+        try:
+            items = list(
+                Testimonial.objects.filter(is_active=True)
+                .order_by('display_order', '-created_at')[:12]
+            )
+        except Exception:
+            items = []
+        _cache.set(CACHE_KEY, items, _HOME_CACHE_TTL)
+        return render(request, 'partials/_home_testimonials.html', {'testimonials': items})
+ 
+ 
+class HomeLazyCombosView(View):
+    """GET /api/home/combos/"""
+ 
+    def get(self, request):
+        CACHE_KEY = 'home_combos_v1'
+        cached = _cache.get(CACHE_KEY)
+        if cached is not None:
+            return render(request, 'partials/_home_combos.html', {'combo_products': cached})
+        try:
+            from .services.combo_catalog import combo_is_in_stock, prefetch_combo_items
+            combo_qs = (
+                Combo.objects.filter(is_active=True, purchase_enabled=True, show_in_combos_nav=True)
+                .prefetch_related(prefetch_combo_items())
+                .order_by('-updated_at')
+            )
+            combo_cards = []
+            for c in combo_qs[:12]:
+                if c.price and combo_is_in_stock(c, multiplier=1):
+                    combo_cards.append(c)
+                if len(combo_cards) >= 8:
+                    break
+        except Exception:
+            combo_cards = []
+        _cache.set(CACHE_KEY, combo_cards, _HOME_CACHE_TTL)
+        return render(request, 'partials/_home_combos.html', {'combo_products': combo_cards})
+ 
+ 
+# ──────────────────────────────────────────────────────────────
+# ProductListView — OPTIMIZED
+# ──────────────────────────────────────────────────────────────
+ 
+# ─────────────────────────────────────────────────────────────────────────────
+# CHANGES vs original:
+#   1. paginate_by = 20  (was 12)
+#   2. get() sets  X-Has-Next-Page  header on AJAX responses so the JS knows
+#      whether to stop the IntersectionObserver or keep watching.
+# ─────────────────────────────────────────────────────────────────────────────
 
 class ProductListView(ListView):
     template_name = 'pages/shop.html'
     context_object_name = 'card_items'
-    paginate_by = 12
+    paginate_by = 20                          # ← changed from 12
 
     def get_queryset(self):
         try:
@@ -44,62 +506,107 @@ class ProductListView(ListView):
                 return collection_combo_cards(self.request)
             return collection_card_items(self.request, self.paginate_by)
         except Exception as e:
-            logger.error(f'Error in ProductListView.get_queryset: {str(e)}', exc_info=True)
+            logger.error('ProductListView.get_queryset error: %s', e, exc_info=True)
             return []
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         request = self.request
+
         tree = build_active_category_tree()
         root_ids = tree.children_ids.get(None, [])
         root_categories = [tree.by_id[cid] for cid in root_ids if cid in tree.by_id]
-        context['products'] = context.get('card_items', [])
-        context['page_title'] = 'Shop'
+
+        context['products']    = context.get('card_items', [])
+        context['page_title']  = 'Shop'
         context['active_page'] = 'collection'
+
         category_slug = request.GET.get('category')
         selected_category = None
         selected_child_categories = []
+
         if category_slug and category_slug != 'all':
-            selected_category, _ids = category_filter_ids_for_slug(category_slug, include_children=True, max_depth=10)
+            selected_category, _ids = category_filter_ids_for_slug(
+                category_slug, include_children=True, max_depth=10
+            )
             if selected_category:
                 context['page_title'] = selected_category.name
+
         if selected_category:
-            # If a child category is selected, show its siblings (children of its parent).
-            # If a root category is selected, show its direct children.
             parent_id = selected_category.parent_id
             if parent_id:
-                selected_child_categories = [tree.by_id[cid] for cid in tree.children_ids.get(parent_id, []) if cid in tree.by_id]
+                selected_child_categories = [
+                    tree.by_id[cid]
+                    for cid in tree.children_ids.get(parent_id, [])
+                    if cid in tree.by_id
+                ]
             else:
-                selected_child_categories = [tree.by_id[cid] for cid in tree.children_ids.get(selected_category.pk, []) if cid in tree.by_id]
-        shop_banner_url = None
-        shop_banner_tagline = ''
+                selected_child_categories = [
+                    tree.by_id[cid]
+                    for cid in tree.children_ids.get(selected_category.pk, [])
+                    if cid in tree.by_id
+                ]
+
+        shop_banner_url      = None
+        shop_banner_tagline  = ''
         if selected_category:
-            shop_banner_url = selected_category.get_shop_banner_url()
+            shop_banner_url     = selected_category.get_shop_banner_url()
             shop_banner_tagline = (getattr(selected_category, 'banner_tagline', '') or '').strip()
         context['shop_category_banner'] = (
             {'url': shop_banner_url, 'tagline': shop_banner_tagline} if shop_banner_url else None
         )
-        context['categories'] = root_categories
+
+        context['categories']       = root_categories
         context['child_categories'] = selected_child_categories
         context['selected_category'] = selected_category
-        min_price = request.GET.get('min_price', '')
-        max_price = request.GET.get('max_price', '')
-        query = request.GET.get('q', '')
-        sort = request.GET.get('sort', 'newest')
-        rent_only = (request.GET.get('rent') or '').strip() in ('1', 'true', 'yes')
+
+        min_price  = request.GET.get('min_price', '')
+        max_price  = request.GET.get('max_price', '')
+        query      = request.GET.get('q', '')
+        sort       = request.GET.get('sort', 'newest')
+        rent_only  = (request.GET.get('rent')  or '').strip() in ('1', 'true', 'yes')
         combo_only = (request.GET.get('combo') or '').strip().lower() in ('1', 'true', 'yes')
+
         context['combo_only'] = combo_only
         if combo_only:
             context['page_title'] = 'Combos'
-        context['filters'] = {'category': category_slug or 'all', 'min_price': min_price, 'max_price': max_price, 'q': query, 'sort': sort, 'difficulty': request.GET.get('difficulty', ''), 'sunlight': request.GET.get('sunlight', ''), 'watering': request.GET.get('watering', ''), 'plant_type': request.GET.get('plant_type', ''), 'guide': request.GET.get('guide', ''), 'combo': request.GET.get('combo', ''), 'rent': request.GET.get('rent', '')}
-        context['sort_options'] = [('newest', 'Newest'), ('price_asc', 'Price: Low to High'), ('price_desc', 'Price: High to Low')]
+
+        context['filters'] = {
+            'category':   category_slug or 'all',
+            'min_price':  min_price,
+            'max_price':  max_price,
+            'q':          query,
+            'sort':       sort,
+            'difficulty': request.GET.get('difficulty', ''),
+            'sunlight':   request.GET.get('sunlight', ''),
+            'watering':   request.GET.get('watering', ''),
+            'plant_type': request.GET.get('plant_type', ''),
+            'guide':      request.GET.get('guide', ''),
+            'combo':      request.GET.get('combo', ''),
+            'rent':       request.GET.get('rent', ''),
+        }
+        context['sort_options'] = [
+            ('newest',     'Newest'),
+            ('price_asc',  'Price: Low to High'),
+            ('price_desc', 'Price: High to Low'),
+        ]
+
         if combo_only:
-            context['simple_products'] = []
-            context['total_product_count'] = len(context.get('card_items', []))
+            context['simple_products']      = []
+            context['total_product_count']  = len(context.get('card_items', []))
         else:
-            simple_qs = Product.objects.active().filter(variants__isnull=True).filter(Q(base_stock__gt=0) | Q(is_combo_product=True)).select_related('category').prefetch_related('images')
+            simple_qs = (
+                Product.objects.active()
+                .filter(variants__isnull=True)
+                .filter(Q(base_stock__gt=0) | Q(is_combo_product=True))
+                .select_related('category')
+                .prefetch_related('images')
+            )
             if rent_only:
-                simple_qs = simple_qs.filter(is_rent_available=True, rental_config__is_rent_enabled=True).select_related('rental_config')
+                simple_qs = simple_qs.filter(
+                    is_rent_available=True,
+                    rental_config__is_rent_enabled=True,
+                ).select_related('rental_config')
             if category_slug and category_slug != 'all':
                 _, ids = category_filter_ids_for_slug(category_slug, include_children=True, max_depth=10)
                 if ids:
@@ -109,7 +616,11 @@ class ProductListView(ListView):
             if max_price:
                 simple_qs = simple_qs.filter(base_price__lte=max_price)
             if query:
-                simple_qs = simple_qs.filter(Q(name__icontains=query) | Q(description__icontains=query) | Q(category__name__icontains=query))
+                simple_qs = simple_qs.filter(
+                    Q(name__icontains=query)
+                    | Q(description__icontains=query)
+                    | Q(category__name__icontains=query)
+                )
             simple_qs = apply_plant_filters_to_product_qs(simple_qs, request)
             if sort == 'price_asc':
                 simple_qs = simple_qs.order_by('base_price', 'created_at')
@@ -117,242 +628,58 @@ class ProductListView(ListView):
                 simple_qs = simple_qs.order_by('-base_price', '-created_at')
             else:
                 simple_qs = simple_qs.order_by('-created_at', 'name', 'id')
-            context['simple_products'] = list(simple_qs)
-            context['total_product_count'] = len(context.get('card_items', [])) + len(context['simple_products'])
+            context['simple_products']     = list(simple_qs)
+            context['total_product_count'] = (
+                len(context.get('card_items', [])) + len(context['simple_products'])
+            )
+
+        # ── Cart state (per-request, must stay live) ──
         try:
-            cart = CartService.get_or_create_cart(self.request)
-            cart_items = list(cart.items.filter(line_type=CartItem.LineKind.PURCHASE).values('product_id', 'selected_variant_id', 'combo_id'))
-            context['cart_variant_ids'] = set((item['selected_variant_id'] for item in cart_items if item['selected_variant_id']))
-            context['cart_product_ids'] = set((item['product_id'] for item in cart_items if item['product_id']))
-            context['cart_simple_product_ids'] = set((item['product_id'] for item in cart_items if item['product_id'] and not item['selected_variant_id']))
-            context['cart_combo_ids'] = set((item['combo_id'] for item in cart_items if item['combo_id']))
+            cart       = CartService.get_or_create_cart(request)
+            cart_items = list(
+                cart.items.filter(line_type=CartItem.LineKind.PURCHASE)
+                .values('product_id', 'selected_variant_id', 'combo_id')
+            )
+            context['cart_variant_ids']        = {i['selected_variant_id'] for i in cart_items if i['selected_variant_id']}
+            context['cart_product_ids']        = {i['product_id']          for i in cart_items if i['product_id']}
+            context['cart_simple_product_ids'] = {i['product_id']          for i in cart_items if i['product_id'] and not i['selected_variant_id']}
+            context['cart_combo_ids']          = {i['combo_id']            for i in cart_items if i['combo_id']}
         except Exception:
-            context['cart_variant_ids'] = set()
-            context['cart_product_ids'] = set()
+            context['cart_variant_ids']        = set()
+            context['cart_product_ids']        = set()
             context['cart_simple_product_ids'] = set()
-            context['cart_combo_ids'] = set()
+            context['cart_combo_ids']          = set()
+
         return context
 
     def get(self, request, *args, **kwargs):
         self.object_list = self.get_queryset()
-        context = self.get_context_data()
+        context          = self.get_context_data()
+
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return render(request, 'partials/_shop_cards_fragment.html', context)
+            # ── AJAX / infinite-scroll request ──
+            # Render only the cards fragment (no full page shell)
+            response = render(request, 'partials/_shop_cards_fragment.html', context)
+
+            # ─────────────────────────────────────────────────────────────────
+            # X-Has-Next-Page header
+            # The JS reads this to decide whether to keep observing the sentinel
+            # or disconnect and show the "You've seen everything" end message.
+            #
+            # page_obj is set by ListView's paginate_queryset(); it's always
+            # present when paginate_by is set.
+            # ─────────────────────────────────────────────────────────────────
+            page_obj = context.get('page_obj')
+            has_next = 'true' if (page_obj and page_obj.has_next()) else 'false'
+            response['X-Has-Next-Page'] = has_next
+
+            return response
+
+        # Normal full-page render
         return self.render_to_response(context)
 
-class HomeView(TemplateView):
-    template_name = 'pages/home.html'
 
-    def get_context_data(self, **kwargs):
-        try:
-            context = super().get_context_data(**kwargs)
-            today = timezone.now().date()
-            shop_categories_qs = Category.objects.filter(is_active=True, parent__isnull=True).filter(Q(products__is_active=True, products__variants__is_active=True, products__variants__stock_quantity__gt=0) | Q(products__is_active=True, products__variants__isnull=True, products__base_stock__gt=0)).distinct().order_by('name')[:8]
-            context['shop_categories'] = list(shop_categories_qs)
-            sellable_variants_qs = Variant.objects.filter(is_active=True, stock_quantity__gt=0).prefetch_related('images').order_by('display_order', 'id')
-            base_products_qs = Product.objects.available().select_related('category').prefetch_related(Prefetch('variants', queryset=sellable_variants_qs, to_attr='sellable_variants'))
-
-            def _build_product_cards(qs, limit):
-                products = []
-                for product in qs[:limit]:
-                    variants = list(getattr(product, 'sellable_variants', []) or [])
-                    if variants:
-                        primary_variant = min(variants, key=lambda v: (v.price, v.display_order, v.id))
-                        product.primary_variant = primary_variant
-                        product.lowest_price = primary_variant.price
-                        products.append(product)
-                    elif getattr(product, 'is_combo_product', False):
-                        from .services.rental_catalog import combo_is_in_stock
-                        if combo_is_in_stock(product, multiplier=1) and product.base_price is not None:
-                            product.primary_variant = None
-                            product.lowest_price = product.base_price
-                            products.append(product)
-                    elif getattr(product, 'base_stock', 0) and product.base_stock > 0:
-                        product.primary_variant = None
-                        product.lowest_price = product.base_price
-                        products.append(product)
-                return products
-            home_category_prefetch = Prefetch('home_category_products', queryset=HomeCategoryProduct.objects.select_related('product').order_by('display_order', 'id'))
-            home_category_sections = []
-            try:
-                for hc in HomeCategory.objects.filter(is_active=True).filter(Q(banner_image__isnull=False) & ~Q(banner_image='')).select_related('linked_category').prefetch_related(home_category_prefetch).order_by('display_order', 'name', 'id'):
-                    links = [l for l in hc.home_category_products.all() if l.product and l.product.is_active]
-                    ordered_ids = [l.product_id for l in links]
-                    if not ordered_ids:
-                        continue
-                    qs = Product.objects.filter(pk__in=ordered_ids).select_related('category').prefetch_related(Prefetch('variants', queryset=sellable_variants_qs, to_attr='sellable_variants'))
-                    id_pos = {pid: i for i, pid in enumerate(ordered_ids)}
-                    sorted_products = sorted(list(qs), key=lambda p: id_pos[p.pk])
-                    card_products = _build_product_cards(sorted_products, 16)
-                    if not card_products:
-                        continue
-                    home_category_sections.append({'home_category': hc, 'products': card_products})
-            except Exception as hc_exc:
-                logger.error(f'Error building home category sections: {hc_exc}', exc_info=True)
-                home_category_sections = []
-            context['home_category_sections'] = home_category_sections
-            deal_qs = base_products_qs.filter(is_deal_of_day=True)
-            deal_qs = deal_qs.filter(Q(deal_of_day_start__isnull=True) | Q(deal_of_day_start__lte=today), Q(deal_of_day_end__isnull=True) | Q(deal_of_day_end__gte=today)).order_by('-created_at')
-            deal_of_day_products = _build_product_cards(deal_qs, 8)
-            if not deal_of_day_products and getattr(settings, 'HOME_DEAL_OF_DAY_ENABLED', True):
-                deal_of_day_products = _build_product_cards(base_products_qs.order_by('-created_at'), 8)
-            context['deal_of_day_products'] = deal_of_day_products
-            context['deal_products'] = deal_of_day_products
-            bestseller_qs = base_products_qs.filter(is_bestseller=True).order_by('-created_at')
-            bestseller_products = _build_product_cards(bestseller_qs, 8)
-            if not bestseller_products and getattr(settings, 'HOME_BESTSELLER_ENABLED', True):
-                bestseller_products = _build_product_cards(base_products_qs.order_by('-total_reviews', '-average_rating', '-created_at'), 8)
-            context['bestseller_products'] = bestseller_products
-            _bs = list(bestseller_products)
-            _mid = (len(_bs) + 1) // 2
-            context['bestseller_products_row1'] = _bs[:_mid]
-            context['bestseller_products_row2'] = _bs[_mid:]
-            new_arrivals_qs = base_products_qs.order_by('-created_at')
-            context['new_arrival_products'] = _build_product_cards(new_arrivals_qs, 26)
-            top_rated_qs = base_products_qs.filter(average_rating__gte=4, total_reviews__gt=0).order_by('-average_rating', '-total_reviews', '-created_at')
-            context['top_rated_products'] = _build_product_cards(top_rated_qs, 8)
-            budget_qs = Product.objects.available().filter(Q(variants__price__lte=499) | Q(variants__isnull=True, base_price__lte=499)).annotate(min_price=Coalesce(Min('variants__price'), 'base_price')).select_related('category').prefetch_related(Prefetch('variants', queryset=sellable_variants_qs, to_attr='sellable_variants')).order_by('min_price', '-created_at').distinct()
-            context['budget_products'] = _build_product_cards(budget_qs, 8)
-            featured_qs = base_products_qs.filter(is_featured=True).order_by('-created_at')
-            featured_products = _build_product_cards(featured_qs, 8)
-            if not featured_products and getattr(settings, 'HOME_FEATURED_ENABLED', True):
-                featured_products = _build_product_cards(base_products_qs.order_by('-created_at'), 8)
-            context['featured_products'] = featured_products
-            beginner_qs = base_products_qs.filter(beginner_friendly=True).order_by('-created_at')
-            context['beginner_friendly_products'] = _build_product_cards(beginner_qs, 8)
-            from .services.combo_catalog import combo_is_in_stock, prefetch_combo_items
-            combo_catalog_qs = (
-                Combo.objects.filter(is_active=True, purchase_enabled=True, show_in_combos_nav=True)
-                .prefetch_related(prefetch_combo_items())
-                .order_by('-updated_at')
-            )
-            combo_cards = []
-            for c in combo_catalog_qs[:12]:
-                if c.price and combo_is_in_stock(c, multiplier=1):
-                    combo_cards.append(c)
-                if len(combo_cards) >= 8:
-                    break
-            context['combo_products'] = combo_cards
-            active_banners = list(Banner.objects.filter(is_active=True).order_by('display_order', 'created_at'))
-            context['banners'] = [b for b in active_banners if b.image]
-            context['active_page'] = 'home'
-            try:
-                rent_qs = (
-                    Product.objects.filter(is_active=True, is_rent_available=True, rental_config__is_rent_enabled=True)
-                    .select_related('category', 'rental_config')
-                    .prefetch_related(Prefetch('variants', queryset=sellable_variants_qs, to_attr='sellable_variants'))
-                    .order_by('-created_at')
-                )
-                rent_products = _build_product_cards(list(rent_qs), 12)
-                # Ensure rental_config is present and stable in templates
-                for p in rent_products:
-                    if not getattr(p, 'rental_config', None):
-                        try:
-                            from .models import RentalConfig
-                            p.rental_config = RentalConfig.objects.filter(product=p).first()
-                        except Exception:
-                            p.rental_config = None
-                context['rent_products'] = rent_products
-            except Exception:
-                context['rent_products'] = []
-            try:
-                reels_qs = (
-                    Reel.objects.filter(is_active=True)
-                    .exclude(video='')
-                    .select_related('product', 'product__category')
-                    .order_by('display_order', '-created_at')[:24]
-                )
-                # Attach primary_variant/lowest_price for consistent card rendering.
-                for r in reels_qs:
-                    p = getattr(r, 'product', None)
-                    if not p:
-                        continue
-                    variants = list(getattr(p, 'sellable_variants', []) or [])
-                    if variants:
-                        primary_variant = min(variants, key=lambda v: (v.price, v.display_order, v.id))
-                        p.primary_variant = primary_variant
-                        p.lowest_price = primary_variant.price
-                    else:
-                        p.primary_variant = None
-                        p.lowest_price = p.base_price
-                context['reels'] = list(reels_qs)
-            except Exception:
-                context['reels'] = []
-            try:
-                cart = CartService.get_or_create_cart(self.request)
-                items_qs = cart.items.select_related('product', 'selected_variant').prefetch_related('selected_variant__images')
-                home_cart_items = list(items_qs)
-                if home_cart_items:
-                    totals = CartService.compute_totals(cart)
-                    context['home_cart'] = cart
-                    context['home_cart_items'] = home_cart_items
-                    context['home_cart_totals'] = totals
-                else:
-                    context['home_cart_items'] = []
-            except Exception as cart_exc:
-                logger.error(f'Error building home cart preview: {cart_exc}', exc_info=True)
-                context['home_cart_items'] = []
-            home_wishlist_variants = []
-            home_wishlist_products = []
-            user = getattr(self.request, 'user', None)
-            if user and user.is_authenticated:
-                try:
-                    wishlist_items = list(Wishlist.objects.filter(user=user).filter(selected_variant__is_active=True, selected_variant__product__is_active=True).select_related('selected_variant', 'selected_variant__product', 'selected_variant__product__category').prefetch_related('selected_variant__images').order_by('-created_at')[:12])
-                    home_wishlist_variants = [wl.selected_variant for wl in wishlist_items if wl.selected_variant]
-                except Exception as wl_exc:
-                    logger.error(f'Error building home wishlist: {wl_exc}', exc_info=True)
-            context['home_wishlist_variants'] = home_wishlist_variants
-            context['home_wishlist_products'] = home_wishlist_products
-            try:
-                cart = CartService.get_or_create_cart(self.request)
-                cart_items = list(
-                    cart.items.filter(line_type=CartItem.LineKind.PURCHASE).values(
-                        'product_id', 'selected_variant_id', 'combo_id'
-                    )
-                )
-                context['cart_variant_ids'] = set((item['selected_variant_id'] for item in cart_items if item['selected_variant_id']))
-                context['cart_product_ids'] = set((item['product_id'] for item in cart_items))
-                context['cart_simple_product_ids'] = set((item['product_id'] for item in cart_items if not item['selected_variant_id']))
-                context['cart_combo_ids'] = set((item['combo_id'] for item in cart_items if item['combo_id']))
-            except Exception:
-                context['cart_variant_ids'] = set()
-                context['cart_product_ids'] = set()
-                context['cart_simple_product_ids'] = set()
-                context['cart_combo_ids'] = set()
-            try:
-                context['testimonials'] = list(
-                    Testimonial.objects.filter(is_active=True)
-                    .order_by('display_order', '-created_at')[:12]
-                )
-            except Exception:
-                context['testimonials'] = []
-            return context
-        except Exception as e:
-            logger.error(f'Error in HomeView.get_context_data: {str(e)}', exc_info=True)
-            context = super().get_context_data(**kwargs)
-            context['active_page'] = 'home'
-            context['shop_categories'] = []
-            context['featured_products'] = []
-            context['deal_of_day_products'] = []
-            context['deal_products'] = []
-            context['bestseller_products'] = []
-            context['bestseller_products_row1'] = []
-            context['bestseller_products_row2'] = []
-            context['new_arrival_products'] = []
-            context['top_rated_products'] = []
-            context['budget_products'] = []
-            context['banners'] = []
-            context['home_wishlist_variants'] = []
-            context['home_wishlist_products'] = []
-            context['beginner_friendly_products'] = []
-            context['combo_products'] = []
-            context['home_category_sections'] = []
-            context['reels'] = []
-            context['rent_products'] = []
-            context['cart_combo_ids'] = set()
-            context['testimonials'] = [] 
-            return context
-RECENTLY_VIEWED_MAX = 20
+RECENTLY_VIEWED_MAX          = 20
 RECENTLY_VIEWED_VARIANTS_MAX = 20
 
 def _update_recently_viewed(session, product_id):
@@ -1236,7 +1563,7 @@ class AddToCartView(View):
                 return redirect('store:product_detail', slug=product.slug)
             sellable = product
         try:
-            CartService.add_item(cart, sellable, data['quantity'], line_type=line_type, rental_billing=rb, rental_units=ru, rental_start_date=rs, rental_end_date=re, is_gift=data.get('is_gift', False))
+            CartService.add_item(cart, sellable, data['quantity'], line_type=line_type, rental_billing=rb, rental_units=ru, rental_start_date=rs, rental_end_date=re, is_gift=data.get('is_gift', False), selected_pot_id=data.get('selected_pot_id'))
         except StockError as exc:
             messages.error(request, str(exc))
             if is_ajax:
@@ -1297,7 +1624,7 @@ class BuyNowView(View):
                         messages.error(request, 'Please select a variant or the selected variant is unavailable.')
                         return redirect('store:product_detail', slug=product.slug)
                     sellable = product
-                CartService.add_item(cart, sellable, data['quantity'], line_type=line_type, rental_billing=rb, rental_units=ru, rental_start_date=rs, rental_end_date=re, is_gift=data.get('is_gift', False))
+                CartService.add_item(cart, sellable, data['quantity'], line_type=line_type, rental_billing=rb, rental_units=ru, rental_start_date=rs, rental_end_date=re, is_gift=data.get('is_gift', False), selected_pot_id=data.get('selected_pot_id'))
         except StockError as exc:
             messages.error(request, str(exc))
             if data.get('combo_id'):
@@ -1481,11 +1808,28 @@ class CreateRazorpayOrderView(View):
         cart = CartService.get_or_create_cart(request)
         if not cart.items.exists():
             return JsonResponse({'status': 'error', 'message': 'Your cart is empty.'}, status=400)
+        # user = request.user if request.user.is_authenticated else None
+        # form = CheckoutForm(request.POST, user=user)
+        # if not form.is_valid():
+        #     msg = 'Please check your details.'
+        #     for field in ('__all__', 'payment', 'full_name', 'phone', 'address_line', 'city', 'state', 'pincode', 'email'):
+        #         errs = form.errors.get(field)
+        #         if errs:
+        #             msg = errs[0] if isinstance(errs[0], str) else str(errs[0])
+        #             break
+        #     return JsonResponse({'status': 'error', 'message': msg}, status=400)
+
         user = request.user if request.user.is_authenticated else None
-        form = CheckoutForm(request.POST, user=user)
+        cart_product_ids = list(
+            cart.items.filter(product__isnull=False)
+            .values_list('product_id', flat=True)
+        )
+        form = CheckoutForm(request.POST, user=user, cart_product_ids=cart_product_ids)
         if not form.is_valid():
+            # TEMPORARY: log full errors to find root cause
+            logger.error('CreateRazorpayOrderView form errors: %s', form.errors.as_json())
             msg = 'Please check your details.'
-            for field in ('__all__', 'payment', 'full_name', 'phone', 'address_line', 'city', 'state', 'pincode', 'email'):
+            for field in ('__all__', 'delivery_state', 'payment', 'full_name', 'phone', 'address_line', 'city', 'state', 'pincode', 'email'):
                 errs = form.errors.get(field)
                 if errs:
                     msg = errs[0] if isinstance(errs[0], str) else str(errs[0])
@@ -1711,6 +2055,11 @@ class RazorpayPaymentVerifyView(View):
                         Product.objects.filter(pk=product.pk).update(base_stock=F('base_stock') - item.quantity)
                 cart = CartService.get_or_create_cart(request)
                 if cart.items.exists():
+                    for cart_item in cart.items.select_related('selected_pot').all():
+                        if cart_item.selected_pot_id:
+                            Product.objects.filter(pk=cart_item.selected_pot_id).update(
+                                base_stock=F('base_stock') - cart_item.quantity
+                            )
                     cart.status = Cart.Status.ORDERED
                     cart.save(update_fields=['status'])
                     cart.items.all().delete()

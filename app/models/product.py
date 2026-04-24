@@ -358,3 +358,38 @@ class ProductImage(TimeStampedModel):
 
     def __str__(self):
         return f'{self.product} base image'
+
+class ProductPotAddon(TimeStampedModel):
+    """
+    Links a plant product to pot products that customers can optionally add.
+    Pots are regular Product objects under a category whose slug is 'pot' or 'pots'.
+    Both products remain independently sellable.
+    """
+    plant_product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name='pot_addons',
+        help_text='The plant product this addon belongs to.',
+    )
+    pot_product = models.ForeignKey(
+        Product,
+        on_delete=models.PROTECT,
+        related_name='linked_as_pot_addon',
+        help_text='The pot product available as an add-on.',
+    )
+    display_order = models.PositiveIntegerField(default=0, db_index=True)
+
+    class Meta:
+        ordering = ['display_order', 'id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['plant_product', 'pot_product'],
+                name='uniq_plant_pot_addon',
+            )
+        ]
+        indexes = [
+            models.Index(fields=['plant_product', 'display_order']),
+        ]
+
+    def __str__(self):
+        return f'{self.plant_product.name} → {self.pot_product.name}'

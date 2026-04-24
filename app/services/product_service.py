@@ -1,7 +1,8 @@
-﻿"""Product detail (PDP) data loading and context building â€” optimized querysets, no template logic."""
+﻿"""Product detail (PDP) data loading and context building – optimized querysets, no template logic."""
 
 from __future__ import annotations
 
+import json
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -16,6 +17,7 @@ from app.models import (
     ProductComboItem,
     ProductFAQ,
     ProductHighlight,
+    ProductPotAddon,
     ProductSpecification,
     ProductWhatsInBoxItem,
     Review,
@@ -29,7 +31,7 @@ from app.services.rental_pricing import rental_key as make_rental_key
 
 
 def get_pdp_queryset():
-    """ queryset for ProductDetailView with prefetch to avoid N+1 on gallery, variants, and content modules."""
+    """queryset for ProductDetailView with prefetch to avoid N+1 on gallery, variants, and content modules."""
     combo_pf = Prefetch(
         'combo_components',
         queryset=ProductComboItem.objects.select_related('component_product').order_by('display_order', 'id'),
@@ -93,7 +95,11 @@ def build_attributes_grouped(product: Product, variants: List[Variant]) -> List[
             used_value_ids.add(av_id)
     attributes_grouped = []
     for attr in product.attributes.prefetch_related('values').order_by('display_order', 'name'):
-        values_for_attr = [{'id': av.id, 'value': av.value} for av in attr.values.order_by('display_order', 'value') if av.id in used_value_ids]
+        values_for_attr = [
+            {'id': av.id, 'value': av.value}
+            for av in attr.values.order_by('display_order', 'value')
+            if av.id in used_value_ids
+        ]
         if not values_for_attr:
             continue
         attributes_grouped.append({'id': attr.id, 'name': attr.name, 'values': values_for_attr})
@@ -136,12 +142,60 @@ def _variant_json_payload(product: Product, variants: List[Variant]) -> List[Dic
     return variant_json
 
 
+def _load_pot_addons(product: Product) -> List[Dict[str, Any]]:
+    """
+    Load pot addons for a plant product.
+    Returns a list of dicts ready for the template and JSON serialization.
+    Silently returns [] if the product has no addons or anything goes wrong.
+    """
+    try:
+        rows = (
+            ProductPotAddon.objects
+            .filter(plant_product=product)
+            .select_related('pot_product', 'pot_product__category')
+            .prefetch_related('pot_product__images')
+            .order_by('display_order', 'id')
+        )
+        addons = []
+        for row in rows:
+            pot = row.pot_product
+            if not pot.is_active:
+                continue
+            price = pot.base_price
+            if price is None or price <= 0:
+                continue
+            stock = pot.base_stock or 0
+            image_url = None
+            try:
+                urls = pot.get_card_image_urls(limit=1)
+                image_url = urls[0] if urls else None
+            except Exception:
+                pass
+            addons.append({
+                'id': pot.id,
+                'name': pot.name,
+                'price': price,
+                'stock': stock,
+                'in_stock': stock > 0,
+                'image_url': image_url,
+                'slug': pot.slug,
+            })
+        return addons
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error('Error loading pot addons for product %s: %s', product.pk, e)
+        return []
+
+
 class ProductDetailService:
-    """Builds PDP context dictionaries â€” used by DetailView and lazy fragment views."""
+    """Builds PDP context dictionaries – used by DetailView and lazy fragment views."""
 
     @staticmethod
     def build_breadcrumbs(product: Product) -> List[Dict[str, str]]:
-        items = [{'label': 'Home', 'url': reverse('store:home')}, {'label': 'Shop', 'url': reverse('store:product_list')}]
+        items = [
+            {'label': 'Home', 'url': reverse('store:home')},
+            {'label': 'Shop', 'url': reverse('store:product_list')},
+        ]
         cat = product.category
         if cat:
             ancestors = []
@@ -157,13 +211,21 @@ class ProductDetailService:
                 cur = getattr(cur, 'parent', None)
                 depth += 1
             for ancestor in reversed(ancestors):
-                items.append({'label': ancestor.name, 'url': f"{reverse('store:product_list')}?category={ancestor.slug}"})
+                items.append({
+                    'label': ancestor.name,
+                    'url': f"{reverse('store:product_list')}?category={ancestor.slug}",
+                })
         items.append({'label': product.name, 'url': ''})
         return items
 
     @staticmethod
     def build_reviews_context(request, product: Product) -> Dict[str, Any]:
-        reviews_qs = Review.objects.filter(product=product, is_approved=True, is_deleted=False).select_related('user', 'order').order_by('-created_at')
+        reviews_qs = (
+            Review.objects
+            .filter(product=product, is_approved=True, is_deleted=False)
+            .select_related('user', 'order')
+            .order_by('-created_at')
+        )
         reviews_list = list(reviews_qs[:250])
         total_reviews = product.total_reviews or 0
         average_rating = float(product.average_rating) if total_reviews > 0 else None
@@ -183,10 +245,13 @@ class ProductDetailService:
         if request.user.is_authenticated:
             user_review = Review.objects.filter(product=product, user=request.user).first()
             if not user_review:
-                has_delivered_order = OrderItem.objects.filter(order__user=request.user, order__status=Order.Status.DELIVERED, product=product).exists()
+                has_delivered_order = OrderItem.objects.filter(
+                    order__user=request.user,
+                    order__status=Order.Status.DELIVERED,
+                    product=product,
+                ).exists()
                 can_review = has_delivered_order
         from app.forms import ReviewForm
-
         return {
             'product': product,
             'reviews': reviews_list,
@@ -209,24 +274,33 @@ class ProductDetailService:
             'attributes_grouped': attributes_grouped,
             'pdp_breadcrumbs': ProductDetailService.build_breadcrumbs(product),
         }
+
         if product.is_simple_product():
             context['product_display_image_urls'] = product.get_card_image_urls(limit=3)
         else:
             context['product_display_image_urls'] = []
+
         context['ordered_attributes'] = [a['name'] for a in attributes_grouped]
         context['variant_json'] = _variant_json_payload(product, variants)
+
         if product.is_simple_product():
             context['product_base_original_price'] = product.base_original_price
             context['product_discount_percent'] = product.discount_percent
         else:
             context['product_base_original_price'] = None
             context['product_discount_percent'] = 0
+
         base_price_for_gst = None
         if selected_variant:
             base_price_for_gst = selected_variant.price
         elif product.is_simple_product() and product.base_price is not None:
             base_price_for_gst = product.base_price
-        if base_price_for_gst is not None and getattr(product, 'is_gst_applicable', False) and (getattr(product, 'gst_percentage', None) is not None):
+
+        if (
+            base_price_for_gst is not None
+            and getattr(product, 'is_gst_applicable', False)
+            and getattr(product, 'gst_percentage', None) is not None
+        ):
             gst_pct = product.gst_percentage
             gst_amount = base_price_for_gst * (gst_pct / Decimal('100'))
             context['product_detail_gst_amount'] = gst_amount
@@ -236,15 +310,22 @@ class ProductDetailService:
             context['product_detail_gst_amount'] = None
             context['product_detail_total_with_gst'] = None
             context['product_gst_percentage'] = None
+
         selected_attr_value_ids = []
         if selected_variant:
             selected_attr_value_ids = list(selected_variant.attribute_values.values_list('id', flat=True))
         context['selected_attribute_value_ids'] = selected_attr_value_ids
+
         context['in_wishlist'] = False
         if request.user.is_authenticated and selected_variant:
-            context['in_wishlist'] = Wishlist.objects.filter(user=request.user, selected_variant=selected_variant).exists()
+            context['in_wishlist'] = Wishlist.objects.filter(
+                user=request.user, selected_variant=selected_variant
+            ).exists()
         elif request.user.is_authenticated and product.is_simple_product():
-            context['in_wishlist'] = Wishlist.objects.filter(user=request.user, product=product).exists()
+            context['in_wishlist'] = Wishlist.objects.filter(
+                user=request.user, product=product
+            ).exists()
+
         context['related_products'] = list(
             Product.objects.active()
             .filter(category=product.category)
@@ -252,39 +333,59 @@ class ProductDetailService:
             .select_related('category')
             .prefetch_related('variants__images', 'images')[:4]
         )
-        context['similar_variants'] = [v for v in variants if selected_variant and v.id != selected_variant.id][:12]
+        context['similar_variants'] = [
+            v for v in variants if selected_variant and v.id != selected_variant.id
+        ][:12]
+
         combo_lines = []
         if getattr(product, 'is_combo_product', False):
             for row in product.combo_components.all():
                 combo_lines.append({'name': row.component_product.name, 'quantity': row.quantity})
         context['combo_lines'] = combo_lines
-        # Rental UI now draws from RentalConfig (per-day pricing). We expose a minimal option set.
+
         if getattr(product, 'is_rent_available', False):
             context['product_rental_options'] = [{'billing': 'day', 'units': 1, 'key': make_rental_key(1)}]
         else:
             context['product_rental_options'] = []
+
         context['show_pdp_mode_toggle'] = bool(product.purchase_enabled and product.is_rent_available)
         context['rental_only_pdp'] = bool(product.is_rent_available and not product.purchase_enabled)
         context['purchase_only_pdp'] = bool(product.purchase_enabled and not product.is_rent_available)
+
         cart = CartService.get_or_create_cart(request)
         if selected_variant:
             pq = cart.items.filter(product=product, selected_variant_id=selected_variant.id)
         else:
             pq = cart.items.filter(product=product, selected_variant__isnull=True)
         context['pdp_purchase_in_cart'] = pq.filter(line_type=CartItem.LineKind.PURCHASE).exists()
-        context['pdp_rental_keys_in_cart'] = list(pq.filter(line_type=CartItem.LineKind.RENTAL).values_list('rental_key', flat=True))
+        context['pdp_rental_keys_in_cart'] = list(
+            pq.filter(line_type=CartItem.LineKind.RENTAL).values_list('rental_key', flat=True)
+        )
+
         context['pincode_check_url'] = reverse('store:pincode_check')
         context['serviceable_pincode_count'] = len(allowed_pincode_list())
-        context['pdp_combo_available'] = combo_is_in_stock(product, multiplier=1) if getattr(product, 'is_combo_product', False) else True
+        context['pdp_combo_available'] = (
+            combo_is_in_stock(product, multiplier=1)
+            if getattr(product, 'is_combo_product', False)
+            else True
+        )
+
         cfg = getattr(product, 'rental_config', None)
         context['product_rental_rates'] = {
             'day': str(cfg.rent_price_per_day) if cfg and cfg.rent_price_per_day is not None else '',
         }
-        from app.forms import CartAddForm
 
-        context['add_form'] = CartAddForm(initial={'product_id': product.id, 'variant_id': selected_variant.id if selected_variant else None, 'quantity': 1, 'line_type': 'purchase'})
+        from app.forms import CartAddForm
+        context['add_form'] = CartAddForm(initial={
+            'product_id': product.id,
+            'variant_id': selected_variant.id if selected_variant else None,
+            'quantity': 1,
+            'line_type': 'purchase',
+        })
+
         context['active_page'] = 'collection'
         context['selected_color_variant'] = selected_variant
+
         total_reviews = product.total_reviews or 0
         context['average_rating'] = float(product.average_rating) if total_reviews > 0 else None
         context['total_reviews'] = total_reviews
@@ -297,4 +398,19 @@ class ProductDetailService:
         context['can_review'] = False
         context['user_review'] = None
         context['review_form'] = None
+
+        # ── Pot add-ons ────────────────────────────────────────────────────────
+        pot_addons = _load_pot_addons(product)
+        context['pot_addons'] = pot_addons
+        context['pot_addons_json'] = json.dumps([
+            {
+                'id': p['id'],
+                'name': p['name'],
+                'price': str(p['price']),
+                'in_stock': p['in_stock'],
+                'image_url': p['image_url'] or '',
+            }
+            for p in pot_addons
+        ])
+
         return context

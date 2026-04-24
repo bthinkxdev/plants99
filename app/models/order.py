@@ -26,6 +26,14 @@ class Address(TimeStampedModel):
     is_default = models.BooleanField(default=False, db_index=True)
     is_snapshot = models.BooleanField(default=False, db_index=True)
 
+    delivery_state = models.ForeignKey(
+                    'DeliveryState',
+                    on_delete=models.SET_NULL,
+                    null=True,
+                    blank=True,
+                    related_name='addresses',
+                )
+
     class Meta:
         indexes = [models.Index(fields=['user', 'is_default'])]
 
@@ -85,6 +93,21 @@ class OrderItem(TimeStampedModel):
     taxable_value = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text='Line taxable value (unit_price * qty) for GST lines.')
     gst_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text='GST amount for this line.')
     is_gift = models.BooleanField(default=False, db_index=True)
+
+    selected_pot_name = models.CharField(
+        max_length=200,
+        blank=True,
+        default='',
+        help_text='Snapshot of pot product name at time of order.',
+    )
+    pot_unit_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        help_text='Snapshot of pot price at time of order.',
+    )
 
     @property
     def line_total(self):

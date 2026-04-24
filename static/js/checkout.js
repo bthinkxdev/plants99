@@ -48,11 +48,13 @@ function syncAddressToHidden() {
     var addr = form.querySelector('input[name="address_selection"]:checked');
     var sel = form.querySelector('input[name="selected_address"]');
     var useNew = form.querySelector('input[name="use_new_address"]');
-    if (addr && sel) {
-        sel.value = addr.value;
-        if (useNew) useNew.value = '';
-    } else if (useNew) {
-        useNew.value = 'true';
+
+    if (addr && addr.value) {
+        if (sel) sel.value = addr.value;
+        if (useNew) useNew.value = 'false';   
+    } else {
+        if (sel) sel.value = '';
+        if (useNew) useNew.value = 'true';
     }
 }
 

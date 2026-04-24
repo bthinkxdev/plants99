@@ -277,21 +277,3 @@ class AddressDeleteView(LoginRequiredMixin, View):
         messages.success(request, 'Address deleted successfully.')
         return redirect('auth:address_list')
 
-# ===== LOCUST TEST LOGIN - DEBUG ONLY =====
-from django.conf import settings
-from django.contrib.auth import get_user_model
-
-class LocustTestLoginView(View):
-    def post(self, request):
-        if not settings.DEBUG:
-            from django.http import HttpResponseForbidden
-            return HttpResponseForbidden()
-        User = get_user_model()
-        email = request.POST.get("email")
-        try:
-            user = User.objects.get(email=email)
-            user.backend = 'django.contrib.auth.backends.ModelBackend'
-            login(request, user)
-            return JsonResponse({"success": True})
-        except User.DoesNotExist:
-            return JsonResponse({"error": "user not found"}, status=404)

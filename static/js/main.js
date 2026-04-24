@@ -701,3 +701,87 @@
 
 
 })(jQuery);
+
+(function () {
+  'use strict';
+ 
+  var strip = document.getElementById('pdpPotStrip');
+  if (!strip) return;
+ 
+  var potInput      = document.getElementById('formSelectedPotId');
+  var breakdown     = document.getElementById('pdpPotBreakdown');
+  var breakdownPrice= document.getElementById('pdpPotBreakdownPrice');
+ 
+  var selectedPotPrice = 0;
+ 
+  // ── Get plant base price from the page ─────────────────────────────────────
+  // We read from the price element — adjust selector to match your PDP template
+  function getPlantPrice() {
+    var el = document.getElementById('price-selling');
+    if (el) return parseFloat(el.textContent.replace(/[^\d.]/g, '')) || 0;
+    // fallback for GST products
+    var total = document.querySelector('.price-total-line .price-main');
+    if (total) return parseFloat(total.textContent.replace(/[^\d.]/g, '')) || 0;
+    return 0;
+}
+
+ window.pdpUpdatePotTotal = updatePrice;
+  // ── Update price display ───────────────────────────────────────────────────
+  function updatePrice() {
+    var plant = getPlantPrice();
+    var total = plant + selectedPotPrice;
+ 
+    // Update total price display — adjust selector to match your price element
+    var priceEls = document.querySelectorAll('.pdp-total-price, [data-pdp-total]');
+    priceEls.forEach(function (el) {
+      el.textContent = '₹' + total.toFixed(2);
+    });
+ 
+    // Show/hide pot breakdown
+    if (selectedPotPrice > 0 && breakdown && breakdownPrice) {
+      breakdownPrice.textContent = '+₹' + selectedPotPrice.toFixed(2);
+      breakdown.style.display = 'block';
+    } else if (breakdown) {
+      breakdown.style.display = 'none';
+    }
+  }
+ 
+  // ── Select a pot card ──────────────────────────────────────────────────────
+  function selectPot(card) {
+    // Deselect all
+    strip.querySelectorAll('.pdp-pot-card').forEach(function (c) {
+      c.classList.remove('pdp-pot-card--selected');
+      c.setAttribute('aria-pressed', 'false');
+    });
+ 
+    card.classList.add('pdp-pot-card--selected');
+    card.setAttribute('aria-pressed', 'true');
+ 
+    var potId    = card.dataset.potId || '';
+    var potPrice = parseFloat(card.dataset.potPrice) || 0;
+ 
+    selectedPotPrice = potPrice;
+    if (potInput) potInput.value = potId || '';
+ 
+    updatePrice();
+  }
+ 
+  // ── Wire cards ─────────────────────────────────────────────────────────────
+  strip.querySelectorAll('.pdp-pot-card').forEach(function (card) {
+    if (card.disabled) return;
+    card.addEventListener('click', function () { selectPot(card); });
+    card.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectPot(card); }
+    });
+  });
+ 
+  // ── Default: select "without pot" ─────────────────────────────────────────
+  var noneCard = document.getElementById('pdpPotNone');
+  if (noneCard) selectPot(noneCard);
+ 
+  // ── Hook into variant price changes (if your PDP JS fires a custom event) ──
+  // If your variant selector dispatches a custom event when price changes,
+  // listen here to recalculate total. Example:
+  // document.addEventListener('pdpPriceUpdated', updatePrice);
+ 
+})();

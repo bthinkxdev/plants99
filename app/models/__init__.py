@@ -6,6 +6,7 @@ from .product import (
     ProductAttributeValue,
     ProductComboItem,
     ProductImage,
+    ProductPotAddon,
     ProductQuerySet,
     Variant,
     VariantAttributeValue,
