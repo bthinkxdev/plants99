@@ -1,0 +1,14 @@
+version: "3.9"
+
+services:
+  plants99_web:
+    build: .
+    container_name: plants99_container
+    command: gunicorn ecom.wsgi:application --bind 0.0.0.0:8027
+    volumes:
+      - .:/app
+    ports:
+      - "8027:8027"
+    env_file:
+      - .env
+    restart: always
