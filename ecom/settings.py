@@ -6,13 +6,26 @@ SECRET_KEY = config('DJANGO_SECRET_KEY')
 DEBUG = config('DJANGO_DEBUG', cast=bool)
 DEBUG_TRACE = config('DEBUG_TRACE', default=False, cast=bool)
 ALLOWED_HOSTS_STR = config('ALLOWED_HOSTS')
-ALLOWED_HOSTS = [host.strip().strip('\'"') for host in ALLOWED_HOSTS_STR.split(',') if host.strip()]
+_ALLOWED_HOSTS_FROM_ENV = [
+    host.strip().strip('\'"') for host in ALLOWED_HOSTS_STR.split(',') if host.strip()
+]
+ALLOWED_HOSTS = list(_ALLOWED_HOSTS_FROM_ENV)
 if DEBUG:
     ALLOWED_HOSTS = ['*']
 else:
     for h in ('localhost', '127.0.0.1', '*'):
         if h not in ALLOWED_HOSTS:
             ALLOWED_HOSTS.append(h)
+
+CSRF_TRUSTED_ORIGINS_STR = config('CSRF_TRUSTED_ORIGINS', default='')
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip() for origin in CSRF_TRUSTED_ORIGINS_STR.split(',') if origin.strip()
+]
+if not CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS = [
+        f'https://{host}' for host in _ALLOWED_HOSTS_FROM_ENV
+        if host not in ('*', 'localhost', '127.0.0.1')
+    ]
 INSTALLED_APPS = ['storages', 'django.contrib.admin', 'django.contrib.auth', 'django.contrib.contenttypes', 'django.contrib.sessions', 'django.contrib.messages', 'django.contrib.staticfiles', 'app']
 MIDDLEWARE = ['django.middleware.security.SecurityMiddleware', 'whitenoise.middleware.WhiteNoiseMiddleware', 'app.middleware.DebugTraceMiddleware', 'django.contrib.sessions.middleware.SessionMiddleware', 'django.middleware.common.CommonMiddleware', 'django.middleware.csrf.CsrfViewMiddleware', 'django.contrib.auth.middleware.AuthenticationMiddleware', 'app.middleware.EnsureGuestSessionMiddleware', 'django.contrib.messages.middleware.MessageMiddleware', 'django.middleware.clickjacking.XFrameOptionsMiddleware']
 ROOT_URLCONF = 'ecom.urls'
