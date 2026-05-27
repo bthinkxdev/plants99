@@ -8733,3 +8733,50 @@ body.storefront .order-line .line-info {
   width: calc(100% + 2rem) !important;
 }
 
+/* ── PDP Share Button ─────────────────────────────── */
+.pdp-share-btn {
+    position: absolute;
+    top: 68px;          /* wishlist is top:14px + height:44px + 10px gap */
+    right: 14px;        /* matches wishlist right:14px exactly */
+    width: 44px;        /* same size as wishlist btn */
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.90);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: none;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.14);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    transition: background 0.2s ease, transform 0.18s ease, box-shadow 0.2s ease;
+}
+.pdp-share-btn svg {
+    width: 20px;
+    height: 20px;
+    stroke: #0d1a3c;
+    color: #0d1a3c;
+}
+.pdp-share-btn:hover {
+    background: #ffffff;
+    transform: scale(1.1);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+.pdp-share-btn:active {
+    transform: scale(0.96);
+}
+
+@media (max-width: 575px) {
+    .pdp-share-btn {
+        top: 58px;   
+        right: 10px;
+        width: 38px;
+        height: 38px;
+    }
+    .pdp-share-btn svg {
+        width: 17px;
+        height: 17px;
+    }
+}
