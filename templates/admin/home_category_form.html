@@ -1,81 +1,173 @@
 {% extends "admin_panel/base.html" %}
-{% block title %}{{ form_title|default:"Home Category" }}{% endblock %}
-{% block page_title %}{{ form_title|default:"Home Category" }}{% endblock %}
+{% load static %}
+
+{% block title %}{{ form_title }}{% endblock %}
+{% block page_title %}{{ form_title }}{% endblock %}
+
 {% block content %}
-
-<div class="card p-4" style="max-width: 800px; margin: 40px auto;">
-    <p class="text-muted mb-4">Home categories appear on the homepage as a large banner with headline (name), subtitle (description), featured products, and optional shop link. They are separate from catalog categories.</p>
-    <form method="post" enctype="multipart/form-data">
-        {% csrf_token %}
-        {% if form.non_field_errors %}
-            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
-        {% endif %}
-
-        <div class="mb-3">
-            <label class="form-label">Name *</label>
-            {{ form.name }}
-            {% if form.name.errors %}<div class="text-danger mt-1">{{ form.name.errors }}</div>{% endif %}
+<div class="product-listing-card hc-form-page">
+    <div class="product-listing-header">
+        <div class="product-listing-title-group">
+            <h2 class="product-listing-title">{{ form_title }}</h2>
         </div>
+        <a href="{% url 'admin_panel:home_category_list' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back to list
+        </a>
+    </div>
 
-        <div class="mb-3">
-            <label class="form-label">Slug (optional)</label>
-            {{ form.slug }}
-            {% if form.slug.errors %}<div class="text-danger mt-1">{{ form.slug.errors }}</div>{% endif %}
-        </div>
-
-        <div class="mb-3">
-            <label class="form-label">Description</label>
-            {{ form.description }}
-            {% if form.description.errors %}<div class="text-danger mt-1">{{ form.description.errors }}</div>{% endif %}
-        </div>
-
-        <div class="mb-3">
-            <label class="form-label">Banner image *</label>
-            {{ form.banner_image }}
-            {% if form.instance.pk and form.instance.banner_image %}
-            <div class="mt-2 small text-muted">Current: {{ form.instance.banner_image.name }}</div>
+    <div class="product-listing-body" style="padding: 1.5rem;">
+        <form method="post" enctype="multipart/form-data" id="home-category-form" class="admin-form">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">{{ form.non_field_errors }}</div>
             {% endif %}
-            {% if form.banner_image.errors %}<div class="text-danger mt-1">{{ form.banner_image.errors }}</div>{% endif %}
-        </div>
 
-        <div class="mb-3">
-            <label class="form-label">Display order</label>
-            {{ form.display_order }}
-            {% if form.display_order.errors %}<div class="text-danger mt-1">{{ form.display_order.errors }}</div>{% endif %}
-        </div>
+            <div class="hc-form-layout">
+                <div class="hc-form-main">
+                    <div class="admin-form-grid">
+                        <div class="form-group">
+                            <label class="form-label" for="{{ form.name.id_for_label }}">Name</label>
+                            {{ form.name }}
+                            {% for e in form.name.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="{{ form.slug.id_for_label }}">Slug</label>
+                            {{ form.slug }}
+                            <div class="form-hint">Leave blank to auto-generate.</div>
+                            {% for e in form.slug.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+                        </div>
+                    </div>
 
-        <div class="mb-3 form-check">
-            {{ form.is_active }}
-            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">Active</label>
-            {% if form.is_active.errors %}<div class="text-danger mt-1">{{ form.is_active.errors }}</div>{% endif %}
-        </div>
+                    <div class="form-group">
+                        <label class="form-label" for="{{ form.description.id_for_label }}">Description</label>
+                        {{ form.description }}
+                        <div class="form-hint">Shown as the subtitle on the homepage hero.</div>
+                        {% for e in form.description.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+                    </div>
 
-        <div class="mb-3">
-            <label class="form-label">Custom link URL</label>
-            {{ form.link_url }}
-            {% if form.link_url.errors %}<div class="text-danger mt-1">{{ form.link_url.errors }}</div>{% endif %}
-            <div class="form-text">If set, the tile uses this link instead of the shop category below.</div>
-        </div>
+                    <div class="admin-form-section">
+                        <h3 class="admin-form-section-title">Banner &amp; visibility</h3>
+                        <div class="admin-form-grid">
+                            <div class="form-group">
+                                <label class="form-label" for="{{ form.banner_image.id_for_label }}">Banner image</label>
+                                {{ form.banner_image }}
+                                {% for e in form.banner_image.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="{{ form.display_order.id_for_label }}">Display order</label>
+                                {{ form.display_order }}
+                                <div class="form-hint">Lower numbers appear first on the homepage.</div>
+                                {% for e in form.display_order.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+                                <div class="admin-form-checks" style="margin-top:1rem;">
+                                    <label for="{{ form.is_active.id_for_label }}">
+                                        {{ form.is_active }} <span>{{ form.is_active.label }}</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-        <div class="mb-3">
-            <label class="form-label">Shop category (optional)</label>
-            {{ form.linked_category }}
-            {% if form.linked_category.errors %}<div class="text-danger mt-1">{{ form.linked_category.errors }}</div>{% endif %}
-            <div class="form-text">If no custom URL, visitors go to the shop filtered by this category.</div>
-        </div>
+                    <div class="admin-form-section">
+                        <h3 class="admin-form-section-title">What should this section do?</h3>
+                        <p class="form-hint" style="margin-top:0;margin-bottom:1rem;">Choose one — custom link, shop category, or a featured product carousel.</p>
 
-        <div class="mb-3">
-            <label class="form-label">Featured products (optional)</label>
-            {{ form.products }}
-            {% if form.products.errors %}<div class="text-danger mt-1">{{ form.products.errors }}</div>{% endif %}
-            <div class="form-text">Hold Ctrl (Windows) or ⌘ (Mac) to select multiple. Order is taken from the form list top-to-bottom where supported; any extra validated picks are appended.</div>
-        </div>
+                        <div class="hc-destination-choices" id="hc-destination-choices">
+                            {% for radio in form.destination_type %}
+                                <label>{{ radio.tag }} <span>{{ radio.choice_label }}</span></label>
+                            {% endfor %}
+                        </div>
+                        {% for e in form.destination_type.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
 
-        <div class="d-flex gap-2">
-            <button type="submit" class="btn btn-primary">Save</button>
-            <a href="{% url 'admin_panel:home_category_list' %}" class="btn btn-secondary">Cancel</a>
-        </div>
-    </form>
+                        <div class="hc-destination-panel" id="hc-panel-url" data-dest="url">
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label class="form-label" for="{{ form.link_url.id_for_label }}">Custom URL</label>
+                                {{ form.link_url }}
+                                <div class="form-hint">Visitors go to this link when they tap the banner.</div>
+                                {% for e in form.link_url.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+                            </div>
+                        </div>
+
+                        <div class="hc-destination-panel" id="hc-panel-category" data-dest="category">
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label class="form-label" for="{{ form.linked_category.id_for_label }}">Shop category</label>
+                                {{ form.linked_category }}
+                                <div class="form-hint">Opens the shop filtered to this category.</div>
+                                {% for e in form.linked_category.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+                            </div>
+                        </div>
+
+                        <div class="hc-destination-panel" id="hc-panel-products" data-dest="products">
+                            <p class="form-hint" style="margin-top:0;margin-bottom:1rem;">
+                                Pick products for the homepage carousel. Order is left-to-right on the storefront.
+                            </p>
+                            <div id="hc-products-app" class="hc-products-panel">
+                                <div class="hc-products-add-bar">
+                                    <div>
+                                        <label class="combo-add-bar-label" for="hc-product-select">Product</label>
+                                        <select id="hc-product-select" class="form-control">
+                                            <option value="">— Pick a product —</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <span class="combo-add-bar-label" aria-hidden="true">&nbsp;</span>
+                                        <button type="button" class="btn btn-primary" id="hc-product-add-btn" style="width:100%;">
+                                            <i class="fas fa-plus"></i> Add
+                                        </button>
+                                    </div>
+                                </div>
+                                <ul class="hc-products-list" id="hc-products-list"></ul>
+                                <p class="hc-products-empty" id="hc-products-empty">No products yet. Pick one above and click Add.</p>
+                            </div>
+                            {% for e in form.products.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+                        </div>
+
+                        <div class="hc-link-hint" id="hc-link-preview" style="margin-top:1rem;">
+                            <i class="fas fa-info-circle"></i> <span id="hc-link-preview-text">Select an option above</span>
+                        </div>
+                    </div>
+                </div>
+
+                <aside class="hc-preview-aside">
+                    <div class="hc-preview-label">Homepage preview</div>
+                    <div class="hc-preview-card">
+                        <div class="hc-preview-banner" id="hc-preview-banner">
+                            {% if form.instance.pk and form.instance.banner_image %}
+                                <img src="{{ form.instance.banner_image.url }}" alt="" id="hc-preview-img">
+                            {% else %}
+                                <div class="hc-preview-banner-placeholder" id="hc-preview-placeholder">
+                                    <i class="fas fa-image"></i>
+                                </div>
+                                <img src="" alt="" id="hc-preview-img" style="display:none;">
+                            {% endif %}
+                            <div class="hc-preview-scrim"></div>
+                            <div class="hc-preview-copy">
+                                <h4 class="hc-preview-title" id="hc-preview-title">{{ form.instance.name|default:"Category name" }}</h4>
+                                <p class="hc-preview-subtitle" id="hc-preview-subtitle">{{ form.instance.description|default:"Subtitle appears here" }}</p>
+                            </div>
+                        </div>
+                        <div class="hc-preview-meta">
+                            <span id="hc-preview-order">Order: {{ form.instance.display_order|default:"0" }}</span>
+                            · <span id="hc-preview-status">{% if form.instance.is_active or not form.instance.pk %}Visible{% else %}Hidden{% endif %}</span>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+
+            <div style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">
+                {{ form.products }}
+            </div>
+
+            <div class="combo-form-footer">
+                <a href="{% url 'admin_panel:home_category_list' %}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-check"></i> Save home category
+                </button>
+            </div>
+        </form>
+    </div>
 </div>
 
+{{ initial_products|json_script:"hc-initial-products-data" }}
+{{ product_options|json_script:"hc-product-options-data" }}
+<script src="{% static 'js/home_category_form.js' %}"></script>
 {% endblock %}

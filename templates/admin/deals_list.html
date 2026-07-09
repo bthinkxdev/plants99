@@ -1,8 +1,8 @@
 {% extends "admin_panel/base.html" %}
 {% load static %}
 
-{% block title %}Deal Of The Day{% endblock %}
-{% block page_title %}Deal Of The Day{% endblock %}
+{% block title %}Home Product Sections{% endblock %}
+{% block page_title %}Home Product Sections{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -90,11 +90,18 @@
     .deals-switch-cell {
         text-align: center;
     }
-    .deals-switch-cell input[type="checkbox"] {
-        width: 18px;
-        height: 18px;
-        accent-color: var(--primary);
-        cursor: pointer;
+    .deals-switch-cell .toggle-switch {
+        margin: 0 auto;
+    }
+    .deals-switch-cell .toggle-label {
+        margin-left: 0.45rem;
+        font-size: 0.78rem;
+        min-width: 24px;
+        justify-content: flex-start;
+    }
+    .deals-switch-cell-inner {
+        display: inline-flex;
+        align-items: center;
     }
     .deals-date-input {
         width: 100%;
@@ -386,7 +393,9 @@
         .deals-table td:nth-child(3),
         .deals-table td:nth-child(4),
         .deals-table td:nth-child(5),
-        .deals-table td:nth-child(6) {
+        .deals-table td:nth-child(6),
+        .deals-table td:nth-child(7),
+        .deals-table td:nth-child(8) {
             font-size: 0.85rem;
             color: var(--gray-700);
         }
@@ -394,7 +403,9 @@
         .deals-table td:nth-child(3)::before,
         .deals-table td:nth-child(4)::before,
         .deals-table td:nth-child(5)::before,
-        .deals-table td:nth-child(6)::before {
+        .deals-table td:nth-child(6)::before,
+        .deals-table td:nth-child(7)::before,
+        .deals-table td:nth-child(8)::before {
             content: attr(data-label);
             font-weight: 500;
             color: var(--gray-500);
@@ -446,7 +457,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!filterForm) return;
 
     var searchInput = filterForm.querySelector(".deals-search-input");
-    var currentDealsToggle = filterForm.querySelector("#filter-current-deals");
+    var sectionFilterToggles = filterForm.querySelectorAll(".section-filter-toggle");
     var loadingOverlay = document.getElementById("deals-loading");
     var submitTimer = null;
 
@@ -484,10 +495,37 @@ document.addEventListener("DOMContentLoaded", function () {
         searchInput.addEventListener("search", submitImmediate); // Handles clear button
     }
 
-    // Toggle switch with immediate feedback
-    if (currentDealsToggle) {
-        currentDealsToggle.addEventListener("change", submitImmediate);
+    // Section filter toggles with immediate feedback
+    if (sectionFilterToggles.length) {
+        sectionFilterToggles.forEach(function (toggle) {
+            toggle.addEventListener("change", submitImmediate);
+        });
     }
+
+    function syncDealDateInputs() {
+        var dealToggles = document.querySelectorAll('input[id^="id_is_deal_"]');
+        dealToggles.forEach(function (toggle) {
+            var productId = toggle.id.replace("id_is_deal_", "");
+            var startInput = document.querySelector('input[name="start_' + productId + '"]');
+            var endInput = document.querySelector('input[name="end_' + productId + '"]');
+            if (!startInput || !endInput) return;
+            var enabled = !!toggle.checked;
+            startInput.disabled = !enabled;
+            endInput.disabled = !enabled;
+            if (!enabled) {
+                startInput.value = "";
+                endInput.value = "";
+            }
+        });
+    }
+
+    var dealRowToggles = document.querySelectorAll('input[id^="id_is_deal_"]');
+    if (dealRowToggles.length) {
+        dealRowToggles.forEach(function (toggle) {
+            toggle.addEventListener("change", syncDealDateInputs);
+        });
+    }
+    syncDealDateInputs();
 
     // Hide loading on page load
     if (loadingOverlay) {
@@ -509,11 +547,9 @@ document.addEventListener("DOMContentLoaded", function () {
                     <i class="fas fa-bolt"></i>
                 </div>
                 <div class="deals-title">
-                    <h4>Deal Of The Day</h4>
-                    <p>
-                        Select which products should appear in the Deal Of The Day section on the homepage,
-                        and optionally set a start and end date.
-                    </p>
+                    <h4>Home Product Sections</h4>
+                    <p>Manage Deal Of The Day, Best Sellers, and Featured flags used in homepage sections.</p>
+                    <p style="margin-top:0.35rem;font-size:0.78rem;color:var(--gray-500);">Start and end dates apply only when Deal Of The Day is enabled.</p>
                 </div>
             </div>
             <div class="deals-search">
@@ -528,21 +564,43 @@ document.addEventListener("DOMContentLoaded", function () {
                                class="deals-search-input"
                                placeholder="Search products or categories">
                     </div>
-                    <div class="toggle-filter-wrapper">
-                        <label class="toggle-switch" for="filter-current-deals">
-                            <input type="checkbox"
-                                   id="filter-current-deals"
-                                   name="current"
-                                   value="1"
-                                   {% if filter_current %}checked{% endif %}>
-                            <span class="toggle-slider"></span>
-                        </label>
-                        <label class="toggle-label" for="filter-current-deals">
-                            <span>Current Deals Only</span>
-                            {% if active_deals_count %}
-                            <span class="filter-badge">{{ active_deals_count }}</span>
-                            {% endif %}
-                        </label>
+                    <div class="toggle-filter-wrapper" style="gap:1rem;flex-wrap:wrap;">
+                        <div style="display:flex;align-items:center;gap:0.45rem;">
+                            <label class="toggle-switch" for="filter-deal">
+                                <input type="checkbox"
+                                       class="section-filter-toggle"
+                                       id="filter-deal"
+                                       name="filter_deal"
+                                       value="1"
+                                       {% if filter_deal %}checked{% endif %}>
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <label class="toggle-label" for="filter-deal"><span>Deal Of The Day</span></label>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:0.45rem;">
+                            <label class="toggle-switch" for="filter-bestseller">
+                                <input type="checkbox"
+                                       class="section-filter-toggle"
+                                       id="filter-bestseller"
+                                       name="filter_bestseller"
+                                       value="1"
+                                       {% if filter_bestseller %}checked{% endif %}>
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <label class="toggle-label" for="filter-bestseller"><span>Best Seller</span></label>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:0.45rem;">
+                            <label class="toggle-switch" for="filter-featured">
+                                <input type="checkbox"
+                                       class="section-filter-toggle"
+                                       id="filter-featured"
+                                       name="filter_featured"
+                                       value="1"
+                                       {% if filter_featured %}checked{% endif %}>
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <label class="toggle-label" for="filter-featured"><span>Featured</span></label>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -560,6 +618,8 @@ document.addEventListener("DOMContentLoaded", function () {
                             <th>Category</th>
                             <th>Price (₹)</th>
                             <th style="text-align:center;">Deal Of The Day</th>
+                            <th style="text-align:center;">Best Seller</th>
+                            <th style="text-align:center;">Featured</th>
                             <th>Start Date</th>
                             <th>End Date</th>
                         </tr>
@@ -571,10 +631,40 @@ document.addEventListener("DOMContentLoaded", function () {
                             <td data-label="Category">{{ product.category.name }}</td>
                             <td data-label="Price">₹{{ product.price|floatformat:0 }}</td>
                             <td class="deals-switch-cell" data-label="Deal Of The Day">
-                                <input type="checkbox"
-                                       name="is_deal_{{ product.id }}"
-                                       id="id_is_deal_{{ product.id }}"
-                                       {% if product.is_deal_of_day %}checked{% endif %}>
+                                <div class="deals-switch-cell-inner">
+                                    <label class="toggle-switch" for="id_is_deal_{{ product.id }}">
+                                        <input type="checkbox"
+                                               name="is_deal_{{ product.id }}"
+                                               id="id_is_deal_{{ product.id }}"
+                                               {% if product.is_deal_of_day %}checked{% endif %}>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                    <label class="toggle-label" for="id_is_deal_{{ product.id }}">{% if product.is_deal_of_day %}On{% else %}Off{% endif %}</label>
+                                </div>
+                            </td>
+                            <td class="deals-switch-cell" data-label="Best Seller">
+                                <div class="deals-switch-cell-inner">
+                                    <label class="toggle-switch" for="id_is_bestseller_{{ product.id }}">
+                                        <input type="checkbox"
+                                               name="is_bestseller_{{ product.id }}"
+                                               id="id_is_bestseller_{{ product.id }}"
+                                               {% if product.is_bestseller %}checked{% endif %}>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                    <label class="toggle-label" for="id_is_bestseller_{{ product.id }}">{% if product.is_bestseller %}On{% else %}Off{% endif %}</label>
+                                </div>
+                            </td>
+                            <td class="deals-switch-cell" data-label="Featured">
+                                <div class="deals-switch-cell-inner">
+                                    <label class="toggle-switch" for="id_is_featured_{{ product.id }}">
+                                        <input type="checkbox"
+                                               name="is_featured_{{ product.id }}"
+                                               id="id_is_featured_{{ product.id }}"
+                                               {% if product.is_featured %}checked{% endif %}>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                    <label class="toggle-label" for="id_is_featured_{{ product.id }}">{% if product.is_featured %}On{% else %}Off{% endif %}</label>
+                                </div>
                             </td>
                             <td data-label="Start Date">
                                 <input type="date"
@@ -606,7 +696,7 @@ document.addEventListener("DOMContentLoaded", function () {
             {% if is_paginated %}
             <nav class="deals-pagination" aria-label="Deals pagination">
                 {% if page_obj.has_previous %}
-                    <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if filter_current %}&current=1{% endif %}" class="deals-page-link">Prev</a>
+                    <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if filter_deal %}&filter_deal=1{% endif %}{% if filter_bestseller %}&filter_bestseller=1{% endif %}{% if filter_featured %}&filter_featured=1{% endif %}" class="deals-page-link">Prev</a>
                 {% else %}
                     <span class="deals-page-link is-disabled">Prev</span>
                 {% endif %}
@@ -615,12 +705,12 @@ document.addEventListener("DOMContentLoaded", function () {
                     {% if num == page_obj.number %}
                         <span class="deals-page-link is-active">{{ num }}</span>
                     {% elif num >= page_obj.number|add:-2 and num <= page_obj.number|add:2 %}
-                        <a href="?page={{ num }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if filter_current %}&current=1{% endif %}" class="deals-page-link">{{ num }}</a>
+                        <a href="?page={{ num }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if filter_deal %}&filter_deal=1{% endif %}{% if filter_bestseller %}&filter_bestseller=1{% endif %}{% if filter_featured %}&filter_featured=1{% endif %}" class="deals-page-link">{{ num }}</a>
                     {% endif %}
                 {% endfor %}
 
                 {% if page_obj.has_next %}
-                    <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if filter_current %}&current=1{% endif %}" class="deals-page-link">Next</a>
+                    <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if filter_deal %}&filter_deal=1{% endif %}{% if filter_bestseller %}&filter_bestseller=1{% endif %}{% if filter_featured %}&filter_featured=1{% endif %}" class="deals-page-link">Next</a>
                 {% else %}
                     <span class="deals-page-link is-disabled">Next</span>
                 {% endif %}
@@ -628,10 +718,10 @@ document.addEventListener("DOMContentLoaded", function () {
             {% endif %}
             {% else %}
                 <div class="deals-empty">
-                    {% if filter_current %}
+                    {% if filter_deal or filter_bestseller or filter_featured %}
                         <i class="fas fa-filter" style="font-size:2rem;color:var(--gray-300);margin-bottom:0.5rem;"></i>
-                        <p style="margin:0.5rem 0 0;font-weight:500;">No current deals found</p>
-                        <p style="margin:0.25rem 0 0;font-size:0.8rem;">Try adjusting your filters or create new deals with active dates.</p>
+                        <p style="margin:0.5rem 0 0;font-weight:500;">No products found for selected section filters</p>
+                        <p style="margin:0.25rem 0 0;font-size:0.8rem;">Try enabling fewer filters or clear section filters.</p>
                     {% elif search_query %}
                         <i class="fas fa-search" style="font-size:2rem;color:var(--gray-300);margin-bottom:0.5rem;"></i>
                         <p style="margin:0.5rem 0 0;font-weight:500;">No products found for "{{ search_query }}"</p>

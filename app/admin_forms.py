@@ -107,18 +107,60 @@ def _validate_banner_image(image, required=True):
 
 
 class HomeCategoryForm(forms.ModelForm):
-    products = forms.ModelMultipleChoiceField(label='Featured products', queryset=Product.objects.none(), required=False, widget=forms.SelectMultiple(attrs={'class': 'form-control', 'size': 12}))
+    DESTINATION_URL = 'url'
+    DESTINATION_CATEGORY = 'category'
+    DESTINATION_PRODUCTS = 'products'
+
+    destination_type = forms.ChoiceField(
+        choices=[
+            (DESTINATION_URL, 'Custom link'),
+            (DESTINATION_CATEGORY, 'Shop category'),
+            (DESTINATION_PRODUCTS, 'Featured products'),
+        ],
+        widget=forms.RadioSelect(attrs={'class': 'hc-destination-radio'}),
+        initial=DESTINATION_CATEGORY,
+    )
+    products = forms.ModelMultipleChoiceField(
+        label='Featured products',
+        queryset=Product.objects.none(),
+        required=False,
+        widget=forms.SelectMultiple(attrs={'class': 'form-control hc-products-source', 'id': 'id_products'}),
+    )
 
     class Meta:
         model = HomeCategory
         fields = ['name', 'slug', 'description', 'banner_image', 'display_order', 'is_active', 'link_url', 'linked_category']
-        widgets = {'name': forms.TextInput(attrs={'class': 'form-control'}), 'slug': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'auto from name if empty'}), 'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}), 'banner_image': forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/*'}), 'display_order': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}), 'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}), 'link_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://... (optional)'}), 'linked_category': forms.Select(attrs={'class': 'form-control'})}
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. Indoor plants'}),
+            'slug': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Auto from name if empty'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Short subtitle shown on the homepage hero'}),
+            'banner_image': forms.FileInput(attrs={'class': 'form-control', 'accept': 'image/*', 'id': 'id_banner_image'}),
+            'display_order': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'style': 'max-width:120px;'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'link_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://…'}),
+            'linked_category': forms.Select(attrs={'class': 'form-control'}),
+        }
+
+    def _infer_destination_type(self):
+        if not self.instance or not self.instance.pk:
+            return self.DESTINATION_CATEGORY
+        if self.instance.link_url:
+            return self.DESTINATION_URL
+        if self.instance.linked_category_id:
+            return self.DESTINATION_CATEGORY
+        if HomeCategoryProduct.objects.filter(home_category=self.instance).exists():
+            return self.DESTINATION_PRODUCTS
+        return self.DESTINATION_CATEGORY
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['slug'].required = False
         self.fields['linked_category'].queryset = Category.objects.filter(is_active=True).order_by('name')
         self.fields['linked_category'].required = False
+        self.fields['linked_category'].empty_label = 'Select a category'
+        self.fields['is_active'].label = 'Show on homepage'
+        if not self.is_bound:
+            self.initial.setdefault('destination_type', self._infer_destination_type())
         linked_ids = []
         if self.instance and self.instance.pk:
             linked_ids = list(HomeCategoryProduct.objects.filter(home_category=self.instance).order_by('display_order', 'id').values_list('product_id', flat=True))
@@ -143,8 +185,32 @@ class HomeCategoryForm(forms.ModelForm):
             return None
         return url
 
+    def clean(self):
+        cleaned = super().clean()
+        dest = cleaned.get('destination_type')
+        if dest == self.DESTINATION_URL:
+            if not cleaned.get('link_url'):
+                self.add_error('link_url', 'Enter a URL for the custom link.')
+        elif dest == self.DESTINATION_CATEGORY:
+            if not cleaned.get('linked_category'):
+                self.add_error('linked_category', 'Select a shop category.')
+        elif dest == self.DESTINATION_PRODUCTS:
+            if not self.data.getlist('products'):
+                self.add_error('products', 'Add at least one featured product.')
+        return cleaned
+
     def save(self, commit=True):
-        instance = super().save(commit=commit)
+        dest = self.cleaned_data.get('destination_type')
+        instance = super().save(commit=False)
+        if dest == self.DESTINATION_URL:
+            instance.linked_category = None
+        elif dest == self.DESTINATION_CATEGORY:
+            instance.link_url = None
+        elif dest == self.DESTINATION_PRODUCTS:
+            instance.link_url = None
+            instance.linked_category = None
+        if commit:
+            instance.save()
         if not commit:
             return instance
         cleaned_products = self.cleaned_data.get('products')
@@ -165,8 +231,11 @@ class HomeCategoryForm(forms.ModelForm):
             ordered_pks.extend(self.fields['products'].queryset.filter(pk__in=tail).order_by('name').values_list('pk', flat=True))
         with transaction.atomic():
             HomeCategoryProduct.objects.filter(home_category=instance).delete()
-            if ordered_pks:
-                HomeCategoryProduct.objects.bulk_create([HomeCategoryProduct(home_category=instance, product_id=pk, display_order=i) for i, pk in enumerate(ordered_pks)])
+            if dest == self.DESTINATION_PRODUCTS and ordered_pks:
+                HomeCategoryProduct.objects.bulk_create([
+                    HomeCategoryProduct(home_category=instance, product_id=pk, display_order=i)
+                    for i, pk in enumerate(ordered_pks)
+                ])
         return instance
 
 
@@ -357,6 +426,10 @@ class ComboForm(forms.ModelForm):
         self.fields['image'].required = False
         self.fields['gst_percentage'].required = False
         self.fields['hsn_code'].required = False
+        self.fields['is_active'].label = 'Active on storefront'
+        self.fields['purchase_enabled'].label = 'Allow purchase'
+        self.fields['show_in_combos_nav'].label = 'Show in shop combos nav'
+        self.fields['is_gst_applicable'].label = 'GST applicable'
 
     def clean_image(self):
         return _validate_image_file(self.cleaned_data.get('image'), required=False)
@@ -437,9 +510,9 @@ class ProductDeliveryStateForm(forms.Form):
         ]
  
 class TestimonialForm(forms.ModelForm):
- 
+
     class Meta:
-        model  = Testimonial         
+        model = Testimonial
         fields = [
             'name',
             'photo',
@@ -452,38 +525,59 @@ class TestimonialForm(forms.ModelForm):
         widgets = {
             'name': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'Customer name',
+                'placeholder': 'e.g. Priya Sharma',
+                'id': 'id_testimonial_name',
             }),
             'photo': forms.FileInput(attrs={
-                'class': 'form-control',
-                'accept': 'image/*',
+                'class': 'form-control tm-photo-input',
+                'accept': 'image/jpeg,image/png,image/webp,image/gif',
+                'id': 'id_testimonial_photo',
             }),
             'rating': forms.Select(attrs={
-                'class': 'form-control',
+                'class': 'form-control tm-rating-select',
+                'id': 'id_rating',
             }),
             'description': forms.Textarea(attrs={
                 'class': 'form-control',
-                'rows': 4,
-                'placeholder': 'What did the customer say?',
+                'rows': 5,
+                'placeholder': 'What did the customer say about their plant?',
+                'id': 'id_testimonial_description',
+                'maxlength': '2000',
             }),
             'is_verified': forms.CheckboxInput(attrs={
-                'class': 'form-check-input',
+                'class': 'toggle-input',
+                'id': 'id_testimonial_verified',
             }),
             'is_active': forms.CheckboxInput(attrs={
-                'class': 'form-check-input',
+                'class': 'toggle-input',
+                'id': 'id_testimonial_active',
             }),
             'display_order': forms.NumberInput(attrs={
                 'class': 'form-control',
                 'min': 0,
                 'placeholder': '0',
+                'style': 'max-width:120px;',
             }),
         }
- 
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['photo'].required       = False
+        self.fields['photo'].required = False
         self.fields['display_order'].required = False
- 
+        self.fields['rating'].label = 'Star rating'
+        self.fields['is_verified'].label = 'Show verified buyer badge'
+        self.fields['is_active'].label = 'Show on homepage'
+        if not self.is_bound and not self.instance.pk:
+            self.initial.setdefault('is_active', True)
+            self.initial.setdefault('is_verified', True)
+            self.initial.setdefault('rating', 5)
+
+    def clean_description(self):
+        text = (self.cleaned_data.get('description') or '').strip()
+        if len(text) < 10:
+            raise forms.ValidationError('Review text must be at least 10 characters.')
+        return text
+
     def clean_photo(self):
         photo = self.cleaned_data.get('photo')
         return _validate_image_file(photo, required=False)

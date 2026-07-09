@@ -65,8 +65,9 @@
             {% for card in card_items %}
                 {% if card.kind == 'combo' %}
                 {% with c=card.combo %}
-                <div class="product-card">
+                <div class="product-card{% if card.in_stock == False %} product-card--oos{% endif %}">
                     <div class="product-img-wrap">
+                        {% include "partials/_card_stock_badge.html" with in_stock=card.in_stock %}
                         {% if c.original_price and c.original_price > c.price %}
                         <span class="product-badge badge-sale">{{ c.discount_percent }}% OFF</span>
                         {% endif %}
@@ -88,7 +89,11 @@
                             {% endif %}
                         </div>
                         <div class="product-add-form">
+                            {% if card.in_stock == False %}
+                            <span class="product-cta product-cta--oos border-0 text-decoration-none d-inline-block text-center w-100">Out of stock</span>
+                            {% else %}
                             <a href="{% url 'store:combo_detail' c.slug %}" class="product-cta border-0 text-decoration-none">View product</a>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -96,8 +101,9 @@
                 {% elif card.kind == 'variant' %}
                 {% with variant=card.variant is_jewellery=card.is_jewellery %}
                 {% if not is_jewellery %}
-                <div class="product-card">
+                <div class="product-card{% if card.in_stock == False %} product-card--oos{% endif %}">
                     <div class="product-img-wrap">
+                        {% include "partials/_card_stock_badge.html" with in_stock=card.in_stock %}
                         {% if variant.original_price and variant.original_price > variant.price %}
                         <span class="product-badge badge-sale">{{ variant.discount_percent }}% OFF</span>
                         {% endif %}
@@ -133,7 +139,11 @@
                             {% endif %}
                         </div>
                         <div class="product-add-form">
+                            {% if card.in_stock == False %}
+                            <span class="product-cta product-cta--oos border-0 text-decoration-none d-inline-block text-center w-100">Out of stock</span>
+                            {% else %}
                             <a href="{% url 'store:product_detail' variant.product.slug %}?variant={{ variant.id }}" class="product-cta border-0 text-decoration-none">View product</a>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -143,8 +153,9 @@
             {% endfor %}
 
             {% for product in simple_products %}
-            <div class="product-card">
+            <div class="product-card{% if product.card_in_stock == False %} product-card--oos{% endif %}">
                 <div class="product-img-wrap">
+                    {% include "partials/_card_stock_badge.html" with in_stock=product.card_in_stock %}
                     {% if product.discount_percent %}<span class="product-badge badge-sale">{{ product.discount_percent }}% OFF</span>{% endif %}
                     {% include "partials/_rating_pill.html" with product=product %}
                     <a href="{% url 'store:product_detail' product.slug %}">
@@ -180,7 +191,11 @@
                         {% endif %}
                     </div>
                     <div class="product-add-form">
+                        {% if product.card_in_stock == False %}
+                        <span class="product-cta product-cta--oos border-0 text-decoration-none d-inline-block text-center w-100">Out of stock</span>
+                        {% else %}
                         <a href="{% url 'store:product_detail' product.slug %}" class="product-cta border-0 text-decoration-none">View product</a>
+                        {% endif %}
                     </div>
                 </div>
             </div>

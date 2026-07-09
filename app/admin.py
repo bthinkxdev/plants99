@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Address, Banner, BlogPost, Cart, CartItem, Category, ContactMessage, HomeCategory, HomeCategoryProduct, NewsletterSubscription, Order, OrderItem, Payment, Product, ProductAttribute, ProductAttributeValue, ProductComboItem, ProductContent, ProductFAQ, ProductHighlight, ProductSpecification, ProductWhatsInBoxItem, Reel, Review, Variant, VariantAttributeValue, VariantImage, Wishlist
+from .models import Address, Banner, BlogPost, Cart, CartItem, Category, Combo, ComboItem, ContactMessage, DeliveryState, HomeCategory, HomeCategoryProduct, NewsletterSubscription, OTPRequest, Order, OrderItem, Payment, Product, ProductAttribute, ProductAttributeValue, ProductComboItem, ProductContent, ProductDeliveryState, ProductFAQ, ProductHighlight, ProductImage, ProductPotAddon, ProductSpecification, ProductWhatsInBoxItem, Reel, RentalBooking, RentalConfig, Review, Shipment, Testimonial, UserProfile, Variant, VariantAttributeValue, VariantImage, Wishlist
 
 from django.core.cache import caches
 
@@ -273,3 +273,98 @@ class BannerAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
         _invalidate_home_cache()
+
+
+@admin.register(VariantAttributeValue)
+class VariantAttributeValueAdmin(admin.ModelAdmin):
+    list_display = ('variant', 'attribute_value', 'created_at')
+    list_select_related = ('variant', 'attribute_value')
+
+
+@admin.register(ProductImage)
+class ProductImageAdmin(admin.ModelAdmin):
+    list_display = ('product', 'is_primary', 'display_order', 'created_at')
+    list_filter = ('is_primary',)
+    list_select_related = ('product',)
+
+
+@admin.register(ProductPotAddon)
+class ProductPotAddonAdmin(admin.ModelAdmin):
+    list_display = ('plant_product', 'pot_product', 'display_order', 'created_at')
+    search_fields = ('plant_product__name', 'pot_product__name')
+    list_select_related = ('plant_product', 'pot_product')
+
+
+@admin.register(Shipment)
+class ShipmentAdmin(admin.ModelAdmin):
+    list_display = ('order', 'shiprocket_order_id', 'awb_code', 'current_status', 'is_cancelled', 'updated_at')
+    list_filter = ('is_cancelled', 'current_status')
+    search_fields = ('order__order_number', 'awb_code', 'shiprocket_order_id')
+    list_select_related = ('order',)
+
+
+@admin.register(Combo)
+class ComboAdmin(admin.ModelAdmin):
+    list_display = ('name', 'slug', 'price', 'is_active', 'purchase_enabled', 'show_in_combos_nav', 'updated_at')
+    list_filter = ('is_active', 'purchase_enabled', 'show_in_combos_nav')
+    search_fields = ('name', 'slug')
+    prepopulated_fields = {'slug': ('name',)}
+
+
+@admin.register(ComboItem)
+class ComboItemAdmin(admin.ModelAdmin):
+    list_display = ('combo', 'product', 'quantity', 'display_order')
+    list_select_related = ('combo', 'product')
+    ordering = ('combo', 'display_order', 'id')
+
+
+@admin.register(RentalConfig)
+class RentalConfigAdmin(admin.ModelAdmin):
+    list_display = ('product', 'is_rent_enabled', 'rent_price_per_day', 'updated_at')
+    list_filter = ('is_rent_enabled',)
+    search_fields = ('product__name',)
+    list_select_related = ('product',)
+
+
+@admin.register(RentalBooking)
+class RentalBookingAdmin(admin.ModelAdmin):
+    list_display = ('id', 'product', 'order_item', 'status', 'rental_start_date', 'rental_end_date', 'total_amount')
+    list_filter = ('status',)
+    search_fields = ('product__name', 'order_item__order__order_number', 'user__email', 'user__username')
+    list_select_related = ('product', 'order_item', 'user')
+
+
+@admin.register(DeliveryState)
+class DeliveryStateAdmin(admin.ModelAdmin):
+    list_display = ('name', 'code', 'region', 'display_order', 'is_active')
+    list_filter = ('region', 'is_active')
+    search_fields = ('name', 'code')
+    ordering = ('display_order', 'name')
+
+
+@admin.register(ProductDeliveryState)
+class ProductDeliveryStateAdmin(admin.ModelAdmin):
+    list_display = ('product', 'state', 'added_at')
+    search_fields = ('product__name', 'state__name', 'state__code')
+    list_select_related = ('product', 'state')
+
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ('user', 'phone', 'updated_at')
+    search_fields = ('user__username', 'user__email', 'phone')
+    list_select_related = ('user',)
+
+
+@admin.register(OTPRequest)
+class OTPRequestAdmin(admin.ModelAdmin):
+    list_display = ('email', 'is_used', 'attempts', 'expires_at', 'created_at')
+    list_filter = ('is_used', 'created_at')
+    search_fields = ('email',)
+
+
+@admin.register(Testimonial)
+class TestimonialAdmin(admin.ModelAdmin):
+    list_display = ('name', 'rating', 'is_verified', 'is_active', 'display_order', 'created_at')
+    list_filter = ('is_active', 'rating')
+    search_fields = ('name', 'description')

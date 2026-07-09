@@ -111,7 +111,41 @@ class OrderItem(TimeStampedModel):
 
     @property
     def line_total(self):
-        return self.unit_price * self.quantity
+        pot_price = (self.pot_unit_price or 0) * self.quantity
+        return (self.unit_price * self.quantity) + pot_price
+
+    @property
+    def pot_line_total(self):
+        if not self.pot_unit_price:
+            return 0
+        return self.pot_unit_price * self.quantity
+
+    def get_display_image_url(self):
+        if self.combo_id and self.combo:
+            try:
+                if self.combo.image and self.combo.image.name:
+                    return self.combo.image.url
+            except Exception:
+                pass
+            try:
+                row = self.combo.items.select_related('product').first()
+                if row and row.product_id:
+                    urls = row.product.get_card_image_urls(limit=1)
+                    return urls[0] if urls else None
+            except Exception:
+                pass
+            return None
+        if self.selected_variant_id and self.selected_variant:
+            for img in self.selected_variant.images.filter(image__isnull=False).exclude(image='').order_by('-is_primary', 'display_order', 'id')[:1]:
+                try:
+                    if img.image:
+                        return img.image.url
+                except Exception:
+                    pass
+        if self.product_id and self.product:
+            urls = self.product.get_card_image_urls(limit=1)
+            return urls[0] if urls else None
+        return None
 
     class Meta:
         constraints = [

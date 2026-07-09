@@ -1,65 +1,241 @@
 {% extends "admin_panel/base.html" %}
+{% load static %}
+
 {% block title %}Home Categories{% endblock %}
 {% block page_title %}Home Categories{% endblock %}
+
 {% block content %}
-
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <div class="text-muted">Independent homepage tiles (banner, description). Not the same as catalog categories.</div>
+<div class="product-listing-card">
+    <div class="product-listing-header product-listing-header--compact">
+        <div class="product-listing-title-group">
+            <h2 class="product-listing-title">Home categories</h2>
+            {% if is_paginated %}
+                <span class="product-count-badge">{{ page_obj.paginator.count }}</span>
+            {% elif home_categories %}
+                <span class="product-count-badge">{{ home_categories|length }}</span>
+            {% endif %}
+        </div>
     </div>
-    <a href="{% url 'admin_panel:home_category_create' %}" class="btn btn-primary">
-        <i class="fas fa-plus"></i> Add
-    </a>
+
+    <div class="product-listing-toolbar hc-list-toolbar-row">
+        <form method="get" class="filters filters-inline product-listing-filters product-listing-filters--one-row">
+            <div class="product-search-wrap">
+                <i class="fas fa-search"></i>
+                <input type="text" name="search" class="form-control" placeholder="Search home categories…" value="{{ search_query }}">
+            </div>
+            <select name="status" class="form-control product-filter-select" onchange="this.form.submit()">
+                <option value="">All status</option>
+                <option value="active" {% if filter_status == "active" %}selected{% endif %}>Active</option>
+                <option value="inactive" {% if filter_status == "inactive" %}selected{% endif %}>Inactive</option>
+            </select>
+            <button type="submit" class="btn btn-secondary product-filter-btn">
+                <i class="fas fa-filter"></i> Apply
+            </button>
+            {% if search_query or filter_status %}
+                <a href="{% url 'admin_panel:home_category_list' %}" class="btn btn-secondary product-filter-btn">
+                    <i class="fas fa-times"></i> Clear
+                </a>
+            {% endif %}
+        </form>
+        <a href="{% url 'admin_panel:home_category_create' %}" class="btn btn-primary product-add-btn hc-list-add-btn">
+            <i class="fas fa-plus"></i> Add home category
+        </a>
+    </div>
+
+    <p class="form-hint" style="margin:0;padding:0.75rem 1.5rem;background:#f8fafc;border-bottom:1px solid var(--gray-200);">
+        Homepage hero tiles with banner, headline, and featured products — separate from catalog categories.
+    </p>
+
+    <div class="product-listing-body has-list-table">
+        <button type="button" class="btn btn-secondary filter-trigger mb-2" id="filterTrigger" aria-label="Open filters">
+            <i class="fas fa-filter"></i> Filters
+            {% if search_query or filter_status %}<span class="product-count-badge" style="background:#1976D2;color:#fff;">!</span>{% endif %}
+        </button>
+
+        <div class="filter-overlay" id="filterOverlay" aria-hidden="true"></div>
+        <div class="filters-sheet" id="filtersSheet">
+            <div class="filters-sheet-header">
+                <strong>Filters</strong>
+                <button type="button" class="btn btn-sm btn-secondary" id="filterSheetClose" aria-label="Close">✕</button>
+            </div>
+            <form method="get" class="filters-sheet-body">
+                <div class="form-group">
+                    <label class="form-label">Search</label>
+                    <input type="text" name="search" class="form-control" placeholder="Search…" value="{{ search_query }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-control">
+                        <option value="">All status</option>
+                        <option value="active" {% if filter_status == "active" %}selected{% endif %}>Active</option>
+                        <option value="inactive" {% if filter_status == "inactive" %}selected{% endif %}>Inactive</option>
+                    </select>
+                </div>
+                <div class="filters-sheet-footer">
+                    <button type="button" class="btn btn-secondary" id="filterClear">Clear</button>
+                    <button type="submit" class="btn btn-primary">Apply</button>
+                </div>
+            </form>
+        </div>
+
+        {% if home_categories %}
+            <div class="list-cards">
+                {% for hc in home_categories %}
+                    <div class="list-card">
+                        <div class="list-card-header" style="flex-wrap:wrap;">
+                            <div style="display:flex;align-items:center;gap:0.75rem;flex:1;min-width:0;">
+                                {% if hc.banner_image %}
+                                    <img src="{{ hc.banner_image.url }}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:10px;border:1px solid #e5e7eb;flex-shrink:0;">
+                                {% else %}
+                                    <div style="width:56px;height:56px;background:var(--gray-100);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                        <i class="fas fa-image" style="color:var(--gray-400);"></i>
+                                    </div>
+                                {% endif %}
+                                <div style="flex:1;min-width:0;">
+                                    <div class="list-card-title" style="margin-bottom:0.2rem;">{{ hc.name }}</div>
+                                    <div style="font-size:0.8rem;color:var(--gray-500);">
+                                        Order {{ hc.display_order }} · {{ hc.product_count }} product{{ hc.product_count|pluralize }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
+                                <span class="badge" style="background:#eef2ff;color:#3730a3;">#{{ hc.display_order }}</span>
+                                {% if hc.is_active %}
+                                    <span class="badge" style="background:#e8f5e9;color:#2e7d32;">Active</span>
+                                {% else %}
+                                    <span class="badge" style="background:#f3f4f6;color:#6b7280;">Inactive</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% if hc.description %}
+                        <div class="list-card-meta" style="margin-bottom:0.5rem;">
+                            <span style="color:var(--gray-600);font-size:0.85rem;">{{ hc.description|truncatechars:90 }}</span>
+                        </div>
+                        {% endif %}
+                        <div class="list-card-meta">
+                            <span><i class="fas fa-link"></i>
+                                {% if hc.link_url %}{{ hc.link_url|truncatechars:36 }}
+                                {% elif hc.linked_category %}Shop → {{ hc.linked_category.name }}
+                                {% elif hc.product_count %}Featured · {{ hc.product_count }} product{{ hc.product_count|pluralize }}
+                                {% else %}—{% endif %}
+                            </span>
+                        </div>
+                        <div class="list-card-actions">
+                            <form method="post" action="{% url 'admin_panel:home_category_toggle_active' hc.pk %}" style="flex:0 0 auto;">
+                                {% csrf_token %}
+                                <label class="toggle-wrap{% if hc.is_active %} checked{% endif %}" title="Toggle active" style="margin:0;">
+                                    <input type="checkbox" class="toggle-input" {% if hc.is_active %}checked{% endif %} onchange="this.form.submit()">
+                                    <span class="toggle-track"><span class="toggle-knob"></span></span>
+                                    <span class="toggle-status">{% if hc.is_active %}On{% else %}Off{% endif %}</span>
+                                </label>
+                            </form>
+                            <a href="{% url 'admin_panel:home_category_edit' hc.pk %}" class="btn btn-primary" style="flex:1;">
+                                <i class="fas fa-pen"></i> Edit
+                            </a>
+                            <form method="post" action="{% url 'admin_panel:home_category_delete' hc.pk %}" onsubmit="return confirm('Remove &quot;{{ hc.name|escapejs }}&quot; from the homepage?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-ghost-danger" title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <div class="list-table">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th style="width:70px;">Order</th>
+                                <th style="width:72px;">Banner</th>
+                                <th>Name</th>
+                                <th>Link</th>
+                                <th style="width:90px;">Products</th>
+                                <th style="width:120px;">Status</th>
+                                <th style="width:160px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for hc in home_categories %}
+                                <tr>
+                                    <td><span class="badge" style="background:#eef2ff;color:#3730a3;">{{ hc.display_order }}</span></td>
+                                    <td>
+                                        {% if hc.banner_image %}
+                                            <img src="{{ hc.banner_image.url }}" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;">
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div style="font-weight:600;">{{ hc.name }}</div>
+                                        {% if hc.description %}
+                                            <div style="font-size:0.8rem;color:var(--gray-500);max-width:320px;">{{ hc.description|truncatechars:80 }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td style="font-size:0.85rem;">
+                                        {% if hc.link_url %}{{ hc.link_url|truncatechars:40 }}
+                                        {% elif hc.linked_category %}Shop → {{ hc.linked_category.name }}
+                                        {% elif hc.product_count %}Featured · {{ hc.product_count }} product{{ hc.product_count|pluralize }}
+                                        {% else %}—{% endif %}
+                                    </td>
+                                    <td>{{ hc.product_count }}</td>
+                                    <td>
+                                        <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                                            <form method="post" action="{% url 'admin_panel:home_category_toggle_active' hc.pk %}" style="margin:0;">
+                                                {% csrf_token %}
+                                                <label class="toggle-wrap{% if hc.is_active %} checked{% endif %}" style="margin:0;">
+                                                    <input type="checkbox" class="toggle-input" {% if hc.is_active %}checked{% endif %} onchange="this.form.submit()">
+                                                    <span class="toggle-track"><span class="toggle-knob"></span></span>
+                                                </label>
+                                            </form>
+                                            {% if hc.is_active %}
+                                                <span class="badge badge-success">Active</span>
+                                            {% else %}
+                                                <span class="badge badge-secondary">Inactive</span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div style="display:flex;gap:0.35rem;">
+                                            <a href="{% url 'admin_panel:home_category_edit' hc.pk %}" class="btn btn-sm btn-secondary">
+                                                <i class="fas fa-pen"></i> Edit
+                                            </a>
+                                            <form method="post" action="{% url 'admin_panel:home_category_delete' hc.pk %}" onsubmit="return confirm('Remove this home category?');">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {% if is_paginated %}
+                <div class="pagination">
+                    {% if page_obj.has_previous %}
+                        <a href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if filter_status %}&status={{ filter_status }}{% endif %}">First</a>
+                        <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if filter_status %}&status={{ filter_status }}{% endif %}">Previous</a>
+                    {% endif %}
+                    <span class="current">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                    {% if page_obj.has_next %}
+                        <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if filter_status %}&status={{ filter_status }}{% endif %}">Next</a>
+                        <a href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if filter_status %}&status={{ filter_status }}{% endif %}">Last</a>
+                    {% endif %}
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="product-listing-empty">
+                <div class="product-listing-empty-icon"><i class="fas fa-home"></i></div>
+                <p class="product-listing-empty-title">No home categories yet</p>
+                <p class="product-listing-empty-desc">Create homepage hero sections with a banner, headline, and curated product carousel.</p>
+                <a href="{% url 'admin_panel:home_category_create' %}" class="btn btn-primary"><i class="fas fa-plus"></i> Add home category</a>
+            </div>
+        {% endif %}
+    </div>
 </div>
-
-<table class="table table-hover align-middle home-cat-table">
-        <thead>
-            <tr>
-                <th style="width:100px;">Order</th>
-                <th style="width:72px;">Banner</th>
-                <th>Name</th>
-                <th>Link</th>
-                <th style="width:100px;">Active</th>
-                <th style="width:200px;">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for hc in home_categories %}
-            <tr>
-                <td data-label="Order">{{ hc.display_order }}</td>
-                <td data-label="Banner">
-                    {% if hc.banner_image %}
-                    <img src="{{ hc.banner_image.url }}" alt="" width="48" height="48" style="object-fit:cover;border-radius:8px;">
-                    {% else %}
-                    <span class="text-muted">—</span>
-                    {% endif %}
-                </td>
-                <td data-label="Name" style="font-weight:500;">
-                    {{ hc.name }}
-                    {% if hc.description %}
-                    <div class="small text-muted text-truncate" style="max-width:320px;">{{ hc.description }}</div>
-                    {% endif %}
-                </td>
-                <td data-label="Link" class="small">
-                    {% if hc.link_url %}{{ hc.link_url|truncatechars:40 }}{% elif hc.linked_category %}Shop → {{ hc.linked_category.name }}{% else %}Shop (all){% endif %}
-                </td>
-                <td data-label="Active">{% if hc.is_active %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
-                <td data-label="Actions">
-                    <a class="btn btn-sm btn-secondary" href="{% url 'admin_panel:home_category_edit' hc.pk %}">Edit</a>
-                    <form method="post" action="{% url 'admin_panel:home_category_delete' hc.pk %}" style="display:inline;" onsubmit="return confirm('Remove this home category?');">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-danger">Remove</button>
-                    </form>
-                </td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="6" class="text-center text-muted py-5">
-                    No home categories yet. Click <strong>Add</strong> to create homepage tiles.
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-</table>
-
 {% endblock %}

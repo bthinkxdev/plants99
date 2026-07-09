@@ -335,6 +335,63 @@
   background: var(--cd-navy-mid);
   color: #fff;
 }
+.cd-btn-solid.cd-btn--disabled,
+.cd-btn-solid.cd-btn--disabled:hover {
+  background: #c9c3b9;
+  border-color: #c9c3b9;
+  color: #fff;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.cd-stock-alert {
+  margin: 0 22px 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  color: #9a3412;
+  font-family: 'Jost', sans-serif;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.cd-item--oos {
+  opacity: 0.92;
+}
+.cd-item--oos .cd-item__thumb {
+  filter: grayscale(0.35);
+}
+.cd-item__oos-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+.cd-item__stock-warn {
+  margin: 2px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: #b45309;
+}
+.cd-remove-text {
+  border: none;
+  background: transparent;
+  color: #b91c1c;
+  font-family: 'Jost', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
 
 
 .cd-empty {

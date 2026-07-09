@@ -17,11 +17,12 @@
     <span class="p99-compact-card__price">₹{{ product.lowest_price|default:v.price|floatformat:0 }}</span>
 </div>
 {% else %}
-<div class="p99-product-card storefront-product-card">
+<div class="p99-product-card storefront-product-card{% if product.card_in_stock == False %} p99-product-card--oos{% endif %}">
 
     {% with imgs=v.images.all %}
     <div class="tpc-gallery js-product-card-slider"
          data-card-images='[{% for img in imgs %}"{{ img.image.url }}"{% if not forloop.last %},{% endif %}{% endfor %}]'>
+        {% include "partials/_card_stock_badge.html" with in_stock=product.card_in_stock %}
         {% if v.original_price and v.original_price > v.price and v.discount_percent %}
         <span class="p99-discount-badge">{{ v.discount_percent }}% OFF</span>
         {% endif %}
@@ -75,9 +76,13 @@
         </div>
 
         <div class="position-relative tpc-actions-bleed">
+            {% if product.card_in_stock == False %}
+            <span class="tpc-add-btn tpc-add-btn--oos w-100 d-block text-center">Out of stock</span>
+            {% else %}
             <a href="{% url 'store:product_detail' product.slug %}?variant={{ v.id }}" class="tpc-add-btn w-100 d-block text-center">
                 View product
             </a>
+            {% endif %}
         </div>
     </div>
 
@@ -100,11 +105,12 @@
     <span class="p99-compact-card__price">₹{{ product.base_price|floatformat:0 }}</span>
 </div>
 {% else %}
-<div class="p99-product-card storefront-product-card">
+<div class="p99-product-card storefront-product-card{% if product.card_in_stock == False %} p99-product-card--oos{% endif %}">
 
     {% with card_images=product.get_card_image_urls|slice:":3" %}
     <div class="tpc-gallery js-product-card-slider"
          {% if card_images %}data-card-images='[{% for url in card_images %}"{{ url }}"{% if not forloop.last %},{% endif %}{% endfor %}]'{% endif %}>
+        {% include "partials/_card_stock_badge.html" with in_stock=product.card_in_stock %}
         {% if product.discount_percent %}
         <span class="p99-discount-badge">{{ product.discount_percent }}% OFF</span>
         {% elif product.is_bestseller or product.is_recent_launch %}
@@ -156,12 +162,120 @@
         </div>
 
         <div class="position-relative tpc-actions-bleed">
+            {% if product.card_in_stock == False %}
+            <span class="tpc-add-btn tpc-add-btn--oos w-100 d-block text-center">Out of stock</span>
+            {% else %}
             <a href="{% url 'store:product_detail' product.slug %}" class="tpc-add-btn w-100 d-block text-center">
                 View product
             </a>
+            {% endif %}
         </div>
     </div>
 
+</div>
+{% endif %}
+{% elif product.is_rent_available %}
+{% if compact %}
+<div class="p99-compact-card">
+    {% with urls=product.get_card_image_urls %}
+    <a href="{% url 'store:product_detail' product.slug %}" class="p99-compact-card__img-wrap">
+        {% if urls %}
+        <img src="{{ urls.0 }}" alt="{{ product.name }}" loading="lazy" decoding="async" width="200" height="200">
+        {% else %}
+        <img src="{% static 'img/product-1.png' %}" alt="{{ product.name }}" loading="lazy" width="200" height="200">
+        {% endif %}
+    </a>
+    {% endwith %}
+    <a href="{% url 'store:product_detail' product.slug %}" class="p99-compact-card__name">{{ product.name }}</a>
+    <div class="p99-compact-card__rating-slot">{% include "partials/_rating_pill.html" with product=product %}</div>
+    {% with cfg=product.rental_config %}
+    <span class="p99-compact-card__price">{% if cfg and cfg.rent_price_per_day %}₹{{ cfg.rent_price_per_day|floatformat:0 }}<span style="font-size:0.85em;font-weight:500;">/day</span>{% else %}Rent{% endif %}</span>
+    {% endwith %}
+</div>
+{% else %}
+<div class="p99-product-card storefront-product-card">
+    {% with card_images=product.get_card_image_urls|slice:":3" %}
+    <div class="tpc-gallery js-product-card-slider"
+         {% if card_images %}data-card-images='[{% for url in card_images %}"{{ url }}"{% if not forloop.last %},{% endif %}{% endfor %}]'{% endif %}>
+        <span class="p99-badge p99-badge--bestseller" style="background:#e8f5e9;color:#166534;">Rent</span>
+        {% include "partials/_rating_pill.html" with product=product %}
+        <a href="{% url 'store:product_detail' product.slug %}" class="tpc-img-link">
+            {% if card_images %}
+                <img src="{{ card_images.0 }}" alt="{{ product.name }}" class="tpc-img card-slider-img" loading="lazy" decoding="async">
+            {% else %}
+                <img src="{% static 'img/product-1.png' %}" alt="{{ product.name }}" class="tpc-img card-slider-img" loading="lazy">
+            {% endif %}
+        </a>
+        {% if WISHLIST_ENABLED %}
+        <button type="button" class="tpc-wishlist js-wishlist-toggle {% if product.id in wishlist_product_ids %}in-wishlist{% endif %}" data-product-id="{{ product.id }}" title="Wishlist" aria-label="Wishlist">
+            <i class="far fa-heart"></i>
+        </button>
+        {% endif %}
+    </div>
+    {% endwith %}
+    <div class="tpc-body">
+        <a href="{% url 'store:product_detail' product.slug %}" class="tpc-name-link">
+            <p class="tpc-name">{{ product.name }}</p>
+        </a>
+        <div class="tpc-price-row">
+            {% with cfg=product.rental_config %}
+            <p class="tpc-price">{% if cfg and cfg.rent_price_per_day %}₹{{ cfg.rent_price_per_day|floatformat:0 }}<span style="font-size:0.85em;font-weight:500;">/day</span>{% else %}Available to rent{% endif %}</p>
+            {% endwith %}
+        </div>
+        <div class="position-relative tpc-actions-bleed">
+            <a href="{% url 'store:product_detail' product.slug %}" class="tpc-add-btn w-100 d-block text-center">Choose dates</a>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% elif product.is_combo_product and product.base_price %}
+{% if compact %}
+<div class="p99-compact-card">
+    {% with urls=product.get_card_image_urls %}
+    <a href="{% url 'store:product_detail' product.slug %}" class="p99-compact-card__img-wrap">
+        {% if urls %}
+        <img src="{{ urls.0 }}" alt="{{ product.name }}" loading="lazy" width="200" height="200">
+        {% else %}
+        <img src="{% static 'img/product-1.png' %}" alt="{{ product.name }}" loading="lazy" width="200" height="200">
+        {% endif %}
+    </a>
+    {% endwith %}
+    <a href="{% url 'store:product_detail' product.slug %}" class="p99-compact-card__name">{{ product.name }}</a>
+    <div class="p99-compact-card__rating-slot">{% include "partials/_rating_pill.html" with product=product %}</div>
+    <span class="p99-compact-card__price">₹{{ product.lowest_price|default:product.base_price|floatformat:0 }}</span>
+</div>
+{% else %}
+<div class="p99-product-card storefront-product-card{% if product.card_in_stock == False %} p99-product-card--oos{% endif %}">
+    {% with card_images=product.get_card_image_urls|slice:":3" %}
+    <div class="tpc-gallery js-product-card-slider"
+         {% if card_images %}data-card-images='[{% for url in card_images %}"{{ url }}"{% if not forloop.last %},{% endif %}{% endfor %}]'{% endif %}>
+        <span class="p99-badge p99-badge--bestseller">Bundle</span>
+        {% include "partials/_card_stock_badge.html" with in_stock=product.card_in_stock %}
+        {% include "partials/_rating_pill.html" with product=product %}
+        <a href="{% url 'store:product_detail' product.slug %}" class="tpc-img-link">
+            {% if card_images %}
+                <img src="{{ card_images.0 }}" alt="{{ product.name }}" class="tpc-img card-slider-img" loading="lazy" decoding="async">
+            {% else %}
+                <img src="{% static 'img/product-1.png' %}" alt="{{ product.name }}" class="tpc-img card-slider-img" loading="lazy">
+            {% endif %}
+        </a>
+    </div>
+    {% endwith %}
+    <div class="tpc-body">
+        <a href="{% url 'store:product_detail' product.slug %}" class="tpc-name-link">
+            <p class="tpc-name">{{ product.name }}</p>
+        </a>
+        <div class="tpc-price-row">
+            <p class="tpc-price">₹{{ product.lowest_price|default:product.base_price|floatformat:0 }}</p>
+        </div>
+        <div class="position-relative tpc-actions-bleed">
+            {% if product.card_in_stock == False %}
+            <span class="tpc-add-btn tpc-add-btn--oos w-100 d-block text-center">Out of stock</span>
+            {% else %}
+            <a href="{% url 'store:product_detail' product.slug %}" class="tpc-add-btn w-100 d-block text-center">View product</a>
+            {% endif %}
+        </div>
+    </div>
 </div>
 {% endif %}
 {% endif %}

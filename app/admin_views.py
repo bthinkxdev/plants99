@@ -16,12 +16,121 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView, View
-from .models import Banner, BlogPost, CartItem, Category, Combo, ComboItem, ContactMessage, HomeCategory, Order, OrderItem, Product, ProductAttributeValue, Reel, Review, Shipment, Variant, VariantImage, Testimonial
+from .models import Banner, BlogPost, CartItem, Category, Combo, ComboItem, ContactMessage, HomeCategory, HomeCategoryProduct, Order, OrderItem, Product, ProductAttributeValue, Reel, RentalBooking, Review, Shipment, Variant, VariantImage, Testimonial
 from django.conf import settings
+from .admin import _invalidate_home_cache
 from .admin_forms import AdminLoginForm, BannerForm, BlogPostForm, CategoryForm, ComboForm, HomeCategoryForm, ProductBasicEditForm, ReelForm, RentalConfigForm, _validate_image_file, TestimonialForm
 from .utils.debug_trace import Trace
 from .admin_product_edit_views import ProductCreateBasicView as BaseProductCreateBasicView, ProductEditView as BaseProductEditView, ProductUpdateBasicView as BaseProductUpdateBasicView, ProductToggleActiveView as BaseProductToggleActiveView, ProductAttributesListApiView as BaseProductAttributesListApiView, ProductAttributeCreateApiView as BaseProductAttributeCreateApiView, ProductAttributesReorderApiView as BaseProductAttributesReorderApiView, ProductAttributeUpdateApiView as BaseProductAttributeUpdateApiView, ProductAttributeDeleteApiView as BaseProductAttributeDeleteApiView, ProductAttributeValueCreateApiView as BaseProductAttributeValueCreateApiView, ProductAttributeValuesReorderApiView as BaseProductAttributeValuesReorderApiView, ProductAttributeValueUpdateApiView as BaseProductAttributeValueUpdateApiView, ProductAttributeValueDeleteApiView as BaseProductAttributeValueDeleteApiView, ProductVariantsListApiView as BaseProductVariantsListApiView, VariantCreateApiView as BaseVariantCreateApiView, VariantUpdateApiView as BaseVariantUpdateApiView, VariantDeleteApiView as BaseVariantDeleteApiView, VariantUploadImageView as BaseVariantUploadImageView, VariantImageDeleteView as BaseVariantImageDeleteView, VariantImageSetPrimaryView as BaseVariantImageSetPrimaryView, VariantImageReorderView as BaseVariantImageReorderView, ProductImageUploadView as BaseProductImageUploadView, ProductImageDeleteView as BaseProductImageDeleteView, ProductImageSetPrimaryView as BaseProductImageSetPrimaryView, ProductImageReorderView as BaseProductImageReorderView, ProductComboComponentsListApiView as BaseProductComboComponentsListApiView, ProductComboCandidateProductsApiView as BaseProductComboCandidateProductsApiView, ProductComboComponentAddApiView as BaseProductComboComponentAddApiView, ProductComboComponentUpdateApiView as BaseProductComboComponentUpdateApiView, ProductComboComponentDeleteApiView as BaseProductComboComponentDeleteApiView
 logger = logging.getLogger(__name__)
+
+_ORDER_STATUS_BADGES = {
+    Order.Status.PLACED: 'badge-info',
+    Order.Status.CONFIRMED: 'badge-warning',
+    Order.Status.SHIPPED: 'badge-secondary',
+    Order.Status.DELIVERED: 'badge-success',
+    Order.Status.CANCELLED: 'badge-danger',
+}
+_RENTAL_STATUS_BADGES = {
+    RentalBooking.Status.PENDING: 'badge-warning',
+    RentalBooking.Status.ACTIVE: 'badge-success',
+    RentalBooking.Status.COMPLETED: 'badge-secondary',
+    RentalBooking.Status.RETURNED: 'badge-success',
+    RentalBooking.Status.CANCELLED: 'badge-danger',
+}
+_RENTAL_STATUS_LABELS = {
+    RentalBooking.Status.ACTIVE: 'On Rent',
+}
+
+
+def _rental_bookings_for_order(order):
+    bookings = []
+    for item in order.items.all():
+        if item.line_type == OrderItem.LineKind.RENTAL:
+            booking = getattr(item, 'rental_booking', None)
+            if booking:
+                bookings.append(booking)
+    return bookings
+
+
+def _order_has_rental(order):
+    return any(item.line_type == OrderItem.LineKind.RENTAL for item in order.items.all())
+
+
+def _rental_status_label(booking):
+    return _RENTAL_STATUS_LABELS.get(booking.status, booking.get_status_display())
+
+
+def _order_admin_status(order):
+    """
+    One status for admin UI.
+    Rental orders: fulfillment (placed→shipped) then rental lifecycle (on rent→returned).
+    Purchase orders: fulfillment only.
+    """
+    bookings = _rental_bookings_for_order(order)
+    has_rental = _order_has_rental(order)
+
+    if order.status == Order.Status.CANCELLED:
+        return {
+            'label': order.get_status_display(),
+            'badge_class': _ORDER_STATUS_BADGES[Order.Status.CANCELLED],
+            'phase': 'closed',
+            'booking': bookings[0] if bookings else None,
+        }
+
+    if has_rental and bookings:
+        booking = bookings[0]
+        if order.status == Order.Status.DELIVERED:
+            if booking.status in {
+                RentalBooking.Status.RETURNED,
+                RentalBooking.Status.COMPLETED,
+                RentalBooking.Status.CANCELLED,
+            }:
+                return {
+                    'label': _rental_status_label(booking),
+                    'badge_class': _RENTAL_STATUS_BADGES.get(booking.status, 'badge-secondary'),
+                    'phase': 'rental',
+                    'booking': booking,
+                }
+            return {
+                'label': _RENTAL_STATUS_LABELS[RentalBooking.Status.ACTIVE],
+                'badge_class': _RENTAL_STATUS_BADGES[RentalBooking.Status.ACTIVE],
+                'phase': 'rental',
+                'booking': booking,
+            }
+        if booking.status == RentalBooking.Status.ACTIVE:
+            return {
+                'label': _rental_status_label(booking),
+                'badge_class': _RENTAL_STATUS_BADGES[RentalBooking.Status.ACTIVE],
+                'phase': 'rental',
+                'booking': booking,
+            }
+
+    return {
+        'label': order.get_status_display(),
+        'badge_class': _ORDER_STATUS_BADGES.get(order.status, 'badge-secondary'),
+        'phase': 'fulfillment',
+        'booking': bookings[0] if bookings else None,
+    }
+
+
+def _sync_rental_bookings_for_order_status(order, new_status):
+    rental_items = order.items.filter(line_type=OrderItem.LineKind.RENTAL).select_related('rental_booking')
+    for item in rental_items:
+        booking = getattr(item, 'rental_booking', None)
+        if not booking:
+            continue
+        if new_status == Order.Status.DELIVERED and booking.status == RentalBooking.Status.PENDING:
+            booking.mark_active()
+            booking.save(update_fields=['status', 'activated_at', 'updated_at'])
+        elif new_status == Order.Status.CANCELLED and booking.status not in (
+            RentalBooking.Status.RETURNED,
+            RentalBooking.Status.COMPLETED,
+            RentalBooking.Status.CANCELLED,
+        ):
+            booking.mark_cancelled()
+            booking.save(update_fields=['status', 'cancelled_at', 'updated_at'])
+
 from .services.shiprocket_service import shiprocket_service, ShiprocketAPIError, create_shipment_for_order
 from .services import send_order_confirmation_email_async
 from .delivery_utils import delivery_enabled
@@ -176,7 +285,9 @@ class DashboardRentalBookingsView(StaffRequiredMixin, TemplateView):
         from .models import RentalBooking
         context = super().get_context_data(**kwargs)
         status = (self.request.GET.get('status') or '').strip().lower()
-        qs = RentalBooking.objects.select_related('product', 'user', 'order_item', 'order_item__order').order_by('-created_at')
+        qs = RentalBooking.objects.select_related(
+            'product', 'user', 'order_item', 'order_item__order', 'order_item__selected_variant',
+        ).order_by('-created_at')
         if status in dict(RentalBooking.Status.choices):
             qs = qs.filter(status=status)
         context['active_menu'] = 'rentals'
@@ -194,11 +305,22 @@ class DashboardRentalBookingStatusUpdateView(StaffRequiredMixin, View):
         new_status = (request.POST.get('status') or '').strip()
         if new_status not in dict(RentalBooking.Status.choices):
             messages.error(request, 'Invalid status.')
-            return redirect('admin_panel:rental_bookings')
-        booking.status = new_status
-        booking.save(update_fields=['status', 'updated_at'])
-        messages.success(request, 'Booking status updated.')
-        return redirect('admin_panel:rental_bookings')
+            if booking.order_item and booking.order_item.order:
+                return redirect('admin_panel:order_detail', order_number=booking.order_item.order.order_number)
+            return redirect('admin_panel:order_list')
+        if new_status == RentalBooking.Status.RETURNED:
+            booking.mark_returned()
+        elif new_status == RentalBooking.Status.CANCELLED:
+            booking.mark_cancelled()
+        elif new_status == RentalBooking.Status.ACTIVE:
+            booking.mark_active()
+        else:
+            booking.status = new_status
+        booking.save()
+        messages.success(request, f'Status updated to {_rental_status_label(booking)}.')
+        if booking.order_item and booking.order_item.order:
+            return redirect('admin_panel:order_detail', order_number=booking.order_item.order.order_number)
+        return redirect('admin_panel:order_list')
 
 class AdminLoginView(View):
     template_name = 'admin_panel/login.html'
@@ -515,11 +637,22 @@ class DashboardComboListView(StaffRequiredMixin, ListView):
     paginate_by = 30
 
     def get_queryset(self):
-        return Combo.objects.annotate(combo_line_count=Count('items')).order_by('-updated_at')
+        qs = Combo.objects.annotate(combo_line_count=Count('items'))
+        search = (self.request.GET.get('search') or '').strip()
+        status = (self.request.GET.get('status') or '').strip()
+        if search:
+            qs = qs.filter(Q(name__icontains=search) | Q(slug__icontains=search))
+        if status == 'active':
+            qs = qs.filter(is_active=True)
+        elif status == 'inactive':
+            qs = qs.filter(is_active=False)
+        return qs.order_by('-updated_at')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['active_menu'] = 'combos'
+        context['search_query'] = (self.request.GET.get('search') or '').strip()
+        context['filter_status'] = (self.request.GET.get('status') or '').strip()
         return context
 
 
@@ -561,6 +694,17 @@ class DashboardComboUpdateView(StaffRequiredMixin, UpdateView):
         context['form_title'] = f'Edit: {self.object.name}'
         context['editing'] = True
         return context
+
+
+class DashboardComboToggleActiveView(StaffRequiredMixin, View):
+
+    def post(self, request, pk):
+        combo = get_object_or_404(Combo, pk=pk)
+        combo.is_active = not combo.is_active
+        combo.save(update_fields=['is_active'])
+        status = 'active' if combo.is_active else 'inactive'
+        messages.success(request, f'Combo "{combo.name}" marked {status}.')
+        return redirect('admin_panel:combo_list')
 
 
 class ComboBundleItemsListApiView(StaffRequiredMixin, View):
@@ -716,15 +860,61 @@ class HomeCategoryListView(StaffRequiredMixin, ListView):
     model = HomeCategory
     template_name = 'admin/home_category_list.html'
     context_object_name = 'home_categories'
-    paginate_by = 50
+    paginate_by = 30
 
     def get_queryset(self):
-        return HomeCategory.objects.select_related('linked_category').order_by('display_order', 'name', 'id')
+        qs = HomeCategory.objects.select_related('linked_category').annotate(
+            product_count=Count('home_category_products', distinct=True),
+        )
+        search = (self.request.GET.get('search') or '').strip()
+        status = (self.request.GET.get('status') or '').strip()
+        if search:
+            qs = qs.filter(Q(name__icontains=search) | Q(description__icontains=search))
+        if status == 'active':
+            qs = qs.filter(is_active=True)
+        elif status == 'inactive':
+            qs = qs.filter(is_active=False)
+        return qs.order_by('display_order', 'name', 'id')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['active_menu'] = 'home_categories'
+        context['search_query'] = (self.request.GET.get('search') or '').strip()
+        context['filter_status'] = (self.request.GET.get('status') or '').strip()
         return context
+
+
+class HomeCategoryToggleActiveView(StaffRequiredMixin, View):
+
+    def post(self, request, pk):
+        hc = get_object_or_404(HomeCategory, pk=pk)
+        hc.is_active = not hc.is_active
+        hc.save(update_fields=['is_active'])
+        _invalidate_home_cache()
+        state = 'active' if hc.is_active else 'inactive'
+        messages.success(request, f'"{hc.name}" marked {state}.')
+        return redirect('admin_panel:home_category_list')
+
+
+class HomeCategoryProductCandidatesApiView(StaffRequiredMixin, View):
+
+    def get(self, request):
+        q = (request.GET.get('q') or '').strip()
+        qs = Product.objects.filter(is_active=True).order_by('name')
+        if q:
+            qs = qs.filter(Q(name__icontains=q) | Q(slug__icontains=q))
+        return JsonResponse({'products': [{'id': p.id, 'name': p.name} for p in qs[:50]]})
+
+
+def _home_category_initial_products(home_category):
+    if not home_category or not home_category.pk:
+        return []
+    return [
+        {'id': row.product_id, 'name': row.product.name}
+        for row in HomeCategoryProduct.objects.filter(home_category=home_category)
+        .select_related('product')
+        .order_by('display_order', 'id')
+    ]
 
 
 class HomeCategoryCreateView(StaffRequiredMixin, CreateView):
@@ -734,13 +924,19 @@ class HomeCategoryCreateView(StaffRequiredMixin, CreateView):
     success_url = reverse_lazy('admin_panel:home_category_list')
 
     def form_valid(self, form):
+        response = super().form_valid(form)
+        _invalidate_home_cache()
         messages.success(self.request, 'Home category added.')
-        return super().form_valid(form)
+        return response
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['active_menu'] = 'home_categories'
-        context['form_title'] = 'Add Home Category'
+        context['form_title'] = 'Add home category'
+        context['initial_products'] = []
+        context['product_options'] = list(
+            Product.objects.filter(is_active=True).order_by('name').values('id', 'name')[:500]
+        )
         return context
 
 
@@ -751,13 +947,22 @@ class HomeCategoryUpdateView(StaffRequiredMixin, UpdateView):
     success_url = reverse_lazy('admin_panel:home_category_list')
 
     def form_valid(self, form):
+        response = super().form_valid(form)
+        _invalidate_home_cache()
         messages.success(self.request, 'Home category updated.')
-        return super().form_valid(form)
+        return response
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['active_menu'] = 'home_categories'
-        context['form_title'] = 'Edit Home Category'
+        context['form_title'] = f'Edit: {self.object.name}'
+        context['initial_products'] = _home_category_initial_products(self.object)
+        linked_ids = [p['id'] for p in context['initial_products']]
+        context['product_options'] = list(
+            Product.objects.filter(Q(is_active=True) | Q(pk__in=linked_ids))
+            .order_by('name')
+            .values('id', 'name')[:500]
+        )
         return context
 
 
@@ -769,6 +974,7 @@ class HomeCategoryDeleteView(StaffRequiredMixin, DeleteView):
         obj = self.get_object()
         name = obj.name
         obj.delete()
+        _invalidate_home_cache()
         messages.success(request, f'Removed "{name}" from home categories.')
         return redirect(self.success_url)
 
@@ -835,21 +1041,29 @@ class OrderListView(StaffRequiredMixin, ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        qs = Order.objects.select_related('address').prefetch_related('items')
+        qs = Order.objects.select_related('address').prefetch_related('items__rental_booking')
         search = self.request.GET.get('search')
         status = self.request.GET.get('status')
         if search:
             qs = qs.filter(Q(order_number__icontains=search) | Q(address__full_name__icontains=search) | Q(address__phone__icontains=search))
-        if status:
+        if status in dict(Order.Status.choices):
             qs = qs.filter(status=status)
+        elif status in dict(RentalBooking.Status.choices):
+            qs = qs.filter(
+                status=Order.Status.DELIVERED,
+                items__rental_booking__status=status,
+            ).distinct()
         return qs.order_by('-created_at')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        for order in context['orders']:
+            order.has_rental = _order_has_rental(order)
+            order.admin_status = _order_admin_status(order)
         context['active_menu'] = 'orders'
         context['search_query'] = self.request.GET.get('search', '')
         context['filter_status'] = self.request.GET.get('status', '')
-        context['status_choices'] = Order.Status.choices
+        context['status_filter_choices'] = list(Order.Status.choices) + list(RentalBooking.Status.choices)
         return context
 
 class OrderDetailView(StaffRequiredMixin, DetailView):
@@ -864,13 +1078,30 @@ class OrderDetailView(StaffRequiredMixin, DetailView):
             'items__product',
             'items__combo',
             'items__selected_variant',
+            'items__selected_variant__images',
+            'items__combo__items__product',
+            'items__rental_booking',
         )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        rental_items = [
+            item for item in self.object.items.all()
+            if item.line_type == OrderItem.LineKind.RENTAL
+        ]
         context['active_menu'] = 'orders'
         context['status_choices'] = Order.Status.choices
+        context['rental_status_choices'] = RentalBooking.Status.choices
+        context['rental_update_choices'] = [
+            (RentalBooking.Status.ACTIVE, _RENTAL_STATUS_LABELS[RentalBooking.Status.ACTIVE]),
+            (RentalBooking.Status.RETURNED, RentalBooking.Status.RETURNED.label),
+            (RentalBooking.Status.COMPLETED, RentalBooking.Status.COMPLETED.label),
+            (RentalBooking.Status.CANCELLED, RentalBooking.Status.CANCELLED.label),
+        ]
         context['shipment'] = getattr(self.object, 'shipment', None)
+        context['has_rental'] = bool(rental_items)
+        context['rental_items'] = rental_items
+        context['admin_status'] = _order_admin_status(self.object)
         return context
 
 class OrderInvoiceView(StaffRequiredMixin, DetailView):
@@ -885,6 +1116,9 @@ class OrderInvoiceView(StaffRequiredMixin, DetailView):
             'items__product',
             'items__combo',
             'items__selected_variant',
+            'items__selected_variant__images',
+            'items__combo__items__product',
+            'items__rental_booking',
         )
 
 class OrderUpdateStatusView(StaffRequiredMixin, View):
@@ -917,6 +1151,7 @@ class OrderUpdateStatusView(StaffRequiredMixin, View):
                     return redirect('admin_panel:order_detail', order_number=order_number)
         order.status = new_status
         order.save(update_fields=['status'])
+        _sync_rental_bookings_for_order_status(order, new_status)
         messages.success(request, f'Order status updated to {order.get_status_display()}.')
         try:
             if new_status in (Order.Status.CONFIRMED, Order.Status.SHIPPED, Order.Status.DELIVERED, Order.Status.CANCELLED) and new_status != old_status:
@@ -1075,10 +1310,12 @@ class DealOfDayListView(StaffRequiredMixin, TemplateView):
         search = (self.request.GET.get('q') or '').strip()
         if search:
             qs = qs.filter(Q(name__icontains=search) | Q(category__name__icontains=search))
-        current_only = self.request.GET.get('current')
-        if current_only == '1':
-            today = timezone.now().date()
-            qs = qs.filter(Q(is_deal_of_day=True, deal_of_day_start__lte=today, deal_of_day_end__gte=today) | Q(is_deal_of_day=True, deal_of_day_start__isnull=True, deal_of_day_end__isnull=True))
+        if self.request.GET.get('filter_deal') == '1':
+            qs = qs.filter(is_deal_of_day=True)
+        if self.request.GET.get('filter_bestseller') == '1':
+            qs = qs.filter(is_bestseller=True)
+        if self.request.GET.get('filter_featured') == '1':
+            qs = qs.filter(is_featured=True)
         return qs
 
     def get_context_data(self, **kwargs):
@@ -1098,33 +1335,37 @@ class DealOfDayListView(StaffRequiredMixin, TemplateView):
         context['paginator'] = paginator
         context['is_paginated'] = paginator.num_pages > 1
         context['search_query'] = (self.request.GET.get('q') or '').strip()
-        today = timezone.now().date()
-        context['today'] = today
-        context['filter_current'] = self.request.GET.get('current') == '1'
-        if context['filter_current']:
-            context['active_deals_count'] = paginator.count
-        else:
-            current_deals_qs = Product.objects.filter(Q(is_deal_of_day=True, deal_of_day_start__lte=today, deal_of_day_end__gte=today) | Q(is_deal_of_day=True, deal_of_day_start__isnull=True, deal_of_day_end__isnull=True))
-            context['active_deals_count'] = current_deals_qs.count()
+        context['filter_deal'] = self.request.GET.get('filter_deal') == '1'
+        context['filter_bestseller'] = self.request.GET.get('filter_bestseller') == '1'
+        context['filter_featured'] = self.request.GET.get('filter_featured') == '1'
         return context
 
     def post(self, request, *args, **kwargs):
         products = self.get_queryset()
         updated_count = 0
         for product in products:
-            prefix = f'p{product.pk}_'
             is_deal_flag = request.POST.get(f'is_deal_{product.pk}') == 'on'
+            is_bestseller_flag = request.POST.get(f'is_bestseller_{product.pk}') == 'on'
+            is_featured_flag = request.POST.get(f'is_featured_{product.pk}') == 'on'
             start_raw = request.POST.get(f'start_{product.pk}') or ''
             end_raw = request.POST.get(f'end_{product.pk}') or ''
             start_date = parse_date(start_raw) if start_raw else None
             end_date = parse_date(end_raw) if end_raw else None
-            changed = product.is_deal_of_day != is_deal_flag or product.deal_of_day_start != start_date or product.deal_of_day_end != end_date
+            changed = (
+                product.is_deal_of_day != is_deal_flag
+                or product.is_bestseller != is_bestseller_flag
+                or product.is_featured != is_featured_flag
+                or product.deal_of_day_start != start_date
+                or product.deal_of_day_end != end_date
+            )
             if not changed:
                 continue
             product.is_deal_of_day = is_deal_flag
+            product.is_bestseller = is_bestseller_flag
+            product.is_featured = is_featured_flag
             product.deal_of_day_start = start_date
             product.deal_of_day_end = end_date
-            product.save(update_fields=['is_deal_of_day', 'deal_of_day_start', 'deal_of_day_end'])
+            product.save(update_fields=['is_deal_of_day', 'is_bestseller', 'is_featured', 'deal_of_day_start', 'deal_of_day_end'])
             updated_count += 1
         if updated_count:
             messages.success(request, f'Updated deals for {updated_count} product(s).')
@@ -1501,74 +1742,81 @@ class ProductDeliveryStatesUpdateView(View):
         return redirect("admin_panel:product_edit", pk=product.pk)
     
 class TestimonialListView(StaffRequiredMixin, ListView):
-    model               = Testimonial        # imported from .models
-    template_name       = 'dashboard/testimonials/list.html'
+    model = Testimonial
+    template_name = 'dashboard/testimonials/list.html'
     context_object_name = 'testimonials'
-    paginate_by         = 20
- 
+    paginate_by = 20
+
     def get_queryset(self):
-        qs     = Testimonial.objects.all()
+        qs = Testimonial.objects.all()
+        search = (self.request.GET.get('search') or '').strip()
         status = (self.request.GET.get('status') or '').strip().lower()
+        if search:
+            qs = qs.filter(Q(name__icontains=search) | Q(description__icontains=search))
         if status == 'active':
             qs = qs.filter(is_active=True)
         elif status == 'inactive':
             qs = qs.filter(is_active=False)
         return qs.order_by('display_order', '-created_at')
- 
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['active_menu']   = 'testimonials'
-        context['filter_status'] = self.request.GET.get('status', '')
+        context['active_menu'] = 'testimonials'
+        context['search_query'] = (self.request.GET.get('search') or '').strip()
+        context['filter_status'] = (self.request.GET.get('status') or '').strip()
         return context
- 
- 
+
+
 class TestimonialCreateView(StaffRequiredMixin, CreateView):
-    model         = Testimonial
-    form_class    = TestimonialForm          # imported from .admin_forms
+    model = Testimonial
+    form_class = TestimonialForm
     template_name = 'dashboard/testimonials/form.html'
-    success_url   = reverse_lazy('admin_panel:testimonial_list')
- 
-    def form_valid(self, form):
-        messages.success(self.request, 'Testimonial created successfully.')
-        return super().form_valid(form)
- 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['active_menu'] = 'testimonials'
-        context['form_title']  = 'Add Testimonial'
-        return context
- 
- 
-class TestimonialUpdateView(StaffRequiredMixin, UpdateView):
-    model         = Testimonial
-    form_class    = TestimonialForm
-    template_name = 'dashboard/testimonials/form.html'
-    success_url   = reverse_lazy('admin_panel:testimonial_list')
- 
-    def form_valid(self, form):
-        messages.success(self.request, 'Testimonial updated successfully.')
-        return super().form_valid(form)
- 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['active_menu'] = 'testimonials'
-        context['form_title']  = f'Edit: {self.object.name}'
-        return context
- 
- 
-class TestimonialDeleteView(StaffRequiredMixin, DeleteView):
-    model       = Testimonial
     success_url = reverse_lazy('admin_panel:testimonial_list')
- 
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        _invalidate_home_cache()
+        messages.success(self.request, f'Testimonial from "{self.object.name}" added.')
+        return response
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['active_menu'] = 'testimonials'
+        context['form_title'] = 'Add testimonial'
+        return context
+
+
+class TestimonialUpdateView(StaffRequiredMixin, UpdateView):
+    model = Testimonial
+    form_class = TestimonialForm
+    template_name = 'dashboard/testimonials/form.html'
+    success_url = reverse_lazy('admin_panel:testimonial_list')
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        _invalidate_home_cache()
+        messages.success(self.request, f'Testimonial from "{self.object.name}" updated.')
+        return response
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['active_menu'] = 'testimonials'
+        context['form_title'] = f'Edit: {self.object.name}'
+        return context
+
+
+class TestimonialDeleteView(StaffRequiredMixin, DeleteView):
+    model = Testimonial
+    success_url = reverse_lazy('admin_panel:testimonial_list')
+
     def post(self, request, *args, **kwargs):
-        obj  = self.get_object()
+        obj = self.get_object()
         name = obj.name
- 
-        # Clean up the photo file from storage to avoid orphaned files
+
         if obj.photo:
             try:
                 photo_name = obj.photo.name
-                storage    = obj.photo.storage
+                storage = obj.photo.storage
                 Testimonial.objects.filter(pk=obj.pk).update(photo=None)
                 try:
                     storage.delete(photo_name)
@@ -1576,24 +1824,25 @@ class TestimonialDeleteView(StaffRequiredMixin, DeleteView):
                     pass
             except Exception as e:
                 logger.warning('Failed to delete testimonial photo: %s', e)
- 
+
         try:
             Testimonial.objects.filter(pk=obj.pk).delete()
-            messages.success(request, f"Testimonial by '{name}' deleted.")
+            _invalidate_home_cache()
+            messages.success(request, f'Removed testimonial from "{name}".')
         except Exception as e:
             messages.error(request, f'Error deleting testimonial: {e}')
- 
+
         return redirect(self.success_url)
- 
- 
+
+
 class TestimonialToggleActiveView(StaffRequiredMixin, View):
-    """Quick active/inactive toggle from the list page."""
- 
+
     def post(self, request, pk):
-        testimonial            = get_object_or_404(Testimonial, pk=pk)
-        testimonial.is_active  = not testimonial.is_active
+        testimonial = get_object_or_404(Testimonial, pk=pk)
+        testimonial.is_active = not testimonial.is_active
         testimonial.save(update_fields=['is_active', 'updated_at'])
-        state = 'activated' if testimonial.is_active else 'deactivated'
-        messages.success(request, f'Testimonial {state}.')
+        _invalidate_home_cache()
+        state = 'active' if testimonial.is_active else 'inactive'
+        messages.success(request, f'"{testimonial.name}" marked {state}.')
         return redirect('admin_panel:testimonial_list')
  

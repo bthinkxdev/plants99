@@ -1,136 +1,233 @@
 {% extends "admin_panel/base.html" %}
+{% load static %}
+
 {% block title %}Testimonials{% endblock %}
+{% block page_title %}Testimonials{% endblock %}
 
 {% block content %}
-<div class="page-header d-flex justify-content-between align-items-center mb-4">
-  <div>
-    <h1 class="page-title">Testimonials</h1>
-    <p class="text-muted mb-0">Manage customer reviews shown on the homepage.</p>
-  </div>
-  <a href="{% url 'admin_panel:testimonial_create' %}" class="btn btn-primary">
-    <i class="fas fa-plus me-1"></i> Add Testimonial
-  </a>
-</div>
-
-<form method="get" class="mb-3 d-flex gap-2 align-items-center flex-wrap">
-  <select name="status" class="form-control form-control-sm" style="width:auto;"
-          onchange="this.form.submit()">
-    <option value="">All</option>
-    <option value="active"   {% if filter_status == 'active'   %}selected{% endif %}>Active</option>
-    <option value="inactive" {% if filter_status == 'inactive' %}selected{% endif %}>Inactive</option>
-  </select>
-  <small class="text-muted">{{ paginator.count }} testimonial{{ paginator.count|pluralize }}</small>
-</form>
-
-{% if testimonials %}
-<div class="card">
-  <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0 testimonials-table">
-      <thead class="table-light">
-        <tr>
-          <th style="width:48px;">#</th>
-          <th>Customer</th>
-          <th style="width:130px;">Rating</th>
-          <th>Review (preview)</th>
-          <th style="width:90px;">Verified</th>
-          <th style="width:80px;">Order</th>
-          <th style="width:80px;">Status</th>
-          <th style="width:130px;">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for t in testimonials %}
-        <tr>
-          <td data-label="">
-            {% if t.photo %}
-              <img src="{{ t.photo.url }}" alt="{{ t.name }}"
-                   class="rounded-circle"
-                   style="width:40px;height:40px;object-fit:cover;">
-            {% else %}
-              <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center text-white"
-                   style="width:40px;height:40px;font-size:.85rem;font-weight:600;">
-                {{ t.name|first|upper }}
-              </div>
+<div class="product-listing-card">
+    <div class="product-listing-header product-listing-header--compact">
+        <div class="product-listing-title-group">
+            <h2 class="product-listing-title">Testimonials</h2>
+            {% if is_paginated %}
+                <span class="product-count-badge">{{ page_obj.paginator.count }}</span>
+            {% elif testimonials %}
+                <span class="product-count-badge">{{ testimonials|length }}</span>
             {% endif %}
-          </td>
-          <td data-label="Name"><strong>{{ t.name }}</strong></td>
-          <td data-label="Rating">
-            <span class="text-warning" aria-label="{{ t.rating }} out of 5 stars">
-              {% for i in "12345" %}
-                {% if forloop.counter <= t.rating %}★{% else %}☆{% endif %}
-              {% endfor %}
-            </span>
-          </td>
-          <td data-label="Review">
-            <span class="text-muted small">{{ t.description|truncatechars:80 }}</span>
-          </td>
-          <td data-label="Verified">
-            {% if t.is_verified %}
-              <span class="badge bg-success">Verified</span>
-            {% else %}
-              <span class="badge bg-secondary">—</span>
-            {% endif %}
-          </td>
-          <td data-label="Order" class="text-center">{{ t.display_order }}</td>
-          <td data-label="Status">
-            <form method="post" action="{% url 'admin_panel:testimonial_toggle_active' t.pk %}">
-              {% csrf_token %}
-              <button type="submit"
-                      class="btn btn-sm {% if t.is_active %}btn-success{% else %}btn-outline-secondary{% endif %}">
-                {% if t.is_active %}Active{% else %}Inactive{% endif %}
-              </button>
-            </form>
-          </td>
-          <td data-label="Actions">
-            <div class="tbl-actions">
-              <a href="{% url 'admin_panel:testimonial_update' t.pk %}"
-                 class="btn btn-sm btn-outline-primary" title="Edit">
-                <i class="fas fa-pencil-alt"></i>
-              </a>
-              <form method="post" action="{% url 'admin_panel:testimonial_delete' t.pk %}"
-                    class="d-inline"
-                    onsubmit="return confirm('Delete testimonial by {{ t.name|escapejs }}?');">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
-                  <i class="fas fa-trash"></i>
-                </button>
-              </form>
+        </div>
+    </div>
+
+    <div class="product-listing-toolbar hc-list-toolbar-row">
+        <form method="get" class="filters filters-inline product-listing-filters product-listing-filters--one-row">
+            <div class="product-search-wrap">
+                <i class="fas fa-search"></i>
+                <input type="text" name="search" class="form-control" placeholder="Search by name or review…" value="{{ search_query }}">
             </div>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+            <select name="status" class="form-control product-filter-select" onchange="this.form.submit()">
+                <option value="">All status</option>
+                <option value="active" {% if filter_status == "active" %}selected{% endif %}>Active</option>
+                <option value="inactive" {% if filter_status == "inactive" %}selected{% endif %}>Inactive</option>
+            </select>
+            <button type="submit" class="btn btn-secondary product-filter-btn">
+                <i class="fas fa-filter"></i> Apply
+            </button>
+            {% if search_query or filter_status %}
+                <a href="{% url 'admin_panel:testimonial_list' %}" class="btn btn-secondary product-filter-btn">
+                    <i class="fas fa-times"></i> Clear
+                </a>
+            {% endif %}
+        </form>
+        <a href="{% url 'admin_panel:testimonial_create' %}" class="btn btn-primary product-add-btn hc-list-add-btn">
+            <i class="fas fa-plus"></i> Add testimonial
+        </a>
+    </div>
+
+    <p class="form-hint" style="margin:0;padding:0.75rem 1.5rem;background:#f8fafc;border-bottom:1px solid var(--gray-200);">
+        Customer quotes shown in the homepage carousel — lower display order appears first.
+    </p>
+
+    <div class="product-listing-body has-list-table">
+        <button type="button" class="btn btn-secondary filter-trigger mb-2" id="filterTrigger" aria-label="Open filters">
+            <i class="fas fa-filter"></i> Filters
+            {% if search_query or filter_status %}<span class="product-count-badge" style="background:#1976D2;color:#fff;">!</span>{% endif %}
+        </button>
+
+        <div class="filter-overlay" id="filterOverlay" aria-hidden="true"></div>
+        <div class="filters-sheet" id="filtersSheet">
+            <div class="filters-sheet-header">
+                <strong>Filters</strong>
+                <button type="button" class="btn btn-sm btn-secondary" id="filterSheetClose" aria-label="Close">✕</button>
+            </div>
+            <form method="get" class="filters-sheet-body">
+                <div class="form-group">
+                    <label class="form-label">Search</label>
+                    <input type="text" name="search" class="form-control" placeholder="Name or review…" value="{{ search_query }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-control">
+                        <option value="">All status</option>
+                        <option value="active" {% if filter_status == "active" %}selected{% endif %}>Active</option>
+                        <option value="inactive" {% if filter_status == "inactive" %}selected{% endif %}>Inactive</option>
+                    </select>
+                </div>
+                <div class="filters-sheet-footer">
+                    <button type="button" class="btn btn-secondary" id="filterClear">Clear</button>
+                    <button type="submit" class="btn btn-primary">Apply</button>
+                </div>
+            </form>
+        </div>
+
+        {% if testimonials %}
+            <div class="list-cards">
+                {% for t in testimonials %}
+                    <div class="list-card">
+                        <div class="list-card-header" style="flex-wrap:wrap;">
+                            <div style="display:flex;align-items:flex-start;gap:0.75rem;flex:1;min-width:0;">
+                                {% if t.photo %}
+                                    <img src="{{ t.photo.url }}" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:50%;border:2px solid #e5e7eb;flex-shrink:0;">
+                                {% else %}
+                                    <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#166534,#22c55e);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;">
+                                        {{ t.name|first|upper }}
+                                    </div>
+                                {% endif %}
+                                <div style="flex:1;min-width:0;">
+                                    <div class="list-card-title" style="margin-bottom:0.25rem;">{{ t.name }}</div>
+                                    <div class="tm-stars tm-stars--sm" aria-label="{{ t.rating }} out of 5 stars">
+                                        {% for i in "12345" %}
+                                            <span class="tm-star{% if forloop.counter <= t.rating %} is-filled{% endif %}">★</span>
+                                        {% endfor %}
+                                    </div>
+                                    <p style="margin:0.35rem 0 0;font-size:0.85rem;color:var(--gray-600);line-height:1.4;">{{ t.description|truncatechars:120 }}</p>
+                                </div>
+                            </div>
+                            <div style="display:flex;gap:0.35rem;align-items:center;flex-wrap:wrap;">
+                                <span class="badge" style="background:#eef2ff;color:#3730a3;">#{{ t.display_order }}</span>
+                                {% if t.is_verified %}
+                                    <span class="badge" style="background:#e8f5e9;color:#2e7d32;">Verified</span>
+                                {% endif %}
+                                {% if t.is_active %}
+                                    <span class="badge" style="background:#e8f5e9;color:#2e7d32;">Active</span>
+                                {% else %}
+                                    <span class="badge" style="background:#f3f4f6;color:#6b7280;">Inactive</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="list-card-actions">
+                            <form method="post" action="{% url 'admin_panel:testimonial_toggle_active' t.pk %}" style="flex:0 0 auto;">
+                                {% csrf_token %}
+                                <label class="toggle-wrap{% if t.is_active %} checked{% endif %}" title="Toggle active" style="margin:0;">
+                                    <input type="checkbox" class="toggle-input" {% if t.is_active %}checked{% endif %} onchange="this.form.submit()">
+                                    <span class="toggle-track"><span class="toggle-knob"></span></span>
+                                    <span class="toggle-status">{% if t.is_active %}On{% else %}Off{% endif %}</span>
+                                </label>
+                            </form>
+                            <a href="{% url 'admin_panel:testimonial_update' t.pk %}" class="btn btn-primary" style="flex:1;">
+                                <i class="fas fa-pen"></i> Edit
+                            </a>
+                            <form method="post" action="{% url 'admin_panel:testimonial_delete' t.pk %}" onsubmit="return confirm('Remove testimonial from &quot;{{ t.name|escapejs }}&quot;?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-ghost-danger" title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <div class="list-table">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th style="width:56px;"></th>
+                                <th>Customer</th>
+                                <th style="width:120px;">Rating</th>
+                                <th>Review</th>
+                                <th style="width:90px;">Verified</th>
+                                <th style="width:70px;">Order</th>
+                                <th style="width:120px;">Status</th>
+                                <th style="width:150px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for t in testimonials %}
+                                <tr>
+                                    <td>
+                                        {% if t.photo %}
+                                            <img src="{{ t.photo.url }}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:50%;">
+                                        {% else %}
+                                            <div style="width:40px;height:40px;border-radius:50%;background:#166534;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:0.85rem;">
+                                                {{ t.name|first|upper }}
+                                            </div>
+                                        {% endif %}
+                                    </td>
+                                    <td><strong>{{ t.name }}</strong></td>
+                                    <td>
+                                        <span class="tm-stars tm-stars--sm" aria-hidden="true">
+                                            {% for i in "12345" %}
+                                                <span class="tm-star{% if forloop.counter <= t.rating %} is-filled{% endif %}">★</span>
+                                            {% endfor %}
+                                        </span>
+                                    </td>
+                                    <td style="font-size:0.85rem;color:var(--gray-600);max-width:280px;">{{ t.description|truncatechars:90 }}</td>
+                                    <td>
+                                        {% if t.is_verified %}
+                                            <span class="badge badge-success">Yes</span>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><span class="badge" style="background:#eef2ff;color:#3730a3;">{{ t.display_order }}</span></td>
+                                    <td>
+                                        <form method="post" action="{% url 'admin_panel:testimonial_toggle_active' t.pk %}" style="margin:0;">
+                                            {% csrf_token %}
+                                            <label class="toggle-wrap{% if t.is_active %} checked{% endif %}" style="margin:0;">
+                                                <input type="checkbox" class="toggle-input" {% if t.is_active %}checked{% endif %} onchange="this.form.submit()">
+                                                <span class="toggle-track"><span class="toggle-knob"></span></span>
+                                            </label>
+                                        </form>
+                                    </td>
+                                    <td>
+                                        <div style="display:flex;gap:0.35rem;">
+                                            <a href="{% url 'admin_panel:testimonial_update' t.pk %}" class="btn btn-sm btn-secondary">
+                                                <i class="fas fa-pen"></i> Edit
+                                            </a>
+                                            <form method="post" action="{% url 'admin_panel:testimonial_delete' t.pk %}" onsubmit="return confirm('Delete this testimonial?');">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {% if is_paginated %}
+                <div class="pagination">
+                    {% if page_obj.has_previous %}
+                        <a href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if filter_status %}&status={{ filter_status }}{% endif %}">First</a>
+                        <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if filter_status %}&status={{ filter_status }}{% endif %}">Previous</a>
+                    {% endif %}
+                    <span class="current">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                    {% if page_obj.has_next %}
+                        <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if filter_status %}&status={{ filter_status }}{% endif %}">Next</a>
+                        <a href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if filter_status %}&status={{ filter_status }}{% endif %}">Last</a>
+                    {% endif %}
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="product-listing-empty">
+                <div class="product-listing-empty-icon"><i class="fas fa-quote-left"></i></div>
+                <p class="product-listing-empty-title">No testimonials yet</p>
+                <p class="product-listing-empty-desc">Add customer quotes to build trust on your homepage carousel.</p>
+                <a href="{% url 'admin_panel:testimonial_create' %}" class="btn btn-primary"><i class="fas fa-plus"></i> Add testimonial</a>
+            </div>
+        {% endif %}
+    </div>
 </div>
-
-{% if is_paginated %}
-<nav class="mt-3">
-  <ul class="pagination pagination-sm">
-    {% if page_obj.has_previous %}
-      <li class="page-item">
-        <a class="page-link" href="?page={{ page_obj.previous_page_number }}&status={{ filter_status }}">‹</a>
-      </li>
-    {% endif %}
-    {% for num in paginator.page_range %}
-      <li class="page-item {% if num == page_obj.number %}active{% endif %}">
-        <a class="page-link" href="?page={{ num }}&status={{ filter_status }}">{{ num }}</a>
-      </li>
-    {% endfor %}
-    {% if page_obj.has_next %}
-      <li class="page-item">
-        <a class="page-link" href="?page={{ page_obj.next_page_number }}&status={{ filter_status }}">›</a>
-      </li>
-    {% endif %}
-  </ul>
-</nav>
-{% endif %}
-
-{% else %}
-<div class="alert alert-info">
-  No testimonials yet.
-  <a href="{% url 'admin_panel:testimonial_create' %}">Add the first one.</a>
-</div>
-{% endif %}
-
 {% endblock %}

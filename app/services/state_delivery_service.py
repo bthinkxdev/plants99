@@ -21,6 +21,53 @@ from django.db.models import QuerySet
 
 # ── Read helpers ───────────────────────────────────────────────────────────────
 
+def product_has_delivery_restrictions(product_id: int) -> bool:
+    """True when the seller configured at least one deliverable state for this product."""
+    from app.models import ProductDeliveryState
+
+    return ProductDeliveryState.objects.filter(product_id=product_id).exists()
+
+
+def get_deliverable_state_ids_for_product(product_id: int) -> Optional[set]:
+    """
+    Return allowed state IDs for a product, or None when the product has no
+    state restrictions (ships to all active states).
+    """
+    from app.models import ProductDeliveryState
+
+    ids = set(
+        ProductDeliveryState.objects
+        .filter(product_id=product_id, state__is_active=True)
+        .values_list("state_id", flat=True)
+    )
+    if not ids:
+        return None
+    return ids
+
+
+def resolve_delivery_state_id(*, delivery_state=None, state_text: str = "") -> Optional[int]:
+    """Resolve a DeliveryState PK from a model instance and/or legacy text state."""
+    if delivery_state is not None:
+        if hasattr(delivery_state, "pk"):
+            return delivery_state.pk
+        try:
+            return int(delivery_state)
+        except (TypeError, ValueError):
+            pass
+
+    text = (state_text or "").strip()
+    if not text:
+        return None
+
+    from app.models import DeliveryState
+
+    ds = DeliveryState.objects.filter(is_active=True, name__iexact=text).first()
+    if ds:
+        return ds.pk
+    match = DeliveryState.objects.filter(is_active=True, code__iexact=text).first()
+    return match.pk if match else None
+
+
 def get_deliverable_states_for_product(product_id: int) -> QuerySet:
     """
     Return active DeliveryState objects this product ships to,
@@ -43,20 +90,25 @@ def get_deliverable_states_for_product(product_id: int) -> QuerySet:
 
 def is_state_deliverable_for_product(product_id: int, state_id: int) -> bool:
     """
-    True if the product has a ProductDeliveryState row for this state.
-    Used at checkout validation.
+    True if the product ships to this state.
+    Products with no configured restrictions ship to all states.
     """
-    from app.models import ProductDeliveryState
+    allowed = get_deliverable_state_ids_for_product(product_id)
+    if allowed is None:
+        return True
+    return state_id in allowed
 
-    return (
-        ProductDeliveryState.objects
-        .filter(
-            product_id=product_id,
-            state_id=state_id,
-            state__is_active=True,
-        )
-        .exists()
+
+def is_state_deliverable_for_combo(combo_id: int, state_id: int) -> bool:
+    """True when every component product in the combo ships to this state."""
+    from app.models import ComboItem
+
+    component_pids = list(
+        ComboItem.objects.filter(combo_id=combo_id).values_list("product_id", flat=True)
     )
+    if not component_pids:
+        return False
+    return all(is_state_deliverable_for_product(pid, state_id) for pid in component_pids)
 
 
 def get_all_active_states() -> QuerySet:
@@ -240,28 +292,28 @@ def serviceability_payload_for_combo(
             "message": "Combo has no products.",
         }
 
-    # Intersection: states deliverable by ALL components
-    from app.models import DeliveryState, ProductDeliveryState
+    from app.models import DeliveryState
 
-    # Start with states of first product, intersect with each subsequent product
-    common_state_ids = set(
-        ProductDeliveryState.objects
-        .filter(product_id=component_pids[0])
-        .values_list("state_id", flat=True)
-    )
-    for pid in component_pids[1:]:
-        pid_state_ids = set(
-            ProductDeliveryState.objects
-            .filter(product_id=pid)
-            .values_list("state_id", flat=True)
+    common_state_ids = None
+    for pid in component_pids:
+        pid_state_ids = get_deliverable_state_ids_for_product(pid)
+        if pid_state_ids is None:
+            continue
+        if common_state_ids is None:
+            common_state_ids = set(pid_state_ids)
+        else:
+            common_state_ids &= pid_state_ids
+
+    if common_state_ids is None:
+        deliverable_qs = DeliveryState.objects.filter(is_active=True).order_by("display_order", "name")
+    elif not common_state_ids:
+        deliverable_qs = DeliveryState.objects.none()
+    else:
+        deliverable_qs = (
+            DeliveryState.objects
+            .filter(pk__in=common_state_ids, is_active=True)
+            .order_by("display_order", "name")
         )
-        common_state_ids &= pid_state_ids
-
-    deliverable_qs = (
-        DeliveryState.objects
-        .filter(pk__in=common_state_ids, is_active=True)
-        .order_by("display_order", "name")
-    )
     deliverable_list = [
         {"id": s.id, "name": s.name, "code": s.code, "region": s.region}
         for s in deliverable_qs

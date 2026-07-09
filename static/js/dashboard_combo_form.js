@@ -65,30 +65,36 @@
         if (!comboTbody || !comboTable || !comboEmpty) return;
         comboTbody.innerHTML = '';
         if (!components || !components.length) {
-            comboEmpty.style.display = '';
+            comboEmpty.style.display = 'block';
             comboTable.style.display = 'none';
             return;
         }
         comboEmpty.style.display = 'none';
-        comboTable.style.display = '';
+        comboTable.style.display = 'table';
         components.forEach(function (c) {
             var tr = document.createElement('tr');
             tr.innerHTML =
-                '<td>' +
+                '<td class="combo-row-product"><span class="combo-row-product-name">' +
                 escapeHtml(c.name) +
-                '</td><td><input type="number" class="form-control form-control-sm combo-row-qty" min="1" data-row-id="' +
+                '</span></td>' +
+                '<td style="text-align:center;"><input type="number" class="form-control combo-inline-input combo-row-qty" min="1" data-row-id="' +
                 c.id +
                 '" value="' +
                 c.quantity +
-                '"></td><td><input type="number" class="form-control form-control-sm combo-row-order" min="0" data-row-id="' +
+                '" aria-label="Quantity"></td>' +
+                '<td style="text-align:center;"><input type="number" class="form-control combo-inline-input combo-row-order" min="0" data-row-id="' +
                 c.id +
                 '" value="' +
                 c.display_order +
-                '"></td><td><button type="button" class="btn btn-sm btn-outline-secondary combo-row-save" data-row-id="' +
+                '" aria-label="Display order"></td>' +
+                '<td class="combo-row-actions"><div class="combo-row-actions-inner">' +
+                '<button type="button" class="btn btn-sm btn-primary combo-row-save" data-row-id="' +
                 c.id +
-                '">Save</button> <button type="button" class="btn btn-sm btn-outline-danger combo-row-remove" data-row-id="' +
+                '"><i class="fas fa-check"></i> Save</button>' +
+                '<button type="button" class="btn btn-sm btn-secondary combo-row-remove" data-row-id="' +
                 c.id +
-                '">Remove</button></td>';
+                '"><i class="fas fa-trash-alt"></i> Remove</button>' +
+                '</div></td>';
             comboTbody.appendChild(tr);
         });
     }
@@ -119,7 +125,7 @@
                         return r.json();
                     })
                     .then(function (data) {
-                        comboCandidateSelect.innerHTML = '<option value="">— pick a product —</option>';
+                        comboCandidateSelect.innerHTML = '<option value="">— Pick a product —</option>';
                         (data.products || []).forEach(function (p) {
                             var opt = document.createElement('option');
                             opt.value = p.id;
@@ -169,11 +175,12 @@
 
     if (comboTbody && urls.comboUpdate && urls.comboDelete) {
         comboTbody.addEventListener('click', function (e) {
-            var t = e.target;
-            if (t.classList.contains('combo-row-save')) {
-                var rid = t.getAttribute('data-row-id');
+            var saveBtn = e.target.closest('.combo-row-save');
+            var removeBtn = e.target.closest('.combo-row-remove');
+            if (saveBtn) {
+                var rid = saveBtn.getAttribute('data-row-id');
                 if (!rid) return;
-                var tr = t.closest('tr');
+                var tr = saveBtn.closest('tr');
                 var qIn = tr.querySelector('.combo-row-qty');
                 var oIn = tr.querySelector('.combo-row-order');
                 fetch(urlComboRow(urls.comboUpdate, rid), {
@@ -203,8 +210,8 @@
                     });
                 return;
             }
-            if (t.classList.contains('combo-row-remove')) {
-                var rid2 = t.getAttribute('data-row-id');
+            if (removeBtn) {
+                var rid2 = removeBtn.getAttribute('data-row-id');
                 if (!rid2) return;
                 if (!window.confirm('Remove this product from the bundle?')) return;
                 fetch(urlComboRow(urls.comboDelete, rid2), {

@@ -29,6 +29,17 @@
 
 {% include "partials/_header.html" %}
 
+{% if messages %}
+<div class="storefront-toast-stack" aria-live="polite">
+    {% for message in messages %}
+    <div class="storefront-toast storefront-toast--{{ message.tags|default:'info' }}" role="alert">
+        {{ message }}
+        <button type="button" class="storefront-toast__close" aria-label="Dismiss">&times;</button>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
 {% block content %}{% endblock %}
 
 {% include "partials/_footer.html" %}
@@ -77,6 +88,23 @@
             overlay.classList.remove('open');
             overlay.setAttribute('aria-hidden', 'true');
         }
+    });
+})();
+</script>
+
+<script>
+(function () {
+    document.querySelectorAll('.storefront-toast__close').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var toast = btn.closest('.storefront-toast');
+            if (toast) toast.remove();
+        });
+    });
+    document.querySelectorAll('.storefront-toast').forEach(function (toast) {
+        setTimeout(function () {
+            toast.classList.add('is-hiding');
+            setTimeout(function () { toast.remove(); }, 300);
+        }, 7000);
     });
 })();
 </script>

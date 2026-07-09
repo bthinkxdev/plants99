@@ -1,69 +1,224 @@
 {% extends "admin_panel/base.html" %}
+{% load static %}
 
 {% block title %}Combo bundles{% endblock %}
 {% block page_title %}Combo bundles{% endblock %}
 
 {% block content %}
-<div class="card mb-3">
-    <div class="card-body">
-        <p class="mb-2">Bundles are <strong>standalone products</strong> with their own price, description, and image. Add the included SKUs on each bundle’s edit page.</p>
-        <a href="{% url 'admin_panel:combo_create' %}" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> New combo bundle</a>
-        <a href="{% url 'admin_panel:product_list' %}" class="btn btn-secondary btn-sm">All products</a>
-    </div>
-</div>
-
-<div class="card">
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0 combo-table">
-                <thead>
-                    <tr>
-                        <th>Bundle</th>
-                        <th>Lines</th>
-                        <th>Price</th>
-                        <th>Status</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for c in combos %}
-                    <tr>
-                        <td data-label="Bundle">
-                            <strong>{{ c.name }}</strong>
-                            {% if c.show_in_combos_nav %}<span class="badge badge-info ml-1" style="font-size:0.65rem;">Shop nav</span>{% endif %}
-                            {% if c.legacy_product_id %}<span class="badge badge-secondary ml-1" style="font-size:0.65rem;">Migrated</span>{% endif %}
-                        </td>
-                        <td data-label="Lines">{{ c.combo_line_count }}</td>
-                        <td data-label="Price">{% if c.price %}₹{{ c.price }}{% else %}—{% endif %}</td>
-                        <td data-label="Status">
-                            {% if not c.is_active %}<span class="badge badge-secondary">Inactive</span>
-                            {% elif not c.purchase_enabled %}<span class="badge badge-warning text-dark">Purchase off</span>
-                            {% else %}<span class="badge badge-success">Active</span>{% endif %}
-                        </td>
-                        <td data-label="">
-                            <a href="{% url 'admin_panel:combo_edit' c.pk %}" class="btn btn-sm btn-outline-primary">Edit</a>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr><td colspan="5" class="text-center text-muted py-4">No combo bundles yet.</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+<div class="product-listing-card">
+    <div class="product-listing-header">
+        <div class="product-listing-title-group">
+            <h2 class="product-listing-title">Combo bundles</h2>
+            {% if is_paginated %}
+                <span class="product-count-badge">{{ page_obj.paginator.count }}</span>
+            {% elif combos %}
+                <span class="product-count-badge">{{ combos|length }}</span>
+            {% endif %}
         </div>
+        <a href="{% url 'admin_panel:combo_create' %}" class="btn btn-primary product-add-btn">
+            <i class="fas fa-plus"></i> New combo bundle
+        </a>
+    </div>
+
+    <div class="product-listing-toolbar">
+        <form method="get" class="filters filters-inline product-listing-filters">
+            <div class="product-search-wrap">
+                <i class="fas fa-search"></i>
+                <input type="text" name="search" class="form-control" placeholder="Search bundles…" value="{{ search_query }}">
+            </div>
+            <select name="status" class="form-control product-filter-select" onchange="this.form.submit()">
+                <option value="">All status</option>
+                <option value="active" {% if filter_status == "active" %}selected{% endif %}>Active</option>
+                <option value="inactive" {% if filter_status == "inactive" %}selected{% endif %}>Inactive</option>
+            </select>
+            <button type="submit" class="btn btn-secondary product-filter-btn">
+                <i class="fas fa-filter"></i> Apply
+            </button>
+            {% if search_query or filter_status %}
+                <a href="{% url 'admin_panel:combo_list' %}" class="btn btn-secondary product-filter-btn">
+                    <i class="fas fa-times"></i> Clear
+                </a>
+            {% endif %}
+        </form>
+    </div>
+
+    <div class="product-listing-body has-list-table">
+        <button type="button" class="btn btn-secondary filter-trigger mb-2" id="filterTrigger" aria-label="Open filters">
+            <i class="fas fa-filter"></i> Filters
+            {% if search_query or filter_status %}<span class="product-count-badge" style="background:#1976D2;color:#fff;">!</span>{% endif %}
+        </button>
+
+        <div class="filter-overlay" id="filterOverlay" aria-hidden="true"></div>
+        <div class="filters-sheet" id="filtersSheet">
+            <div class="filters-sheet-header">
+                <strong>Filters</strong>
+                <button type="button" class="btn btn-sm btn-secondary" id="filterSheetClose" aria-label="Close">✕</button>
+            </div>
+            <form method="get" class="filters-sheet-body">
+                <div class="form-group">
+                    <label class="form-label">Search</label>
+                    <input type="text" name="search" class="form-control" placeholder="Search bundles…" value="{{ search_query }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-control">
+                        <option value="">All status</option>
+                        <option value="active" {% if filter_status == "active" %}selected{% endif %}>Active</option>
+                        <option value="inactive" {% if filter_status == "inactive" %}selected{% endif %}>Inactive</option>
+                    </select>
+                </div>
+                <div class="filters-sheet-footer">
+                    <button type="button" class="btn btn-secondary" id="filterClear">Clear</button>
+                    <button type="submit" class="btn btn-primary">Apply</button>
+                </div>
+            </form>
+        </div>
+
+        {% if combos %}
+            <div class="list-cards">
+                {% for c in combos %}
+                    <div class="list-card">
+                        <div class="list-card-header" style="flex-wrap:wrap;">
+                            <div style="display:flex;align-items:center;gap:0.75rem;flex:1;min-width:0;">
+                                {% if c.image %}
+                                    <img src="{{ c.image.url }}" alt="{{ c.name }}" style="width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;flex-shrink:0;">
+                                {% else %}
+                                    <div style="width:52px;height:52px;background:var(--gray-100);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                        <i class="fas fa-layer-group" style="color:var(--gray-400);font-size:1.1rem;"></i>
+                                    </div>
+                                {% endif %}
+                                <div style="flex:1;min-width:0;">
+                                    <div class="list-card-title" style="margin-bottom:0.2rem;font-size:0.95rem;">{{ c.name|truncatechars:48 }}</div>
+                                    <div style="font-size:0.8rem;color:var(--gray-500);">
+                                        {{ c.combo_line_count }} product{{ c.combo_line_count|pluralize }} · {% if c.price %}₹{{ c.price }}{% else %}No price{% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
+                                {% if c.is_active and c.purchase_enabled %}
+                                    <span class="badge" style="background:#e8f5e9;color:#2e7d32;">Active</span>
+                                {% elif c.is_active %}
+                                    <span class="badge" style="background:#fff3e0;color:#e65100;">Purchase off</span>
+                                {% else %}
+                                    <span class="badge" style="background:#f3f4f6;color:#6b7280;">Inactive</span>
+                                {% endif %}
+                                {% if c.show_in_combos_nav %}
+                                    <span class="badge" style="background:#eef2ff;color:#3730a3;">Shop nav</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="list-card-meta">
+                            <span><i class="fas fa-calendar"></i> Updated {{ c.updated_at|date:"d M, Y" }}</span>
+                            {% if c.legacy_product_id %}
+                                <span><i class="fas fa-history"></i> Migrated</span>
+                            {% endif %}
+                        </div>
+                        <div class="list-card-actions">
+                            <form method="post" action="{% url 'admin_panel:combo_toggle_active' c.pk %}" style="flex:0 0 auto;">
+                                {% csrf_token %}
+                                <label class="toggle-wrap{% if c.is_active %} checked{% endif %}" title="Toggle active" style="margin:0;">
+                                    <input type="checkbox" class="toggle-input" {% if c.is_active %}checked{% endif %} onchange="this.form.submit()">
+                                    <span class="toggle-track"><span class="toggle-knob"></span></span>
+                                    <span class="toggle-status">{% if c.is_active %}On{% else %}Off{% endif %}</span>
+                                </label>
+                            </form>
+                            <a href="{% url 'admin_panel:combo_edit' c.pk %}" class="btn btn-primary" style="flex:1;">
+                                <i class="fas fa-pen"></i> Edit
+                            </a>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <div class="list-table">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Bundle</th>
+                                <th>Lines</th>
+                                <th>Price</th>
+                                <th>Status</th>
+                                <th>Updated</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in combos %}
+                                <tr>
+                                    <td>
+                                        <div style="display:flex;align-items:center;gap:0.75rem;">
+                                            {% if c.image %}
+                                                <img src="{{ c.image.url }}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;">
+                                            {% else %}
+                                                <div style="width:40px;height:40px;background:var(--gray-100);border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                                                    <i class="fas fa-layer-group" style="color:var(--gray-400);"></i>
+                                                </div>
+                                            {% endif %}
+                                            <div>
+                                                <div style="font-weight:600;color:var(--gray-900);">{{ c.name }}</div>
+                                                <div style="font-size:0.78rem;color:var(--gray-500);">
+                                                    {% if c.show_in_combos_nav %}Shop nav{% endif %}
+                                                    {% if c.legacy_product_id %}{% if c.show_in_combos_nav %} · {% endif %}Migrated{% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>{{ c.combo_line_count }}</td>
+                                    <td style="font-weight:600;">{% if c.price %}₹{{ c.price }}{% else %}—{% endif %}</td>
+                                    <td>
+                                        <div style="display:flex;align-items:center;gap:0.65rem;flex-wrap:wrap;">
+                                            <form method="post" action="{% url 'admin_panel:combo_toggle_active' c.pk %}" style="margin:0;">
+                                                {% csrf_token %}
+                                                <label class="toggle-wrap{% if c.is_active %} checked{% endif %}" title="Toggle active" style="margin:0;">
+                                                    <input type="checkbox" class="toggle-input" {% if c.is_active %}checked{% endif %} onchange="this.form.submit()">
+                                                    <span class="toggle-track"><span class="toggle-knob"></span></span>
+                                                    <span class="toggle-status">{% if c.is_active %}On{% else %}Off{% endif %}</span>
+                                                </label>
+                                            </form>
+                                            {% if c.is_active and c.purchase_enabled %}
+                                                <span class="badge badge-success">Live</span>
+                                            {% elif c.is_active %}
+                                                <span class="badge badge-warning">Purchase off</span>
+                                            {% else %}
+                                                <span class="badge badge-secondary">Inactive</span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>{{ c.updated_at|date:"d M, Y" }}</td>
+                                    <td>
+                                        <a href="{% url 'admin_panel:combo_edit' c.pk %}" class="btn btn-sm btn-secondary">
+                                            <i class="fas fa-pen"></i> Edit
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {% if is_paginated %}
+                <div class="pagination">
+                    {% if page_obj.has_previous %}
+                        <a href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if filter_status %}&status={{ filter_status }}{% endif %}">First</a>
+                        <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if filter_status %}&status={{ filter_status }}{% endif %}">Previous</a>
+                    {% endif %}
+                    <span class="current">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                    {% if page_obj.has_next %}
+                        <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if filter_status %}&status={{ filter_status }}{% endif %}">Next</a>
+                        <a href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if filter_status %}&status={{ filter_status }}{% endif %}">Last</a>
+                    {% endif %}
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="product-listing-empty">
+                <div class="product-listing-empty-icon"><i class="fas fa-layer-group"></i></div>
+                <p class="product-listing-empty-title">No combo bundles yet</p>
+                <p class="product-listing-empty-desc">Bundles are standalone products with their own price, image, and included SKUs.</p>
+                <a href="{% url 'admin_panel:combo_create' %}" class="btn btn-primary"><i class="fas fa-plus"></i> New combo bundle</a>
+            </div>
+        {% endif %}
     </div>
 </div>
-
-{% if is_paginated %}
-<nav class="mt-3" aria-label="Pagination">
-    <ul class="pagination justify-content-center mb-0">
-        {% if page_obj.has_previous %}
-        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a></li>
-        {% endif %}
-        <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ paginator.num_pages }}</span></li>
-        {% if page_obj.has_next %}
-        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a></li>
-        {% endif %}
-    </ul>
-</nav>
-{% endif %}
 {% endblock %}

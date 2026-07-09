@@ -15,7 +15,7 @@
             font-family: Arial, Helvetica, sans-serif;
             font-size: 10pt;
             line-height: 1.35;
-            color: #333;
+            color: #000;
             background: white;
         }
         /* Single A4 - compact layout */
@@ -31,16 +31,16 @@
             justify-content: space-between;
             align-items: flex-start;
             padding-bottom: 10px;
-            border-bottom: 2px solid #6D4C41;
+            border-bottom: 2px solid #000;
             margin-bottom: 12px;
         }
-        .company-name { font-size: 18pt; font-weight: bold; color: #6D4C41; margin-bottom: 2px; }
-        .company-tagline { font-size: 9pt; color: #8D6E63; margin-bottom: 6px; }
-        .company-details { font-size: 9pt; color: #666; line-height: 1.5; }
+        .company-name { font-size: 18pt; font-weight: bold; color: #000; margin-bottom: 2px; }
+        .company-tagline { font-size: 9pt; color: #333; margin-bottom: 6px; }
+        .company-details { font-size: 9pt; color: #111; line-height: 1.5; }
         .invoice-meta { text-align: right; }
-        .invoice-title { font-size: 16pt; font-weight: bold; color: #3E2723; margin-bottom: 4px; }
-        .invoice-number { font-size: 12pt; color: #6D4C41; font-weight: bold; margin-bottom: 2px; }
-        .invoice-date { font-size: 9pt; color: #666; }
+        .invoice-title { font-size: 16pt; font-weight: bold; color: #000; margin-bottom: 4px; }
+        .invoice-number { font-size: 12pt; color: #000; font-weight: bold; margin-bottom: 2px; }
+        .invoice-date { font-size: 9pt; color: #111; }
         .info-section {
             display: flex;
             justify-content: space-between;
@@ -50,19 +50,20 @@
         .bill-to, .ship-to {
             flex: 1;
             padding: 8px 10px;
-            background: #F5F5F3;
+            background: #f7f7f7;
             border-radius: 6px;
+            border: 1px solid #d1d5db;
         }
-        .section-title { font-size: 9pt; font-weight: bold; color: #6D4C41; margin-bottom: 6px; text-transform: uppercase; }
+        .section-title { font-size: 9pt; font-weight: bold; color: #000; margin-bottom: 6px; text-transform: uppercase; }
         .customer-details { font-size: 9pt; line-height: 1.5; }
-        .customer-name { font-weight: bold; font-size: 10pt; color: #3E2723; margin-bottom: 4px; }
+        .customer-name { font-weight: bold; font-size: 10pt; color: #000; margin-bottom: 4px; }
         .items-table {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 10px;
             font-size: 9pt;
         }
-        .items-table thead { background: #6D4C41; color: white; }
+        .items-table thead { background: #111; color: #fff; }
         .items-table th {
             padding: 6px 8px;
             text-align: left;
@@ -70,29 +71,29 @@
             font-weight: 600;
         }
         .items-table th:last-child, .items-table td:last-child { text-align: right; }
-        .items-table tbody tr { border-bottom: 1px solid #E0E0DE; }
+        .items-table tbody tr { border-bottom: 1px solid #d1d5db; }
         .items-table td { padding: 5px 8px; }
-        .item-name { font-weight: 600; color: #3E2723; }
-        .item-variant { font-size: 8pt; color: #8D6E63; }
+        .item-name { font-weight: 600; color: #000; }
+        .item-variant { font-size: 8pt; color: #4b5563; }
         .totals-section { margin-bottom: 10px; }
         .totals-table { width: 240px; margin-left: auto; font-size: 9pt; }
         .totals-table tr { display: flex; justify-content: space-between; padding: 4px 0; }
         .totals-table .total-row {
-            border-top: 2px solid #6D4C41;
+            border-top: 2px solid #000;
             padding-top: 8px;
             margin-top: 4px;
             font-size: 11pt;
             font-weight: bold;
-            color: #6D4C41;
+            color: #000;
         }
         .invoice-footer {
             margin-top: 10px;
             padding-top: 10px;
-            border-top: 1px solid #E0E0DE;
+            border-top: 1px solid #d1d5db;
         }
         .payment-info { margin-bottom: 8px; }
-        .payment-info-title { font-size: 9pt; font-weight: bold; color: #6D4C41; margin-bottom: 4px; }
-        .payment-details { font-size: 9pt; color: #666; }
+        .payment-info-title { font-size: 9pt; font-weight: bold; color: #000; margin-bottom: 4px; }
+        .payment-details { font-size: 9pt; color: #111; }
         .payment-badge {
             display: inline-block;
             padding: 2px 8px;
@@ -100,8 +101,8 @@
             font-size: 9pt;
             font-weight: 600;
         }
-        .payment-badge.pending { background: #fff3cd; color: #856404; }
-        .payment-badge.paid { background: #d1f4dd; color: #0f5132; }
+        .payment-badge.pending { background: #e5e7eb; color: #111; border: 1px solid #9ca3af; }
+        .payment-badge.paid { background: #e5e7eb; color: #111; border: 1px solid #9ca3af; }
         .order-status-badge {
             display: inline-block;
             padding: 4px 10px;
@@ -110,20 +111,21 @@
             font-weight: 600;
             margin-top: 4px;
         }
-        .status-placed { background: #d1ecf1; color: #0c5460; }
-        .status-confirmed { background: #fff3cd; color: #856404; }
-        .status-shipped { background: #cfe2ff; color: #084298; }
-        .status-delivered { background: #d1f4dd; color: #0f5132; }
-        .status-cancelled { background: #f8d7da; color: #842029; }
+        .status-placed,
+        .status-confirmed,
+        .status-shipped,
+        .status-delivered,
+        .status-cancelled { background: #e5e7eb; color: #111; border: 1px solid #9ca3af; }
         .notes-section {
-            background: #F5F5F3;
+            background: #f7f7f7;
             padding: 8px 10px;
             border-radius: 6px;
             margin-top: 8px;
+            border: 1px solid #d1d5db;
         }
-        .notes-title { font-size: 9pt; font-weight: bold; color: #6D4C41; margin-bottom: 4px; }
-        .notes-content { font-size: 8pt; color: #666; line-height: 1.4; }
-        .thank-you { text-align: center; font-size: 10pt; color: #6D4C41; font-weight: 600; margin-top: 8px; }
+        .notes-title { font-size: 9pt; font-weight: bold; color: #000; margin-bottom: 4px; }
+        .notes-content { font-size: 8pt; color: #111; line-height: 1.4; }
+        .thank-you { text-align: center; font-size: 10pt; color: #000; font-weight: 600; margin-top: 8px; }
         .contact-row { font-size: 9pt; margin-top: 2px; }
 
         @media print {
@@ -169,7 +171,7 @@
                 <div class="company-details">
                     Email: {{ site_email }}<br>
                     <span class="contact-row">Phone: {{ site_phone }}</span><br>
-                    <span class="contact-row">WhatsApp: <a href="https://wa.me/{{ site_whatsapp }}" style="color:#25D366;">{{ site_phone }}</a></span><br>
+                    <span class="contact-row">WhatsApp: {{ site_phone }}</span><br>
                     Website: {{ request.get_host }}
                 </div>
             </div>
@@ -219,9 +221,15 @@
                     <td>
                         <div class="item-name">{{ item.product_name }}</div>
                         <div class="item-variant">{{ item.variant_snapshot }}</div>
+                        {% if item.line_type == 'rental' and item.rental_start_date and item.rental_end_date %}
+                        <div class="item-variant">Rental: {{ item.rental_start_date|date:"d M, Y" }} – {{ item.rental_end_date|date:"d M, Y" }}</div>
+                        {% endif %}
                     </td>
                     <td style="text-align: center;">{{ item.quantity }}</td>
-                    <td>₹{{ item.unit_price }}</td>
+                    <td>
+                        ₹{{ item.unit_price }}
+                        {% if item.pot_unit_price %}<br><small>+ ₹{{ item.pot_unit_price }} pot</small>{% endif %}
+                    </td>
                     <td>₹{{ item.line_total }}</td>
                 </tr>
                 {% endfor %}
@@ -263,7 +271,7 @@
                 <div class="notes-title">Terms</div>
                 <div class="notes-content">Quality guarantee • Contact: {{ site_phone }} / WhatsApp • Thank you for shopping with {{ site_brand }}!</div>
             </div>
-            <div class="thank-you">Thank you for your purchase! 🌟</div>
+            <div class="thank-you">Thank you for your purchase!</div>
         </div>
     </div>
 

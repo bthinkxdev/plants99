@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initAddressToggle();
     initCheckoutRemoveItems();
     initCheckoutSubmit();
+    initCheckoutDeliveryGuard();
 });
 
 function initCheckoutSubmit() {
@@ -14,7 +15,14 @@ function initCheckoutSubmit() {
     var placeOrderBtn = document.getElementById('placeOrderBtn');
     if (!form || !placeOrderBtn) return;
 
+    applyCheckoutBlockedState();
+
     form.addEventListener('submit', function(e) {
+        if (window.CHECKOUT_BLOCKED) {
+            e.preventDefault();
+            showCheckoutError(window.CHECKOUT_SUMMARY || window.CHECKOUT_STOCK_SUMMARY || 'Please fix cart issues before checkout.');
+            return;
+        }
         syncAddressToHidden();
         syncPaymentToHidden();
 
@@ -65,6 +73,11 @@ function handleRazorpaySubmit() {
     var errDiv = document.getElementById('checkoutErrorMessage');
     var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
     if (!form || !btn || !csrfToken) return;
+
+    if (window.CHECKOUT_BLOCKED) {
+        showCheckoutError(window.CHECKOUT_SUMMARY || window.CHECKOUT_STOCK_SUMMARY || 'Please fix cart issues before checkout.');
+        return;
+    }
 
     syncAddressToHidden();
     syncPaymentToHidden();
@@ -248,8 +261,97 @@ function initAddressSelection() {
             this.closest('.address-card').classList.add('selected');
             if (selectedAddressInput) selectedAddressInput.value = this.value;
             if (useNewAddressInput) useNewAddressInput.value = 'false';
+            updateCheckoutDeliveryForSelectedAddress();
         });
     });
+}
+
+
+function readAddressDeliveryMap() {
+    var el = document.getElementById('checkout-address-delivery');
+    if (!el) return {};
+    try {
+        return JSON.parse(el.textContent || '{}');
+    } catch (e) {
+        return {};
+    }
+}
+
+
+function initCheckoutDeliveryGuard() {
+    updateCheckoutDeliveryForSelectedAddress();
+    var stateSelect = document.getElementById('id_delivery_state');
+    if (stateSelect) {
+        stateSelect.addEventListener('change', function() {
+            if (window.CHECKOUT_STOCK_BLOCKED) return;
+            window.CHECKOUT_BLOCKED = false;
+            window.CHECKOUT_SUMMARY = '';
+            applyCheckoutBlockedState();
+        });
+    }
+}
+
+
+function updateCheckoutDeliveryForSelectedAddress() {
+    var map = readAddressDeliveryMap();
+    var selected = document.querySelector('input[name="address_selection"]:checked');
+    var newAddressSection = document.getElementById('newAddressSection');
+    var usingNewAddress = newAddressSection && newAddressSection.style.display !== 'none'
+        && (!selected || document.getElementById('id_use_new_address')?.value === 'true');
+
+    document.querySelectorAll('[data-address-warn]').forEach(function(node) {
+        node.style.display = 'none';
+        node.textContent = '';
+    });
+
+    if (window.CHECKOUT_STOCK_BLOCKED) {
+        applyCheckoutBlockedState();
+        return;
+    }
+
+    if (usingNewAddress) {
+        window.CHECKOUT_BLOCKED = false;
+        window.CHECKOUT_SUMMARY = '';
+        applyCheckoutBlockedState();
+        return;
+    }
+
+    if (!selected) {
+        applyCheckoutBlockedState();
+        return;
+    }
+
+    var meta = map[String(selected.value)] || map[selected.value];
+    if (meta && meta.blocked) {
+        window.CHECKOUT_BLOCKED = true;
+        window.CHECKOUT_SUMMARY = meta.message || 'One or more items do not ship to this address.';
+        var warn = document.querySelector('[data-address-warn="' + selected.value + '"]');
+        if (warn) {
+            warn.textContent = meta.message || '';
+            warn.style.display = meta.message ? 'block' : 'none';
+        }
+    } else {
+        window.CHECKOUT_BLOCKED = false;
+        window.CHECKOUT_SUMMARY = '';
+    }
+    applyCheckoutBlockedState();
+}
+
+
+function applyCheckoutBlockedState() {
+    var placeOrderBtn = document.getElementById('placeOrderBtn');
+    var errDiv = document.getElementById('checkoutErrorMessage');
+    if (placeOrderBtn) {
+        placeOrderBtn.disabled = !!window.CHECKOUT_BLOCKED;
+        placeOrderBtn.setAttribute('aria-disabled', window.CHECKOUT_BLOCKED ? 'true' : 'false');
+    }
+    if (window.CHECKOUT_BLOCKED && errDiv) {
+        errDiv.textContent = window.CHECKOUT_SUMMARY || window.CHECKOUT_STOCK_SUMMARY || '';
+        errDiv.style.display = errDiv.textContent ? 'block' : 'none';
+    } else if (errDiv && !window.CHECKOUT_BLOCKED) {
+        errDiv.style.display = 'none';
+        errDiv.textContent = '';
+    }
 }
 
 
@@ -307,6 +409,7 @@ function initAddressToggle() {
             if (useNewAddressInput) useNewAddressInput.value = 'true';
             document.querySelectorAll('input[name="address_selection"]').forEach(r => { r.checked = false; });
             document.querySelectorAll('.address-card.selectable').forEach(c => c.classList.remove('selected'));
+            updateCheckoutDeliveryForSelectedAddress();
             if (newAddressSection) newAddressSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
     }
@@ -325,6 +428,7 @@ function initAddressToggle() {
             }
             if (useNewAddressInput) useNewAddressInput.value = 'false';
             clearNewAddressForm();
+            updateCheckoutDeliveryForSelectedAddress();
             if (savedAddressesSection) savedAddressesSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
     }
@@ -333,7 +437,7 @@ function initAddressToggle() {
 function clearNewAddressForm() {
     var form = document.getElementById('checkoutForm');
     if (!form) return;
-    ['full_name', 'phone', 'address_line', 'city', 'state', 'pincode', 'email'].forEach(function(name) {
+    ['full_name', 'phone', 'address_line', 'city', 'delivery_state', 'pincode', 'email'].forEach(function(name) {
         var field = form.querySelector('[name="' + name + '"]');
         if (field) field.value = '';
     });

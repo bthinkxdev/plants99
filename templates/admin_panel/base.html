@@ -63,7 +63,7 @@
                 {% if HOME_DEAL_OF_DAY_ENABLED %}
                 <a href="{% url 'admin_panel:deal_list' %}" class="nav-item {% if active_menu == 'deals' %}active{% endif %}">
                     <i class="fas fa-bolt"></i>
-                    <span>Deals Of The Day</span>
+                    <span>Home Product Sections</span>
                 </a>
                 {% endif %}
                 <a href="{% url 'admin_panel:category_list' %}" class="nav-item {% if active_menu == 'categories' %}active{% endif %}">
@@ -78,15 +78,7 @@
                     <i class="fas fa-image"></i>
                     <span>Banners</span>
                 </a>
-                <a href="{% url 'admin_panel:rental_list' %}" class="nav-item {% if active_menu == 'rentals' %}active{% endif %}">
-                    <i class="fas fa-clock"></i>
-                    <span>Rentals</span>
-                </a>
                 <div class="nav-section-label">Content</div>
-                <a href="{% url 'admin_panel:blog_list' %}" class="nav-item {% if active_menu == 'blog' %}active{% endif %}">
-                    <i class="fas fa-newspaper"></i>
-                    <span>Blog</span>
-                </a>
                 <a href="{% url 'admin_panel:reel_list' %}" class="nav-item {% if active_menu == 'reels' %}active{% endif %}">
                     <i class="fas fa-clapperboard"></i>
                     <span>Reels</span>

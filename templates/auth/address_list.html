@@ -184,7 +184,7 @@
                     <div class="address-info">
                         <strong>{{ address.full_name }}</strong>
                         <p>{{ address.address_line }}</p>
-                        <p>{{ address.city }}, {{ address.state }} - {{ address.pincode }}</p>
+                        <p>{{ address.city }}, {{ address.delivery_state.name|default:address.state }} - {{ address.pincode }}</p>
                         <p>Phone: {{ address.phone }}</p>
                     </div>
                     <div class="address-actions">

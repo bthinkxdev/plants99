@@ -219,7 +219,7 @@ class AddressListView(LoginRequiredMixin, ListView):
     login_url = 'auth:login'
 
     def get_queryset(self):
-        return Address.objects.filter(user=self.request.user, is_snapshot=False).order_by('-is_default', '-created_at')
+        return Address.objects.filter(user=self.request.user, is_snapshot=False).select_related('delivery_state').order_by('-is_default', '-created_at')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

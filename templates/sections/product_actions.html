@@ -182,13 +182,29 @@
             <button class="btn-plus" type="button"><i class="fas fa-plus"></i></button>
         </div>
         {% if product.is_simple_product and product.id in cart_simple_product_ids %}
+            {% if product.is_combo_product %}
         <a href="#" class="btn btn-add-cart btn-view-cart js-open-cart-drawer">
             <i class="fas fa-shopping-cart me-2"></i> View Cart
         </a>
+            {% elif not product.base_stock or product.base_stock <= 0 %}
+        <a href="#" class="btn btn-add-cart btn-view-cart btn-view-cart--warning js-open-cart-drawer">
+            <i class="fas fa-exclamation-circle me-2"></i> In cart — Out of stock
+        </a>
+            {% else %}
+        <a href="#" class="btn btn-add-cart btn-view-cart js-open-cart-drawer">
+            <i class="fas fa-shopping-cart me-2"></i> View Cart
+        </a>
+            {% endif %}
         {% elif not product.is_simple_product and selected_variant and selected_variant.id in cart_variant_ids %}
+            {% if selected_variant.stock_quantity <= 0 %}
+        <a href="#" class="btn btn-add-cart btn-view-cart btn-view-cart--warning js-open-cart-drawer">
+            <i class="fas fa-exclamation-circle me-2"></i> In cart — Out of stock
+        </a>
+            {% else %}
         <a href="#" class="btn btn-add-cart btn-view-cart js-open-cart-drawer">
             <i class="fas fa-shopping-cart me-2"></i> View Cart
         </a>
+            {% endif %}
         {% elif product.is_simple_product %}
         <button type="submit" class="btn-add-cart btn js-pdp-add-cart" {% if product.is_combo_product %}{% if not pdp_combo_available %}disabled{% endif %}{% elif not product.base_stock or product.base_stock <= 0 %}disabled{% endif %}>
             <span class="btn-add-cart-text"><i class="fas fa-shopping-bag me-2"></i> Add to Cart</span>

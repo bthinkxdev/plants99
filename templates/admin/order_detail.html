@@ -16,8 +16,54 @@
     </span>
 {% endblock %}
 
+{% block extra_css %}
+<style>
+    .order-detail-page .card { border-radius: 12px; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(15,23,42,.06); }
+    .order-detail-page .card-header { background: #f8fafc; border-bottom: 1px solid #e5e7eb; }
+    .order-detail-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+    .order-detail-info-row { display:grid; grid-template-columns: 140px 1fr; gap: .65rem; padding: .55rem 0; border-bottom: 1px dashed #e5e7eb; align-items: start; }
+    .order-detail-info-row:last-child { border-bottom: 0; }
+    .order-detail-info-label { font-size: .78rem; color: #6b7280; text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
+    .order-detail-info-value { font-size: .92rem; color: #111827; font-weight: 500; }
+    .order-detail-section-title { margin: .75rem 0 .5rem; font-size: .9rem; color: #111827; }
+    .order-detail-status-form { display:flex; gap:.5rem; align-items:center; }
+    .order-detail-status-form .form-control { max-width: 220px; }
+    .order-items-table-wrap .table thead th { background:#f8fafc; text-transform:uppercase; font-size:.72rem; color:#6b7280; letter-spacing:.04em; }
+    .order-items-table-wrap .table td { vertical-align: middle; }
+    .order-detail-totals { margin-left:auto; width:min(360px,100%); }
+    .order-detail-totals-row { display:flex; justify-content:space-between; padding:.45rem 0; border-bottom:1px dashed #e5e7eb; }
+    .order-detail-totals-row.total-row { border-top:2px solid #111827; border-bottom:0; margin-top:.35rem; padding-top:.6rem; font-weight:700; font-size:1rem; }
+    .order-detail-footer { margin-top:1rem; display:flex; justify-content:space-between; align-items:center; gap:.75rem; flex-wrap:wrap; padding: .75rem 0 0; border-top:1px solid #e5e7eb; }
+    .order-kpi-strip { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.75rem; margin-bottom:.75rem; }
+    .order-kpi { background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:.75rem .9rem; }
+    .order-kpi-label { font-size:.75rem; color:#6b7280; text-transform:uppercase; letter-spacing:.04em; }
+    .order-kpi-value { font-size:1rem; font-weight:700; color:#111827; margin-top:.2rem; }
+    .order-item-main { display:flex; align-items:center; gap:.75rem; min-width:0; }
+    .order-item-thumb { width:44px; height:44px; border-radius:8px; border:1px solid #e5e7eb; object-fit:cover; background:#f3f4f6; flex-shrink:0; }
+    .order-item-thumb-placeholder { width:44px; height:44px; border-radius:8px; border:1px solid #e5e7eb; background:#f3f4f6; display:flex; align-items:center; justify-content:center; color:#9ca3af; flex-shrink:0; }
+    .order-item-name { font-weight:600; color:#111827; }
+    .order-item-sub { font-size:.78rem; color:#6b7280; margin-top:.15rem; }
+    .order-rental-card { border-left: 4px solid #6366f1; }
+    .order-rental-block + .order-rental-block { margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed #e5e7eb; }
+    .order-rental-badge { background:#eef2ff;color:#3730a3; }
+    @media (max-width: 1024px) { .order-kpi-strip { grid-template-columns:repeat(2,minmax(0,1fr)); } .order-detail-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 768px) { .order-detail-info-row { grid-template-columns: 1fr; gap:.25rem; } .order-detail-status-form { flex-direction: column; align-items: stretch; } }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="order-detail-page">
+<div class="order-kpi-strip">
+    <div class="order-kpi"><div class="order-kpi-label">Order Number</div><div class="order-kpi-value">{{ order.order_number }}</div></div>
+    <div class="order-kpi"><div class="order-kpi-label">Order Date</div><div class="order-kpi-value">{{ order.created_at|date:"d M, Y" }}</div></div>
+    <div class="order-kpi"><div class="order-kpi-label">Total</div><div class="order-kpi-value">₹{{ order.total }}</div></div>
+    <div class="order-kpi">
+        <div class="order-kpi-label">Status</div>
+        <div class="order-kpi-value">
+            <span class="badge {{ admin_status.badge_class }}">{{ admin_status.label }}</span>
+        </div>
+    </div>
+</div>
 <div class="order-detail-grid">
     
     <div class="card">
@@ -36,16 +82,16 @@
             <div class="order-detail-info-row">
                 <span class="order-detail-info-label">Status</span>
                 <span class="order-detail-info-value">
-                    {% if order.status == 'placed' %}
-                        <span class="badge badge-info">{{ order.get_status_display }}</span>
-                    {% elif order.status == 'confirmed' %}
-                        <span class="badge badge-warning">{{ order.get_status_display }}</span>
-                    {% elif order.status == 'shipped' %}
-                        <span class="badge badge-secondary">{{ order.get_status_display }}</span>
-                    {% elif order.status == 'delivered' %}
-                        <span class="badge badge-success">{{ order.get_status_display }}</span>
-                    {% elif order.status == 'cancelled' %}
-                        <span class="badge badge-danger">{{ order.get_status_display }}</span>
+                    <span class="badge {{ admin_status.badge_class }}">{{ admin_status.label }}</span>
+                </span>
+            </div>
+            <div class="order-detail-info-row">
+                <span class="order-detail-info-label">Order Type</span>
+                <span class="order-detail-info-value">
+                    {% if has_rental %}
+                        <span class="badge order-rental-badge">Rental</span>
+                    {% else %}
+                        <span class="badge badge-secondary">Purchase</span>
                     {% endif %}
                 </span>
             </div>
@@ -68,7 +114,9 @@
 
             <hr class="order-detail-divider">
 
-            <h4 class="order-detail-section-title">Update Order Status</h4>
+            {% if admin_status.phase == 'fulfillment' %}
+            <h4 class="order-detail-section-title">Update Status</h4>
+            <p class="order-item-sub" style="margin-bottom:.65rem;">{% if has_rental %}Delivery status — marks plant as on rent when delivered.{% else %}Order fulfillment status.{% endif %}</p>
             <form method="post" action="{% url 'admin_panel:order_update_status' order.order_number %}" class="order-detail-status-form">
                 {% csrf_token %}
                 <select name="status" class="form-control">
@@ -80,10 +128,105 @@
                     <i class="fas fa-check"></i> Update
                 </button>
             </form>
+            {% elif admin_status.phase == 'rental' and admin_status.booking %}
+            <h4 class="order-detail-section-title">Update Status</h4>
+            <p class="order-item-sub" style="margin-bottom:.65rem;">Rental lifecycle — plant is with the customer.</p>
+            <form method="post" action="{% url 'admin_panel:rental_booking_status' admin_status.booking.pk %}" class="order-detail-status-form">
+                {% csrf_token %}
+                <select name="status" class="form-control">
+                    {% for value, label in rental_update_choices %}
+                        <option value="{{ value }}" {% if admin_status.booking.status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-check"></i> Update
+                </button>
+            </form>
+            {% endif %}
         </div>
     </div>
 
-    
+    {% if has_rental %}
+    <div class="card order-rental-card">
+        <div class="card-header">
+            <h3 class="card-title">Rental Details</h3>
+        </div>
+        <div class="card-body">
+            {% for item in rental_items %}
+            {% with booking=item.rental_booking %}
+            <div class="order-rental-block">
+                <div class="order-detail-info-row">
+                    <span class="order-detail-info-label">Product</span>
+                    <span class="order-detail-info-value">{{ item.product_name }}</span>
+                </div>
+                <div class="order-detail-info-row">
+                    <span class="order-detail-info-label">Rental Period</span>
+                    <span class="order-detail-info-value">
+                        {% if item.rental_start_date and item.rental_end_date %}
+                            {{ item.rental_start_date|date:"d M, Y" }} – {{ item.rental_end_date|date:"d M, Y" }}
+                        {% elif booking %}
+                            {{ booking.rental_start_date|date:"d M, Y" }} – {{ booking.rental_end_date|date:"d M, Y" }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </span>
+                </div>
+                {% if booking and booking.total_days %}
+                <div class="order-detail-info-row">
+                    <span class="order-detail-info-label">Duration</span>
+                    <span class="order-detail-info-value">{{ booking.total_days }} day{{ booking.total_days|pluralize }}</span>
+                </div>
+                {% endif %}
+                {% if item.rental_snapshot %}
+                <div class="order-detail-info-row">
+                    <span class="order-detail-info-label">Rental Term</span>
+                    <span class="order-detail-info-value">{{ item.rental_snapshot }}</span>
+                </div>
+                {% elif item.rental_billing_period and item.rental_period_count %}
+                <div class="order-detail-info-row">
+                    <span class="order-detail-info-label">Rental Term</span>
+                    <span class="order-detail-info-value">{{ item.rental_period_count }} {{ item.rental_billing_period }}{{ item.rental_period_count|pluralize }}</span>
+                </div>
+                {% endif %}
+                {% if booking %}
+                <div class="order-detail-info-row">
+                    <span class="order-detail-info-label">Rate</span>
+                    <span class="order-detail-info-value">₹{{ booking.price_per_day }} / day</span>
+                </div>
+                <div class="order-detail-info-row">
+                    <span class="order-detail-info-label">Rental Amount</span>
+                    <span class="order-detail-info-value">₹{{ booking.total_amount }}</span>
+                </div>
+                {% if booking.deposit_amount %}
+                <div class="order-detail-info-row">
+                    <span class="order-detail-info-label">Deposit</span>
+                    <span class="order-detail-info-value">₹{{ booking.deposit_amount }}</span>
+                </div>
+                {% endif %}
+                {% if booking.return_condition_notes %}
+                <div class="order-detail-info-row">
+                    <span class="order-detail-info-label">Return Notes</span>
+                    <span class="order-detail-info-value">{{ booking.return_condition_notes }}</span>
+                </div>
+                {% endif %}
+                {% if booking.damage_fee %}
+                <div class="order-detail-info-row">
+                    <span class="order-detail-info-label">Damage Fee</span>
+                    <span class="order-detail-info-value">₹{{ booking.damage_fee }}</span>
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="order-detail-info-row">
+                    <span class="order-detail-info-label">Booking</span>
+                    <span class="order-detail-info-value">Not linked</span>
+                </div>
+                {% endif %}
+            </div>
+            {% endwith %}
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
     <div class="card">
         <div class="card-header">
             <h3 class="card-title">Customer Information</h3>
@@ -118,7 +261,45 @@
             </div>
         </div>
     </div>
+    {% endif %}
 </div>
+
+{% if has_rental %}
+<div class="card mt-3">
+    <div class="card-header">
+        <h3 class="card-title">Customer Information</h3>
+    </div>
+    <div class="card-body">
+        <div class="order-detail-info-row">
+            <span class="order-detail-info-label">Full Name</span>
+            <span class="order-detail-info-value">{{ order.address.full_name }}</span>
+        </div>
+        <div class="order-detail-info-row">
+            <span class="order-detail-info-label">Phone</span>
+            <div class="order-detail-phone-row">
+                <a href="tel:{{ order.address.phone }}">{{ order.address.phone }}</a>
+                <a href="https://wa.me/{{ order.address.phone|whatsapp_number }}" target="_blank" class="order-detail-whatsapp-link" aria-label="WhatsApp customer" title="Chat on WhatsApp">
+                    <i class="fab fa-whatsapp"></i>
+                </a>
+            </div>
+        </div>
+        {% if order.address.email %}
+        <div class="order-detail-info-row">
+            <span class="order-detail-info-label">Email</span>
+            <a href="mailto:{{ order.address.email }}" class="order-detail-info-value">{{ order.address.email }}</a>
+        </div>
+        {% endif %}
+        <div class="order-detail-info-row">
+            <span class="order-detail-info-label">Shipping Address</span>
+            <span class="order-detail-info-value" style="line-height: 1.6; display: block;">
+                {{ order.address.address_line }}<br>
+                {{ order.address.city }}, {{ order.address.state }}<br>
+                {{ order.address.pincode }}
+            </span>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 {% if DELIVERY_INTEGRATED %}
 
@@ -253,7 +434,9 @@
                 <thead>
                     <tr>
                         <th>Product</th>
+                        <th>Type</th>
                         <th>Variant</th>
+                        <th>Rental Period</th>
                         <th>Unit Price</th>
                         <th>Quantity</th>
                         <th>Total</th>
@@ -262,9 +445,64 @@
                 <tbody>
                     {% for item in order.items.all %}
                         <tr>
-                            <td style="font-weight: 500;">{{ item.product_name }}</td>
-                            <td>{{ item.variant_snapshot }}</td>
-                            <td>₹{{ item.unit_price }}</td>
+                            <td>
+                                <div class="order-item-main">
+                                    {% with img_url=item.get_display_image_url %}
+                                        {% if img_url %}
+                                            <img src="{{ img_url }}" alt="{{ item.product_name }}" class="order-item-thumb">
+                                        {% else %}
+                                            <div class="order-item-thumb-placeholder"><i class="fas fa-image"></i></div>
+                                        {% endif %}
+                                    {% endwith %}
+                                    <div style="min-width:0;">
+                                        <div class="order-item-name">{{ item.product_name }}</div>
+                                        {% if item.combo_id %}
+                                            <div class="order-item-sub">Bundle</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                {% if item.line_type == 'rental' %}
+                                    <span class="badge" style="background:#eef2ff;color:#3730a3;">Rental</span>
+                                {% else %}
+                                    <span class="badge badge-secondary">Purchase</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.variant_snapshot %}
+                                    {{ item.variant_snapshot }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.line_type == 'rental' %}
+                                    {% if item.rental_start_date and item.rental_end_date %}
+                                        <div>{{ item.rental_start_date|date:"d M, Y" }} – {{ item.rental_end_date|date:"d M, Y" }}</div>
+                                    {% elif item.rental_booking %}
+                                        <div>{{ item.rental_booking.rental_start_date|date:"d M, Y" }} – {{ item.rental_booking.rental_end_date|date:"d M, Y" }}</div>
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                    {% if item.rental_snapshot %}
+                                        <div class="order-item-sub">{{ item.rental_snapshot }}</div>
+                                    {% elif item.rental_billing_period and item.rental_period_count %}
+                                        <div class="order-item-sub">{{ item.rental_period_count }} {{ item.rental_billing_period }}{{ item.rental_period_count|pluralize }}</div>
+                                    {% endif %}
+                                    {% if item.rental_booking and item.rental_booking.total_days %}
+                                        <div class="order-item-sub">{{ item.rental_booking.total_days }} day{{ item.rental_booking.total_days|pluralize }}</div>
+                                    {% endif %}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            <td>
+                                ₹{{ item.unit_price }}
+                                {% if item.pot_unit_price %}
+                                    <div class="order-item-sub">+ ₹{{ item.pot_unit_price }} pot</div>
+                                {% endif %}
+                            </td>
                             <td>{{ item.quantity }}</td>
                             <td style="font-weight: 600;">₹{{ item.line_total }}</td>
                         </tr>

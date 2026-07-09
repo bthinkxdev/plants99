@@ -13,8 +13,8 @@
         <span class="product-count-badge">{{ products|length }}</span>
       {% endif %}
     </div>
-    <a href="{% url 'admin_panel:rental_bookings' %}" class="btn btn-secondary">
-      <i class="fas fa-calendar-check"></i> Bookings
+    <a href="{% url 'admin_panel:order_list' %}?rental_status=pending" class="btn btn-secondary">
+      <i class="fas fa-shopping-bag"></i> Rental orders
     </a>
   </div>
 

@@ -1,157 +1,146 @@
 {% extends "admin_panel/base.html" %}
+{% load static %}
+
 {% block title %}{{ form_title }}{% endblock %}
+{% block page_title %}{{ form_title }}{% endblock %}
 
 {% block content %}
-<div class="page-header d-flex align-items-center gap-3 mb-4">
-  <a href="{% url 'admin_panel:testimonial_list' %}" class="btn btn-outline-secondary btn-sm">
-    <i class="fas fa-arrow-left"></i>
-  </a>
-  <h1 class="page-title mb-0">{{ form_title }}</h1>
-</div>
-
-<div class="row justify-content-center">
-  <div class="col-lg-7 col-xl-6">
-    <div class="card p-4">
-
-      {# Non-field errors #}
-      {% if form.non_field_errors %}
-        <div class="alert alert-danger">
-          {% for e in form.non_field_errors %}{{ e }}{% endfor %}
+<div class="product-listing-card tm-form-page">
+    <div class="product-listing-header">
+        <div class="product-listing-title-group">
+            <h2 class="product-listing-title">{{ form_title }}</h2>
         </div>
-      {% endif %}
-
-      <form method="post" enctype="multipart/form-data" novalidate>
-        {% csrf_token %}
-
-        {# ── Name ─────────────────────────────────────────────────────── #}
-        <div class="mb-3">
-          <label class="form-label fw-semibold" for="{{ form.name.id_for_label }}">
-            Customer Name <span class="text-danger">*</span>
-          </label>
-          {{ form.name }}
-          {% if form.name.errors %}
-            <div class="invalid-feedback d-block">{{ form.name.errors.0 }}</div>
-          {% endif %}
-        </div>
-
-        {# ── Photo ────────────────────────────────────────────────────── #}
-        <div class="mb-3">
-          <label class="form-label fw-semibold">
-            Profile Photo <span class="text-muted fw-normal">(optional)</span>
-          </label>
-
-          {# Preview existing photo on edit #}
-          {% if form.instance.pk and form.instance.photo %}
-          <div class="mb-2 d-flex align-items-center gap-3">
-            <img id="photo-preview"
-                 src="{{ form.instance.photo.url }}"
-                 alt="Current photo"
-                 class="rounded-circle"
-                 style="width:72px;height:72px;object-fit:cover;border:2px solid #dee2e6;">
-            <span class="text-muted small">Current photo</span>
-          </div>
-          {% else %}
-          <div class="mb-2">
-            <img id="photo-preview" src="" alt=""
-                 class="rounded-circle d-none"
-                 style="width:72px;height:72px;object-fit:cover;border:2px solid #dee2e6;">
-          </div>
-          {% endif %}
-
-          {{ form.photo }}
-          <div class="form-text">Square portrait, min 200 × 200 px. JPG/PNG/WebP, max 5 MB.</div>
-          {% if form.photo.errors %}
-            <div class="invalid-feedback d-block">{{ form.photo.errors.0 }}</div>
-          {% endif %}
-        </div>
-
-        {# ── Rating ───────────────────────────────────────────────────── #}
-        <div class="mb-3">
-          <label class="form-label fw-semibold" for="{{ form.rating.id_for_label }}">
-            Star Rating <span class="text-danger">*</span>
-          </label>
-          {{ form.rating }}
-          {% if form.rating.errors %}
-            <div class="invalid-feedback d-block">{{ form.rating.errors.0 }}</div>
-          {% endif %}
-        </div>
-
-        {# ── Description ──────────────────────────────────────────────── #}
-        <div class="mb-3">
-          <label class="form-label fw-semibold" for="{{ form.description.id_for_label }}">
-            Review Text <span class="text-danger">*</span>
-          </label>
-          {{ form.description }}
-          {% if form.description.errors %}
-            <div class="invalid-feedback d-block">{{ form.description.errors.0 }}</div>
-          {% endif %}
-        </div>
-
-        {# ── Toggles row ──────────────────────────────────────────────── #}
-        <div class="row mb-3">
-          <div class="col-sm-6">
-            <div class="form-check form-switch">
-              {{ form.is_verified }}
-              <label class="form-check-label" for="{{ form.is_verified.id_for_label }}">
-                Verified Buyer
-              </label>
-            </div>
-          </div>
-          <div class="col-sm-6">
-            <div class="form-check form-switch">
-              {{ form.is_active }}
-              <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
-                Active (show on site)
-              </label>
-            </div>
-          </div>
-        </div>
-
-        {# ── Display order ─────────────────────────────────────────────── #}
-        <div class="mb-4">
-          <label class="form-label fw-semibold" for="{{ form.display_order.id_for_label }}">
-            Display Order
-          </label>
-          {{ form.display_order }}
-          <div class="form-text">Lower number = shown first. Default 0.</div>
-          {% if form.display_order.errors %}
-            <div class="invalid-feedback d-block">{{ form.display_order.errors.0 }}</div>
-          {% endif %}
-        </div>
-
-        {# ── Actions ──────────────────────────────────────────────────── #}
-        <div class="d-flex gap-2">
-          <button type="submit" class="btn btn-primary">
-            <i class="fas fa-save me-1"></i>
-            {% if form.instance.pk %}Save changes{% else %}Create testimonial{% endif %}
-          </button>
-          <a href="{% url 'admin_panel:testimonial_list' %}" class="btn btn-outline-secondary">
-            Cancel
-          </a>
-        </div>
-
-      </form>
+        <a href="{% url 'admin_panel:testimonial_list' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back to list
+        </a>
     </div>
-  </div>
-</div>
-{% endblock %}
 
-{% block extra_js %}
-{{ block.super }}
-<script>
-/* Live photo preview */
-document.getElementById('{{ form.photo.id_for_label }}')
-  ?.addEventListener('change', function () {
-    const preview = document.getElementById('photo-preview');
-    if (!preview) return;
-    if (this.files && this.files[0]) {
-      const reader = new FileReader();
-      reader.onload = e => {
-        preview.src = e.target.result;
-        preview.classList.remove('d-none');
-      };
-      reader.readAsDataURL(this.files[0]);
-    }
-  });
-</script>
+    <div class="product-listing-body" style="padding: 1.5rem;">
+        <form method="post" enctype="multipart/form-data" id="testimonial-form" class="admin-form" novalidate>
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <div class="tm-form-layout">
+                <div class="tm-form-main">
+                    <div class="admin-form-section">
+                        <h3 class="admin-form-section-title">Customer</h3>
+                        <div class="form-group">
+                            <label class="form-label" for="{{ form.name.id_for_label }}">Name <span class="text-danger">*</span></label>
+                            {{ form.name }}
+                            {% for e in form.name.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Profile photo <span class="form-hint" style="display:inline;margin:0;">(optional)</span></label>
+                            <div class="tm-photo-upload">
+                                <div class="tm-photo-preview-wrap" id="tm-photo-preview-wrap">
+                                    {% if form.instance.pk and form.instance.photo %}
+                                        <img src="{{ form.instance.photo.url }}" alt="" id="tm-photo-preview" class="tm-photo-preview">
+                                    {% else %}
+                                        <div id="tm-photo-initials" class="tm-photo-initials">{{ form.instance.name|first|default:"?"|upper }}</div>
+                                        <img src="" alt="" id="tm-photo-preview" class="tm-photo-preview" style="display:none;">
+                                    {% endif %}
+                                </div>
+                                <div class="tm-photo-upload-body">
+                                    {{ form.photo }}
+                                    <p class="form-hint" style="margin-top:0.5rem;">Square portrait, min 200×200 px. JPG, PNG or WebP, max 5 MB.</p>
+                                    {% for e in form.photo.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="admin-form-section">
+                        <h3 class="admin-form-section-title">Review</h3>
+                        <div class="form-group">
+                            <label class="form-label">Star rating <span class="text-danger">*</span></label>
+                            <div class="tm-star-picker" id="tm-star-picker" role="radiogroup" aria-label="Star rating">
+                                {% for i in "12345" %}
+                                    <button type="button" class="tm-star-btn" data-value="{{ forloop.counter }}" aria-label="{{ forloop.counter }} stars">
+                                        <span aria-hidden="true">★</span>
+                                    </button>
+                                {% endfor %}
+                            </div>
+                            <div style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">
+                                {{ form.rating }}
+                            </div>
+                            {% for e in form.rating.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="{{ form.description.id_for_label }}">Review text <span class="text-danger">*</span></label>
+                            {{ form.description }}
+                            <div class="form-hint" style="display:flex;justify-content:space-between;gap:1rem;">
+                                <span>Shown on the homepage testimonial carousel.</span>
+                                <span id="tm-desc-count">0 / 2000</span>
+                            </div>
+                            {% for e in form.description.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="admin-form-section">
+                        <h3 class="admin-form-section-title">Visibility</h3>
+                        <div class="admin-form-grid">
+                            <div class="form-group">
+                                <label class="form-label" for="{{ form.display_order.id_for_label }}">Display order</label>
+                                {{ form.display_order }}
+                                <div class="form-hint">Lower numbers appear first on the homepage.</div>
+                                {% for e in form.display_order.errors %}<div class="form-error">{{ e }}</div>{% endfor %}
+                            </div>
+                        </div>
+                        <div class="admin-form-checks tm-form-toggles" style="margin-top:1rem;">
+                            <label class="toggle-wrap" for="{{ form.is_verified.id_for_label }}">
+                                {{ form.is_verified }}
+                                <span class="toggle-track"><span class="toggle-knob"></span></span>
+                                <span>{{ form.is_verified.label }}</span>
+                            </label>
+                            <label class="toggle-wrap" for="{{ form.is_active.id_for_label }}">
+                                {{ form.is_active }}
+                                <span class="toggle-track"><span class="toggle-knob"></span></span>
+                                <span>{{ form.is_active.label }}</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <aside class="tm-preview-aside">
+                    <div class="tm-preview-label">Homepage preview</div>
+                    <article class="tm-preview-card" id="tm-preview-card">
+                        <div class="tm-preview-stars" id="tm-preview-stars" aria-hidden="true">★★★★★</div>
+                        <p class="tm-preview-text" id="tm-preview-text">{{ form.instance.description|default:"Customer review appears here…" }}</p>
+                        <div class="tm-preview-author">
+                            <div class="tm-preview-avatar" id="tm-preview-avatar">
+                                {% if form.instance.pk and form.instance.photo %}
+                                    <img src="{{ form.instance.photo.url }}" alt="" id="tm-preview-avatar-img">
+                                {% else %}
+                                    <span id="tm-preview-initials">{{ form.instance.name|first|default:"?"|upper }}</span>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <div class="tm-preview-name" id="tm-preview-name">{{ form.instance.name|default:"Customer name" }}</div>
+                                <div class="tm-preview-badge" id="tm-preview-badge"{% if not form.instance.is_verified and form.instance.pk %} style="display:none;"{% endif %}>
+                                    <i class="fas fa-check-circle"></i> Verified buyer
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tm-preview-meta" id="tm-preview-meta">
+                            {% if form.instance.is_active or not form.instance.pk %}Visible on homepage{% else %}Hidden from homepage{% endif %}
+                        </div>
+                    </article>
+                </aside>
+            </div>
+
+            <div class="combo-form-footer">
+                <a href="{% url 'admin_panel:testimonial_list' %}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-check"></i>
+                    {% if form.instance.pk %}Save changes{% else %}Add testimonial{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+<script src="{% static 'js/testimonial_form.js' %}"></script>
 {% endblock %}

@@ -17,6 +17,7 @@
                 <p class="hc-hero__subtitle">{{ hc.description|linebreaksbr }}</p>
                 {% endif %}
             </div>
+            {% if block.products %}
             <div class="hc-hero__carousel">
                 <div class="hc-hero__carousel-scroll">
                     <div class="owl-carousel productList-carousel hc-hero-carousel">
@@ -28,6 +29,7 @@
                     </div>
                 </div>
             </div>
+            {% endif %}
         </div>
     </div>
 </section>

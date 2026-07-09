@@ -1,7 +1,70 @@
-from django.db.models import OuterRef, Subquery, Q
+from django.db.models import OuterRef, Subquery, Q, Prefetch
 from ..models import Combo, Variant
 from .category_tree import category_filter_ids_for_slug
 from .combo_catalog import combo_is_in_stock, prefetch_combo_items
+
+
+def pick_listing_variant(variants):
+    """Prefer cheapest in-stock variant; fall back to cheapest active variant."""
+    active = [v for v in variants if getattr(v, 'is_active', True)]
+    if not active:
+        return None, False
+    in_stock = [v for v in active if (v.stock_quantity or 0) > 0]
+    pool = in_stock if in_stock else active
+    chosen = min(pool, key=lambda v: (v.price, v.display_order, v.id))
+    return chosen, bool(in_stock)
+
+
+def attach_product_card_display(product, variants_attr='listing_variants'):
+    """Set primary_variant, lowest_price, and card_in_stock for storefront cards."""
+    variants = list(getattr(product, variants_attr, None) or [])
+    pv, in_stock = pick_listing_variant(variants)
+    if pv:
+        product.primary_variant = pv
+        product.lowest_price = pv.price
+        product.card_in_stock = in_stock
+        return True
+    if getattr(product, 'is_combo_product', False) and product.base_price is not None:
+        product.primary_variant = None
+        product.lowest_price = product.base_price
+        product.card_in_stock = combo_is_in_stock(product, multiplier=1)
+        return True
+    if getattr(product, 'is_rent_available', False):
+        cfg = getattr(product, 'rental_config', None)
+        rent_price = getattr(cfg, 'rent_price_per_day', None) if cfg else None
+        if rent_price is not None or product.base_price is not None:
+            product.primary_variant = None
+            product.lowest_price = product.base_price or rent_price
+            product.card_in_stock = True
+            return True
+    if product.base_price is not None:
+        product.primary_variant = None
+        product.lowest_price = product.base_price
+        product.card_in_stock = (product.base_stock or 0) > 0
+        return True
+    return False
+
+
+def listing_variant_prefetch():
+    qs = (
+        Variant.objects.filter(is_active=True)
+        .prefetch_related('images')
+        .order_by('display_order', 'id')
+    )
+    return Prefetch('variants', queryset=qs, to_attr='listing_variants')
+
+
+def listing_variant_base_qs():
+    """Active variants for shop listing (includes out-of-stock)."""
+    return (
+        Variant.objects.filter(
+            is_active=True,
+            product__is_active=True,
+        )
+        .select_related('product', 'product__category', 'product__rental_config')
+        .prefetch_related('images')
+    )
+
 
 def active_variant_qs():
     """
@@ -100,8 +163,12 @@ def collection_combo_cards(request):
         qs = qs.order_by('-updated_at', '-id')
     cards = []
     for c in qs:
-        if c.price and combo_is_in_stock(c, multiplier=1):
-            cards.append({'kind': 'combo', 'combo': c})
+        if c.price:
+            cards.append({
+                'kind': 'combo',
+                'combo': c,
+                'in_stock': combo_is_in_stock(c, multiplier=1),
+            })
     return cards
  
  
@@ -111,7 +178,7 @@ def collection_combo_cards(request):
  
 def collection_card_items(request, paginate_by=12):
     """
-    Returns one card-dict per product (cheapest in-stock variant chosen).
+    Returns one card-dict per product (cheapest listing variant chosen; includes out-of-stock).
  
     BEFORE: fetched ALL variants into Python, deduped with a seen-set.
             At 5 000 variants that's 5 000 ORM rows deserialized every request.
@@ -140,7 +207,6 @@ def collection_card_items(request, paginate_by=12):
     base_qs = Variant.objects.filter(
         is_active=True,
         product__is_active=True,
-        stock_quantity__gt=0,
     )
  
     if rent_only:
@@ -200,7 +266,12 @@ def collection_card_items(request, paginate_by=12):
     )
  
     cards = [
-        {'kind': 'variant', 'variant': v, 'is_jewellery': False}
+        {
+            'kind': 'variant',
+            'variant': v,
+            'is_jewellery': False,
+            'in_stock': (v.stock_quantity or 0) > 0,
+        }
         for v in winner_qs
     ]
     return cards

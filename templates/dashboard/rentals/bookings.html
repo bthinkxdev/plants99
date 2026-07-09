@@ -45,6 +45,11 @@
                 <div style="font-size:0.8rem;color:var(--gray-500);">
                   {{ b.rental_start_date }} → {{ b.rental_end_date }} · {{ b.total_days }} day(s) · ₹{{ b.total_amount }}
                 </div>
+                {% if b.order_item and b.order_item.variant_snapshot %}
+                <div style="font-size:0.8rem;color:var(--gray-500);">
+                  {{ b.order_item.variant_snapshot }}
+                </div>
+                {% endif %}
                 <div style="font-size:0.8rem;color:var(--gray-500);">
                   Order: {% if b.order_item and b.order_item.order %}{{ b.order_item.order.order_number }}{% else %}—{% endif %}
                   · User: {% if b.user %}{{ b.user.username|default:b.user.email }}{% else %}Guest{% endif %}

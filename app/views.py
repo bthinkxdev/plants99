@@ -20,9 +20,17 @@ logger = logging.getLogger(__name__)
 from .auth_decorators import LoginRequiredForActionMixin
 from .forms import CartAddForm, CartUpdateForm, CheckoutForm, ContactForm, NewsletterForm, ReviewForm
 from .models import Banner, CartItem, Category, Combo, ComboItem, HomeCategory, HomeCategoryProduct, Order, OrderItem, Payment, Product, ProductComboItem, Reel, Review, Variant, Cart, Wishlist, Shipment, Testimonial
-from .services import CartError, CartService, OrderService, StockError, send_order_confirmation_email_async
+from .services import CartError, CartService, OrderService, StockError, decrement_stock_for_order_item, send_order_confirmation_email_async
+from .services.cart_order import (
+    format_cart_delivery_error,
+    format_cart_stock_error,
+    cart_product_ids_for_delivery,
+    get_cart_delivery_issues,
+    get_cart_stock_issues,
+)
+from .services.state_delivery_service import resolve_delivery_state_id
 from .services.product_service import ProductDetailService, get_pdp_queryset
-from .services.catalog import active_variant_qs, apply_plant_filters_to_product_qs, apply_plant_filters_to_variant_qs, collection_card_items, collection_combo_cards
+from .services.catalog import active_variant_qs, apply_plant_filters_to_product_qs, apply_plant_filters_to_variant_qs, attach_product_card_display, collection_card_items, collection_combo_cards, listing_variant_prefetch
 from .services.category_tree import build_active_category_tree, category_filter_ids_for_slug
 from .wishlist_utils import (
     get_guest_wishlist_product_ids,
@@ -45,30 +53,12 @@ _SHOP_CACHE_TTL = getattr(settings, 'SHOP_CACHE_TTL', 60)
 
 
 def _build_product_cards(products_iterable, limit: int):
-    """
-    Given an iterable of Product objects (already fetched), attach
-    primary_variant / lowest_price and return up to `limit` cards.
-    Pure Python — no extra DB queries.
-    """
+    """Attach display variant/stock flags and return up to `limit` listable product cards."""
     cards = []
     for product in products_iterable:
         if len(cards) >= limit:
             break
-        variants = list(getattr(product, 'sellable_variants', []) or [])
-        if variants:
-            primary_variant = min(variants, key=lambda v: (v.price, v.display_order, v.id))
-            product.primary_variant = primary_variant
-            product.lowest_price = primary_variant.price
-            cards.append(product)
-        elif getattr(product, 'is_combo_product', False):
-            from .services.rental_catalog import combo_is_in_stock
-            if combo_is_in_stock(product, multiplier=1) and product.base_price is not None:
-                product.primary_variant = None
-                product.lowest_price = product.base_price
-                cards.append(product)
-        elif getattr(product, 'base_stock', 0) and product.base_stock > 0:
-            product.primary_variant = None
-            product.lowest_price = product.base_price
+        if attach_product_card_display(product):
             cards.append(product)
     return cards
  
@@ -92,23 +82,15 @@ def _load_home_product_data():
     Result: ~3 DB queries total for the entire product data layer (was 15+).
     Cached for HOME_CACHE_TTL seconds (default 120 s).
     """
-    CACHE_KEY = 'home_product_data_v1'
+    CACHE_KEY = 'home_product_data_v2'
     cached = _cache.get(CACHE_KEY)
     if cached is not None:
         return cached
- 
-    # ── Shared variant prefetch ──
-    sellable_variants_qs = (
-        Variant.objects.filter(is_active=True, stock_quantity__gt=0)
-        .prefetch_related('images')
-        .order_by('display_order', 'id')
-    )
-    variant_pf = Prefetch('variants', queryset=sellable_variants_qs, to_attr='sellable_variants')
- 
-    # ── ONE master product fetch ──
-    # Fetch 200 products ordered newest-first; Python handles all section splits.
+
+    variant_pf = listing_variant_prefetch()
+
     all_products = list(
-        Product.objects.available()
+        Product.objects.active()
         .select_related('category', 'rental_config')
         .prefetch_related(variant_pf)
         .order_by('-created_at')[:200]
@@ -175,30 +157,52 @@ def _load_home_product_data():
             .order_by('display_order', 'name', 'id')
         )
  
-        # Batch: collect all needed product PKs
-        section_meta = []   # (hc, [ordered_product_ids])
+        # Resolve product IDs per section: curated links first, then shop-category fallback.
+        hc_product_ids = {}
         all_needed_pks = set()
+        cats_needing_fallback = set()
         for hc in active_home_cats:
             links = [lnk for lnk in hc.home_category_products.all() if lnk.product and lnk.product.is_active]
             ordered_ids = [lnk.product_id for lnk in links]
-            if ordered_ids:
-                section_meta.append((hc, ordered_ids))
-                all_needed_pks.update(ordered_ids)
- 
-        # ONE product query for all home-category sections combined
+            if not ordered_ids and hc.linked_category_id:
+                cats_needing_fallback.add(hc.linked_category_id)
+            hc_product_ids[hc.pk] = ordered_ids
+            all_needed_pks.update(ordered_ids)
+
+        fallback_by_cat = {}
+        if cats_needing_fallback:
+            fallback_qs = (
+                Product.objects.filter(is_active=True, category_id__in=cats_needing_fallback)
+                .order_by('category_id', '-created_at')
+            )
+            for p in fallback_qs:
+                bucket = fallback_by_cat.setdefault(p.category_id, [])
+                if len(bucket) < 16:
+                    bucket.append(p.pk)
+            for hc in active_home_cats:
+                if not hc_product_ids[hc.pk] and hc.linked_category_id:
+                    fallback_ids = fallback_by_cat.get(hc.linked_category_id, [])
+                    hc_product_ids[hc.pk] = fallback_ids
+                    all_needed_pks.update(fallback_ids)
+
+        hc_by_id = {}
         if all_needed_pks:
             hc_products_qs = list(
                 Product.objects.filter(pk__in=all_needed_pks)
                 .select_related('category')
-                .prefetch_related(variant_pf)
+                .prefetch_related(variant_pf, 'images')
             )
             hc_by_id = {p.pk: p for p in hc_products_qs}
- 
-            for hc, ordered_ids in section_meta:
+
+        for hc in active_home_cats:
+            ordered_ids = hc_product_ids.get(hc.pk) or []
+            card_products = []
+            if ordered_ids:
                 sorted_products = [hc_by_id[pk] for pk in ordered_ids if pk in hc_by_id]
                 card_products = _build_product_cards(sorted_products, 16)
-                if card_products:
-                    home_category_sections.append({'home_category': hc, 'products': card_products})
+            # Show hero when there is a banner; carousel only when we have displayable products.
+            if card_products or hc.link_url or hc.linked_category_id:
+                home_category_sections.append({'home_category': hc, 'products': card_products})
     except Exception as hc_exc:
         logger.error('Error building home category sections: %s', hc_exc, exc_info=True)
  
@@ -249,10 +253,12 @@ def _load_home_product_data():
  
  
 def _cheapest_price(product):
-    """Return the minimum sellable price for a product (Python-only, no DB)."""
-    variants = list(getattr(product, 'sellable_variants', []) or [])
+    """Return the minimum display price for a product (Python-only, no DB)."""
+    variants = list(getattr(product, 'listing_variants', None) or getattr(product, 'sellable_variants', []) or [])
     if variants:
-        return min(v.price for v in variants)
+        active = [v for v in variants if getattr(v, 'is_active', True)]
+        if active:
+            return min(v.price for v in active)
     return product.base_price
  
  
@@ -353,10 +359,7 @@ def _load_shop_categories():
         return cached
     qs = (
         Category.objects.filter(is_active=True, parent__isnull=True)
-        .filter(
-            Q(products__is_active=True, products__variants__is_active=True, products__variants__stock_quantity__gt=0)
-            | Q(products__is_active=True, products__variants__isnull=True, products__base_stock__gt=0)
-        )
+        .filter(products__is_active=True)
         .distinct()
         .order_by('name')[:8]
     )
@@ -600,7 +603,7 @@ class ProductListView(ListView):
             simple_qs = (
                 Product.objects.active()
                 .filter(variants__isnull=True)
-                .filter(Q(base_stock__gt=0) | Q(is_combo_product=True))
+                .exclude(base_price__isnull=True)
                 .select_related('category')
                 .prefetch_related('images')
             )
@@ -631,6 +634,8 @@ class ProductListView(ListView):
             else:
                 simple_qs = simple_qs.order_by('-created_at', 'name', 'id')
             context['simple_products']     = list(simple_qs)
+            for product in context['simple_products']:
+                attach_product_card_display(product)
             context['total_product_count'] = (
                 len(context.get('card_items', [])) + len(context['simple_products'])
             )
@@ -1493,6 +1498,84 @@ def _redirect_open_cart():
     return redirect(reverse('store:home') + '?open_cart=1')
 
 
+def _cart_stock_context(cart):
+    issues = CartService.get_cart_stock_issues_for(cart)
+    issue_map = {issue.item_id: issue for issue in issues}
+    return {
+        'cart_stock_issues': issues,
+        'cart_stock_issue_map': issue_map,
+        'checkout_blocked': bool(issues),
+        'checkout_stock_summary': format_cart_stock_error(issues) if issues else '',
+    }
+
+
+def _checkout_items_queryset(cart):
+    return cart.items.select_related(
+        'product', 'combo', 'selected_variant', 'selected_pot',
+    ).prefetch_related('combo__items__product', 'selected_variant__images', 'product__images')
+
+
+def _checkout_guard_context(cart, addresses=None, active_address=None):
+    stock_ctx = _cart_stock_context(cart)
+    items = list(_checkout_items_queryset(cart))
+    state_id = None
+    if active_address:
+        state_id = resolve_delivery_state_id(
+            delivery_state=active_address.delivery_state,
+            state_text=active_address.state,
+        )
+
+    delivery_issues = get_cart_delivery_issues(items, state_id) if state_id else []
+    address_delivery = {}
+    if addresses:
+        for addr in addresses:
+            addr_state_id = resolve_delivery_state_id(
+                delivery_state=addr.delivery_state,
+                state_text=addr.state,
+            )
+            addr_issues = get_cart_delivery_issues(items, addr_state_id) if addr_state_id else []
+            address_delivery[str(addr.pk)] = {
+                'state_id': addr_state_id,
+                'blocked': bool(addr_issues),
+                'message': format_cart_delivery_error(addr_issues),
+            }
+
+    summary_parts = []
+    if stock_ctx['checkout_stock_summary']:
+        summary_parts.append(stock_ctx['checkout_stock_summary'])
+    delivery_summary = format_cart_delivery_error(delivery_issues)
+    if delivery_summary:
+        summary_parts.append(delivery_summary)
+
+    blocked = stock_ctx['checkout_blocked'] or bool(delivery_issues)
+    return {
+        **stock_ctx,
+        'checkout_blocked': blocked,
+        'checkout_delivery_issues': delivery_issues,
+        'checkout_delivery_summary': delivery_summary,
+        'checkout_summary': ' '.join(summary_parts),
+        'checkout_address_delivery': address_delivery,
+        'active_delivery_state_id': state_id,
+    }
+
+
+def _checkout_form_kwargs(request, cart, user, initial=None):
+    items = list(_checkout_items_queryset(cart))
+    kwargs = {
+        'user': user,
+        'cart_product_ids': cart_product_ids_for_delivery(cart),
+        'cart_items': items,
+    }
+    if initial is not None:
+        kwargs['initial'] = initial
+    return kwargs
+
+
+def _checkout_lines(cart, items):
+    issue_map = _cart_stock_context(cart)['cart_stock_issue_map']
+    return [{'item': item, 'stock_issue': issue_map.get(item.id)} for item in items]
+
+
 class CartPageGoneRedirect(View):
     """Legacy /cart/ URLs: open side cart on home instead of a full cart page."""
 
@@ -1667,7 +1750,13 @@ class UpdateCartItemView(View):
             cart = CartService.get_or_create_cart(request)
             totals = CartService.compute_totals(cart)
             item_count = sum((line.quantity for line in cart.items.all()))
-            return JsonResponse({'success': True, 'total': str(totals.subtotal), 'cart_count': item_count})
+            item.refresh_from_db()
+            return JsonResponse({
+                'success': True,
+                'total': str(totals.subtotal),
+                'cart_count': item_count,
+                'line_total': str(item.line_total),
+            })
         return _redirect_open_cart()
 
 class RemoveCartItemView(View):
@@ -1714,7 +1803,11 @@ class CheckoutView(TemplateView):
             initial = {}
             if user:
                 from .models import Address
-                addresses = list(Address.objects.filter(user=user, is_snapshot=False).order_by('-is_default', '-created_at'))
+                addresses = list(
+                    Address.objects.filter(user=user, is_snapshot=False)
+                    .select_related('delivery_state')
+                    .order_by('-is_default', '-created_at')
+                )
                 default_address = next((a for a in addresses if a.is_default), addresses[0] if addresses else None)
                 payment_method = self.request.GET.get('payment')
                 if payment_method in ('cod', 'razorpay'):
@@ -1725,19 +1818,21 @@ class CheckoutView(TemplateView):
                 payment_method = self.request.GET.get('payment')
                 if payment_method in ('cod', 'razorpay'):
                     initial['payment'] = payment_method
+            items = _checkout_items_queryset(cart)
+            guard_ctx = _checkout_guard_context(cart, addresses=addresses, active_address=default_address)
             context.update({
                 'captcha_site_key': settings.CAPTCHA_SITE_KEY,
                 'cart': cart,
-                'items': cart.items.select_related('product', 'combo', 'selected_variant').prefetch_related(
-                    'selected_variant__images', 'product__images', 'combo__items__product'
-                ),
+                'items': items,
+                'checkout_lines': _checkout_lines(cart, items),
                 'totals': totals,
-                'form': CheckoutForm(initial=initial, user=user),
+                'form': CheckoutForm(**_checkout_form_kwargs(self.request, cart, user, initial=initial)),
                 'addresses': addresses,
                 'default_address': default_address,
                 'is_guest_checkout': user is None,
                 'active_page': 'checkout',
             })
+            context.update(guard_ctx)
             return context
         except Exception as e:
             logger.error(f'Error in CheckoutView.get_context_data: {str(e)}', exc_info=True)
@@ -1759,7 +1854,9 @@ class OrderCreateView(FormView):
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
-        kwargs['user'] = self.request.user if self.request.user.is_authenticated else None
+        cart = CartService.get_or_create_cart(self.request)
+        user = self.request.user if self.request.user.is_authenticated else None
+        kwargs.update(_checkout_form_kwargs(self.request, cart, user))
         return kwargs
 
     def get_context_data(self, **kwargs):
@@ -1771,19 +1868,24 @@ class OrderCreateView(FormView):
         default_address = None
         if user:
             from .models import Address
-            addresses = list(Address.objects.filter(user=user, is_snapshot=False).order_by('-is_default', '-created_at'))
+            addresses = list(
+                Address.objects.filter(user=user, is_snapshot=False)
+                .select_related('delivery_state')
+                .order_by('-is_default', '-created_at')
+            )
             default_address = next((a for a in addresses if a.is_default), addresses[0] if addresses else None)
+        items = _checkout_items_queryset(cart)
         context.update({
             'cart': cart,
-            'items': cart.items.select_related('product', 'combo', 'selected_variant').prefetch_related(
-                'selected_variant__images', 'product__images', 'combo__items__product'
-            ),
+            'items': items,
+            'checkout_lines': _checkout_lines(cart, items),
             'totals': totals,
             'addresses': addresses,
             'default_address': default_address,
             'is_guest_checkout': user is None,
             'active_page': 'checkout',
         })
+        context.update(_checkout_guard_context(cart, addresses=addresses, active_address=default_address))
         return context
 
     def form_valid(self, form):
@@ -1803,7 +1905,7 @@ class OrderCreateView(FormView):
             order = OrderService.create_order(cart, form.cleaned_data, user=order_user, clear_cart=True)
         except (CartError, StockError) as exc:
             messages.error(self.request, str(exc))
-            return redirect('store:checkout')
+            return redirect(reverse('store:checkout') + '?stock_issue=1')
         send_order_confirmation_email_async(order)
         self.request.session['last_order_number'] = order.order_number
         return redirect('store:order_success', order_number=order.order_number)
@@ -1829,11 +1931,13 @@ class CreateRazorpayOrderView(View):
         #     return JsonResponse({'status': 'error', 'message': msg}, status=400)
 
         user = request.user if request.user.is_authenticated else None
-        cart_product_ids = list(
-            cart.items.filter(product__isnull=False)
-            .values_list('product_id', flat=True)
+        items = list(_checkout_items_queryset(cart))
+        form = CheckoutForm(
+            request.POST,
+            user=user,
+            cart_product_ids=cart_product_ids_for_delivery(cart),
+            cart_items=items,
         )
-        form = CheckoutForm(request.POST, user=user, cart_product_ids=cart_product_ids)
         if not form.is_valid():
             # TEMPORARY: log full errors to find root cause
             logger.error('CreateRazorpayOrderView form errors: %s', form.errors.as_json())
@@ -1849,30 +1953,18 @@ class CreateRazorpayOrderView(View):
             return JsonResponse({'status': 'error', 'message': 'Invalid payment method.'}, status=400)
         try:
             with transaction.atomic():
-                items = list(cart.items.select_related('selected_variant', 'product', 'combo').select_for_update(of=('self',)).all())
+                items = list(
+                    cart.items.select_related('selected_variant', 'product', 'combo', 'selected_pot')
+                    .select_for_update(of=('self',)).all()
+                )
                 if not items:
                     return JsonResponse({'status': 'error', 'message': 'Cart is empty.'}, status=400)
-                from .services.rental_catalog import combo_is_in_stock
-                from .services.combo_catalog import combo_is_in_stock as combo_bundle_in_stock
-                for item in items:
-                    if item.combo_id:
-                        c = item.combo
-                        if not combo_bundle_in_stock(c, multiplier=item.quantity):
-                            return JsonResponse({'status': 'error', 'message': f'{c.name} is out of stock.'}, status=400)
-                        continue
-                    product = item.product
-                    if getattr(product, 'is_combo_product', False):
-                        if not combo_is_in_stock(product, multiplier=item.quantity):
-                            return JsonResponse({'status': 'error', 'message': f'{product.name} is out of stock.'}, status=400)
-                        continue
-                    v = item.selected_variant
-                    if v:
-                        if (v.stock_quantity or 0) < item.quantity:
-                            return JsonResponse({'status': 'error', 'message': f'{item.product.name} is out of stock.'}, status=400)
-                    elif product.has_variants():
-                        return JsonResponse({'status': 'error', 'message': 'Invalid cart item.'}, status=400)
-                    elif not item.product_id or (item.product.base_stock or 0) < item.quantity:
-                        return JsonResponse({'status': 'error', 'message': f"{(item.product.name if item.product_id else 'Product')} is out of stock."}, status=400)
+                issues = get_cart_stock_issues(items)
+                if issues:
+                    return JsonResponse(
+                        {'status': 'error', 'message': format_cart_stock_error(issues)},
+                        status=400,
+                    )
                 order = OrderService.create_order(cart, cleaned, user=user, clear_cart=False)
                 order.status = Order.Status.PLACED
                 order.save(update_fields=['status'])
@@ -2054,28 +2146,13 @@ class RazorpayPaymentVerifyView(View):
                 old_status = order.status
                 order.status = Order.Status.CONFIRMED
                 order.save(update_fields=['status'])
-                for item in order.items.select_related('product', 'selected_variant', 'combo').prefetch_related('product__combo_components', 'combo__items').all():
-                    if item.combo_id:
-                        for row in item.combo.items.all():
-                            dec = item.quantity * int(row.quantity or 1)
-                            Product.objects.filter(pk=row.product_id).update(base_stock=F('base_stock') - dec)
-                        continue
-                    product = item.product
-                    if getattr(product, 'is_combo_product', False):
-                        for row in product.combo_components.all():
-                            dec = item.quantity * row.quantity
-                            Product.objects.filter(pk=row.component_product_id).update(base_stock=F('base_stock') - dec)
-                    elif item.selected_variant_id:
-                        Variant.objects.filter(pk=item.selected_variant_id).update(stock_quantity=F('stock_quantity') - item.quantity)
-                    else:
-                        Product.objects.filter(pk=product.pk).update(base_stock=F('base_stock') - item.quantity)
+                for item in order.items.select_related('product', 'selected_variant', 'combo').prefetch_related(
+                    'product__combo_components',
+                    'combo__items',
+                ).all():
+                    decrement_stock_for_order_item(item)
                 cart = CartService.get_or_create_cart(request)
                 if cart.items.exists():
-                    for cart_item in cart.items.select_related('selected_pot').all():
-                        if cart_item.selected_pot_id:
-                            Product.objects.filter(pk=cart_item.selected_pot_id).update(
-                                base_stock=F('base_stock') - cart_item.quantity
-                            )
                     cart.status = Cart.Status.ORDERED
                     cart.save(update_fields=['status'])
                     cart.items.all().delete()
@@ -2140,59 +2217,86 @@ class CartDrawerView(View):
     def get(self, request, *args, **kwargs):
         try:
             cart = CartService.get_or_create_cart(request)
-            items_qs = cart.items.select_related('product', 'combo', 'selected_variant').prefetch_related('selected_variant__images', 'combo__items__product').all()
+            items_qs = cart.items.select_related(
+                'product', 'combo', 'selected_variant', 'selected_pot',
+            ).prefetch_related(
+                'selected_variant__images', 'combo__items__product',
+            ).all()
+            items_qs = list(items_qs)
+            stock_issues = get_cart_stock_issues(items_qs)
+            issue_map = {issue.item_id: issue for issue in stock_issues}
             items_data = []
             for item in items_qs:
                 image_url = None
-                if item.combo_id:
-                    try:
-                        raw = item.get_display_image_url()
-                        if raw:
-                            image_url = request.build_absolute_uri(raw) if raw.startswith('/') else raw
-                    except Exception:
-                        pass
-                    variant_display = item.variant_display or 'Bundle'
-                    unit_price = item.unit_price
-                    product_url = request.build_absolute_uri(reverse('store:combo_detail', kwargs={'slug': item.combo.slug}))
-                    items_data.append({'id': item.id, 'name': item.combo.name, 'variant_display': variant_display, 'unit_price': str(unit_price or 0), 'quantity': item.quantity, 'image': image_url or '', 'product_url': product_url})
-                    continue
-                if item.selected_variant:
-                    for img in item.selected_variant.images.filter(image__isnull=False).exclude(image='').order_by('-is_primary', 'display_order', 'id'):
-                        try:
-                            raw = img.image.url
-                            if raw:
-                                image_url = request.build_absolute_uri(raw) if raw.startswith('/') else raw
-                                break
-                        except Exception:
-                            pass
-                else:
-                    try:
-                        card_images = item.product.get_card_image_urls(limit=1)
-                        if card_images:
-                            url = card_images[0]
-                            image_url = request.build_absolute_uri(url) if url.startswith('/') else url
-                    except Exception:
-                        pass
+                try:
+                    raw = item.get_display_image_url()
+                    if raw:
+                        image_url = request.build_absolute_uri(raw) if raw.startswith('/') else raw
+                except Exception:
+                    pass
                 variant_display = ''
                 try:
                     variant_display = item.variant_display or ''
                 except Exception:
-                    if item.selected_variant:
-                        try:
-                            variant_display = item.selected_variant.get_attribute_values_display()
-                        except Exception:
-                            pass
-                unit_price = item.unit_price
-                if item.product and item.selected_variant_id:
-                    product_url = request.build_absolute_uri(f'/products/{item.product.slug}/?variant={item.selected_variant_id}')
+                    pass
+                if item.combo_id:
+                    product_url = request.build_absolute_uri(reverse('store:combo_detail', kwargs={'slug': item.combo.slug}))
+                    name = item.combo.name
                 elif item.product:
-                    product_url = request.build_absolute_uri(f'/products/{item.product.slug}/')
+                    if item.selected_variant_id:
+                        product_url = request.build_absolute_uri(
+                            f'/products/{item.product.slug}/?variant={item.selected_variant_id}'
+                        )
+                    else:
+                        product_url = request.build_absolute_uri(f'/products/{item.product.slug}/')
+                    name = item.product.name
                 else:
                     product_url = request.build_absolute_uri('/products/')
-                items_data.append({'id': item.id, 'name': item.product.name if item.product else '', 'variant_display': variant_display, 'unit_price': str(unit_price or 0), 'quantity': item.quantity, 'image': image_url or '', 'product_url': product_url})
+                    name = ''
+                issue = issue_map.get(item.id)
+                max_qty_setting = getattr(settings, 'MAX_CART_QTY', 10)
+                if issue:
+                    if issue.issue in ('insufficient', 'pot_insufficient'):
+                        max_quantity = issue.available_qty
+                    else:
+                        max_quantity = 0
+                else:
+                    max_quantity = max_qty_setting
+                    if item.selected_variant_id and item.selected_variant:
+                        max_quantity = min(max_quantity, int(item.selected_variant.stock_quantity or 0))
+                    elif item.product_id and item.product and not item.combo_id:
+                        if not getattr(item.product, 'is_combo_product', False):
+                            max_quantity = min(max_quantity, int(item.product.base_stock or 0))
+                    if item.selected_pot_id and item.selected_pot:
+                        max_quantity = min(max_quantity, int(item.selected_pot.base_stock or 0))
+                items_data.append({
+                    'id': item.id,
+                    'name': name,
+                    'variant_display': variant_display,
+                    'unit_price': str(item.unit_price or 0),
+                    'pot_unit_price': str(item.pot_unit_price or 0),
+                    'line_total': str(item.line_total),
+                    'quantity': item.quantity,
+                    'image': image_url or '',
+                    'product_url': product_url,
+                    'in_stock': issue is None,
+                    'stock_issue': issue.issue if issue else '',
+                    'stock_message': issue.message if issue else '',
+                    'available_qty': issue.available_qty if issue else max_quantity,
+                    'max_quantity': max_quantity,
+                })
             totals = CartService.compute_totals(cart)
             item_count = sum((i['quantity'] for i in items_data))
-            return JsonResponse({'success': True, 'items': items_data, 'total': str(totals.subtotal), 'subtotal': str(totals.subtotal), 'item_count': item_count})
+            return JsonResponse({
+                'success': True,
+                'items': items_data,
+                'total': str(totals.subtotal),
+                'subtotal': str(totals.subtotal),
+                'item_count': item_count,
+                'has_stock_issues': bool(stock_issues),
+                'checkout_blocked': bool(stock_issues),
+                'stock_summary': format_cart_stock_error(stock_issues) if stock_issues else '',
+            })
         except Exception as exc:
             logger.error('CartDrawerView error: %s', exc, exc_info=True)
             return JsonResponse({'success': False, 'items': [], 'total': '0', 'subtotal': '0', 'item_count': 0})

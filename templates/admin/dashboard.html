@@ -54,10 +54,10 @@
 
 <div class="card mb-3">
     <div class="card-header">
-        <h3 class="card-title">Blog, reels, rental &amp; combos</h3>
+        <h3 class="card-title">Reels, rental &amp; combos</h3>
     </div>
     <div class="card-body" style="font-size: 0.95rem; color: var(--gray-700); line-height: 1.55;">
-        <p class="mb-2"><strong>Blog</strong> and <strong>reels</strong> are managed in this dashboard: <a href="{% url 'admin_panel:blog_list' %}">Blog</a> and <a href="{% url 'admin_panel:reel_list' %}">Reels</a>.</p>
+        <p class="mb-2"><strong>Reels</strong> are managed in this dashboard: <a href="{% url 'admin_panel:reel_list' %}">Reels</a>.</p>
         <p class="mb-2"><strong>Rental</strong> lives under <a href="{% url 'admin_panel:rental_list' %}">Rentals</a> and on each product’s edit page. <strong>Combo bundles</strong> are <a href="{% url 'admin_panel:combo_list' %}">first-class bundles</a>: own name, price, image, and component SKUs (simple products only).</p>
         <p class="mb-0" style="font-size: 0.875rem; color: var(--gray-600);">Legacy SKU-only tasks can still be done in Django admin if needed.</p>
     </div>
@@ -101,7 +101,7 @@
             <h3 class="card-title">Recent Orders</h3>
             <a href="{% url 'admin_panel:order_list' %}" class="btn btn-sm btn-secondary">View All</a>
         </div>
-        <div class="card-body" style="padding: 0;">
+        <div class="card-body has-list-table" style="padding: 0;">
             {% if recent_orders %}
                 
                 <div class="list-cards" style="padding: 0 1rem 1rem;">
@@ -175,7 +175,7 @@
         <div class="card-header">
             <h3 class="card-title">Top Selling Products</h3>
         </div>
-        <div class="card-body" style="padding: 0;">
+        <div class="card-body has-list-table" style="padding: 0;">
             {% if top_products %}
                 
                 <div class="list-cards" style="padding: 0 1rem 1rem;">

@@ -10,8 +10,10 @@
   var emptyEl  = document.getElementById('cdEmpty');
   var badgeEl  = document.getElementById('cdBadge');
   var totalEl  = document.getElementById('cdTotal');
+  var stockAlertEl = document.getElementById('cdStockAlert');
+  var checkoutBtn  = document.getElementById('cdCheckoutBtn');
 
-  if (!drawer) return; 
+  if (!drawer) return;
 
   
   function csrf() {
@@ -52,6 +54,17 @@
   document.querySelectorAll('.header-icon-link[title="Cart"]').forEach(bindOpenCart);
 
   window.cartDrawer = { open: open, close: close };
+
+  if (checkoutBtn) {
+    checkoutBtn.addEventListener('click', function (e) {
+      if (checkoutBtn.classList.contains('cd-btn--disabled')) {
+        e.preventDefault();
+        if (stockAlertEl && !stockAlertEl.hidden) {
+          stockAlertEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }
+    });
+  }
 
   (function maybeOpenFromQuery() {
     try {
@@ -114,6 +127,25 @@
     footerEl.hidden   = false;
     totalEl.textContent = fmtPrice(total);
 
+    if (stockAlertEl) {
+      if (data.checkout_blocked && data.stock_summary) {
+        stockAlertEl.hidden = false;
+        stockAlertEl.textContent = data.stock_summary;
+      } else {
+        stockAlertEl.hidden = true;
+        stockAlertEl.textContent = '';
+      }
+    }
+    if (checkoutBtn) {
+      if (data.checkout_blocked) {
+        checkoutBtn.classList.add('cd-btn--disabled');
+        checkoutBtn.setAttribute('aria-disabled', 'true');
+      } else {
+        checkoutBtn.classList.remove('cd-btn--disabled');
+        checkoutBtn.removeAttribute('aria-disabled');
+      }
+    }
+
     var html = '';
     items.forEach(function (item) {
       var img = item.image
@@ -124,30 +156,47 @@
         ? '<p class="cd-item__variant">' + esc(item.variant_display) + '</p>'
         : '';
 
+      var oos = !item.in_stock;
+      var maxQ = parseInt(item.max_quantity, 10);
+      if (isNaN(maxQ)) maxQ = item.quantity;
+      var canInc = !oos && item.quantity < maxQ;
+      var stockMsg = item.stock_message
+        ? '<p class="cd-item__stock-warn" role="status">' + esc(item.stock_message) + '</p>'
+        : '';
+      var oosBadge = oos && item.stock_issue === 'out_of_stock'
+        ? '<span class="cd-item__oos-badge">Out of stock</span>'
+        : '';
+
       html +=
-        '<div class="cd-item" data-id="' + item.id + '">' +
+        '<div class="cd-item' + (oos ? ' cd-item--oos' : '') + '" data-id="' + item.id + '" data-max="' + maxQ + '">' +
           '<div class="cd-item__thumb">' + img + '</div>' +
           '<div class="cd-item__info">' +
-            '<p class="cd-item__name">' + esc(item.name) + '</p>' +
+            '<p class="cd-item__name">' + esc(item.name) + oosBadge + '</p>' +
             variant +
-            '<p class="cd-item__price" data-unit="' + parseFloat(item.unit_price) + '">' + fmtPrice(parseFloat(item.unit_price) * item.quantity) + '</p>' +
+            stockMsg +
+            '<p class="cd-item__price" data-line="' + parseFloat(item.line_total || 0) + '">' +
+              fmtPrice(parseFloat(item.line_total || (parseFloat(item.unit_price) + parseFloat(item.pot_unit_price || 0)) * item.quantity)) +
+            '</p>' +
             '<div class="cd-item__controls">' +
-              '<div class="cd-qty">' +
-                '<button class="cd-qty__btn js-cd-dec" data-id="' + item.id + '"' +
-                  (item.quantity <= 1 ? ' disabled' : '') +
-                  ' aria-label="Decrease">−</button>' +
-                '<span class="cd-qty__val">' + item.quantity + '</span>' +
-                '<button class="cd-qty__btn js-cd-inc" data-id="' + item.id + '"' +
-                  ' aria-label="Increase">+</button>' +
-              '</div>' +
-              '<button class="cd-remove js-cd-del" data-id="' + item.id + '" aria-label="Remove item">' +
-                '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-                  '<polyline points="3 6 5 6 21 6"/>' +
-                  '<path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>' +
-                  '<path d="M10 11v6"/><path d="M14 11v6"/>' +
-                  '<path d="M9 6V4h6v2"/>' +
-                '</svg>' +
-              '</button>' +
+              (oos && item.stock_issue === 'out_of_stock'
+                ? '<button type="button" class="cd-remove-text js-cd-del" data-id="' + item.id + '">Remove unavailable item</button>'
+                : '<div class="cd-qty">' +
+                    '<button class="cd-qty__btn js-cd-dec" data-id="' + item.id + '"' +
+                      (item.quantity <= 1 ? ' disabled' : '') +
+                      ' aria-label="Decrease">−</button>' +
+                    '<span class="cd-qty__val">' + item.quantity + '</span>' +
+                    '<button class="cd-qty__btn js-cd-inc" data-id="' + item.id + '"' +
+                      (canInc ? '' : ' disabled') +
+                      ' aria-label="Increase">+</button>' +
+                  '</div>' +
+                  '<button class="cd-remove js-cd-del" data-id="' + item.id + '" aria-label="Remove item">' +
+                    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+                      '<polyline points="3 6 5 6 21 6"/>' +
+                      '<path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>' +
+                      '<path d="M10 11v6"/><path d="M14 11v6"/>' +
+                      '<path d="M9 6V4h6v2"/>' +
+                    '</svg>' +
+                  '</button>') +
             '</div>' +
           '</div>' +
         '</div>';
@@ -176,8 +225,11 @@
     var current = parseInt(valEl.textContent, 10) || 1;
     var next    = current + delta;
     if (next < 1) return;
-
-    
+    var maxQ = parseInt(row.getAttribute('data-max'), 10);
+    if (!isNaN(maxQ) && maxQ > 0 && next > maxQ) {
+      fetchCart();
+      return;
+    }
     valEl.textContent    = next;
     decBtn.disabled      = (next <= 1);
 
@@ -194,7 +246,10 @@
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (data.success === false) {
-          
+          if (data.error && stockAlertEl) {
+            stockAlertEl.hidden = false;
+            stockAlertEl.textContent = data.error;
+          }
           fetchCart();
           return;
         }
@@ -202,8 +257,14 @@
         if (data.total !== undefined) {
           totalEl.textContent = fmtPrice(parseFloat(data.total));
         } else {
-          
           recomputeTotal();
+        }
+        if (data.line_total !== undefined) {
+          var priceEl = row.querySelector('.cd-item__price');
+          if (priceEl) {
+            priceEl.setAttribute('data-line', parseFloat(data.line_total));
+            priceEl.textContent = fmtPrice(parseFloat(data.line_total));
+          }
         }
       })
       .catch(fetchCart);
@@ -237,9 +298,8 @@ function removeItem(itemId) {
     var total = 0;
     itemsEl.querySelectorAll('.cd-item').forEach(function (row) {
       var priceEl = row.querySelector('.cd-item__price');
-      var unitPrice = parseFloat((priceEl && priceEl.getAttribute('data-unit')) || 0);
-      var qty = parseInt((row.querySelector('.cd-qty__val') || {}).textContent, 10) || 1;
-      total += unitPrice * qty;
+      var lineTotal = parseFloat((priceEl && priceEl.getAttribute('data-line')) || 0);
+      total += lineTotal;
     });
     totalEl.textContent = fmtPrice(total);
   }

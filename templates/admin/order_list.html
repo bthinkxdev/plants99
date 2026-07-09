@@ -10,7 +10,7 @@
         <h3 class="card-title">Manage Orders</h3>
     </div>
 
-    <div class="card-body">
+    <div class="card-body has-list-table">
         
         <form method="get" class="filters filters-inline">
             <div class="search-box">
@@ -21,9 +21,20 @@
             <div class="filter-group">
                 <select name="status" class="form-control" onchange="this.form.submit()">
                     <option value="">All Status</option>
-                    {% for value, label in status_choices %}
-                        <option value="{{ value }}" {% if filter_status == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
+                    <optgroup label="Fulfillment">
+                        {% for value, label in status_filter_choices %}
+                            {% if value == 'placed' or value == 'confirmed' or value == 'shipped' or value == 'delivered' or value == 'cancelled' %}
+                                <option value="{{ value }}" {% if filter_status == value %}selected{% endif %}>{{ label }}</option>
+                            {% endif %}
+                        {% endfor %}
+                    </optgroup>
+                    <optgroup label="Rental lifecycle">
+                        {% for value, label in status_filter_choices %}
+                            {% if value == 'active' or value == 'returned' or value == 'completed' %}
+                                <option value="{{ value }}" {% if filter_status == value %}selected{% endif %}>{% if value == 'active' %}On Rent{% else %}{{ label }}{% endif %}</option>
+                            {% endif %}
+                        {% endfor %}
+                    </optgroup>
                 </select>
             </div>
         </form>
@@ -49,9 +60,20 @@
                     <label class="form-label">Status</label>
                     <select name="status" class="form-control">
                         <option value="">All Status</option>
-                        {% for value, label in status_choices %}
-                            <option value="{{ value }}" {% if filter_status == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
+                        <optgroup label="Fulfillment">
+                            {% for value, label in status_filter_choices %}
+                                {% if value == 'placed' or value == 'confirmed' or value == 'shipped' or value == 'delivered' or value == 'cancelled' %}
+                                    <option value="{{ value }}" {% if filter_status == value %}selected{% endif %}>{{ label }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </optgroup>
+                        <optgroup label="Rental lifecycle">
+                            {% for value, label in status_filter_choices %}
+                                {% if value == 'active' or value == 'returned' or value == 'completed' %}
+                                    <option value="{{ value }}" {% if filter_status == value %}selected{% endif %}>{% if value == 'active' %}On Rent{% else %}{{ label }}{% endif %}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </optgroup>
                     </select>
                 </div>
                 <div class="filters-sheet-footer">
@@ -71,9 +93,16 @@
                             <a href="{% url 'admin_panel:order_detail' order.order_number %}" class="list-card-title" style="color: var(--primary); text-decoration: none;">
                                 {{ order.order_number }}
                             </a>
-                            <span class="badge {% if order.status == 'placed' %}badge-info{% elif order.status == 'confirmed' %}badge-warning{% elif order.status == 'shipped' %}badge-secondary{% elif order.status == 'delivered' %}badge-success{% elif order.status == 'cancelled' %}badge-danger{% else %}badge-secondary{% endif %}">
-                                {{ order.get_status_display }}
-                            </span>
+                            <div style="display:flex; gap:.4rem; align-items:center; flex-wrap:wrap;">
+                                {% if order.has_rental %}
+                                    <span class="badge" style="background:#eef2ff;color:#3730a3;">Rental</span>
+                                {% else %}
+                                    <span class="badge badge-secondary">Purchase</span>
+                                {% endif %}
+                                <span class="badge {{ order.admin_status.badge_class }}">
+                                    {{ order.admin_status.label }}
+                                </span>
+                            </div>
                         </div>
                         <div class="list-card-meta">
                             <span><i class="fas fa-user"></i> {{ order.address.full_name }}</span>
@@ -91,13 +120,13 @@
                 {% endfor %}
             </div>
 
-            
             <div class="list-table">
                 <div class="table-responsive">
                     <table class="table">
                         <thead>
                             <tr>
                                 <th>Order #</th>
+                                <th>Type</th>
                                 <th>Customer</th>
                                 <th>Phone</th>
                                 <th>Items</th>
@@ -116,22 +145,19 @@
                                             {{ order.order_number }}
                                         </a>
                                     </td>
+                                    <td>
+                                        {% if order.has_rental %}
+                                            <span class="badge" style="background:#eef2ff;color:#3730a3;">Rental</span>
+                                        {% else %}
+                                            <span class="badge badge-secondary">Purchase</span>
+                                        {% endif %}
+                                    </td>
                                     <td>{{ order.address.full_name }}</td>
                                     <td>{{ order.address.phone }}</td>
                                     <td>{{ order.items.count }} items</td>
                                     <td style="font-weight: 600;">₹{{ order.total }}</td>
                                     <td>
-                                        {% if order.status == 'placed' %}
-                                            <span class="badge badge-info">{{ order.get_status_display }}</span>
-                                        {% elif order.status == 'confirmed' %}
-                                            <span class="badge badge-warning">{{ order.get_status_display }}</span>
-                                        {% elif order.status == 'shipped' %}
-                                            <span class="badge badge-secondary">{{ order.get_status_display }}</span>
-                                        {% elif order.status == 'delivered' %}
-                                            <span class="badge badge-success">{{ order.get_status_display }}</span>
-                                        {% elif order.status == 'cancelled' %}
-                                            <span class="badge badge-danger">{{ order.get_status_display }}</span>
-                                        {% endif %}
+                                        <span class="badge {{ order.admin_status.badge_class }}">{{ order.admin_status.label }}</span>
                                     </td>
                                     <td>{{ order.created_at|date:"d M, Y" }}</td>
                                     <td>

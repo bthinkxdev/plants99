@@ -2,8 +2,9 @@
 {% for card in card_items %}
     {% if card.kind == 'combo' %}
     {% with c=card.combo %}
-    <div class="product-card">
+    <div class="product-card{% if card.in_stock == False %} product-card--oos{% endif %}">
         <div class="product-img-wrap">
+                        {% include "partials/_card_stock_badge.html" with in_stock=card.in_stock %}
             {% if c.original_price and c.original_price > c.price %}<span class="product-badge badge-sale">−{{ c.discount_percent }}%</span>{% endif %}
             <a href="{% url 'store:combo_detail' c.slug %}">
                 {% if c.image %}<img src="{{ c.image.url }}" alt="{{ c.name }}" loading="lazy">
@@ -20,7 +21,9 @@
                 <span class="price-old">₹{{ c.original_price|floatformat:0 }}</span>
                 {% endif %}
             </div>
-            {% if c.id in cart_combo_ids %}
+            {% if card.in_stock == False %}
+            <span class="product-cta product-cta--oos w-100 border-0 d-inline-block text-center">Out of stock</span>
+            {% elif c.id in cart_combo_ids %}
             <a href="#" class="product-cta w-100 border-0 d-inline-block text-center text-decoration-none js-open-cart-drawer">View Cart</a>
             {% else %}
             <form method="post" action="{% url 'store:cart_add' %}" class="product-add-form d-inline-block w-100">
@@ -36,8 +39,9 @@
     {% elif card.kind == 'variant' %}
     {% with variant=card.variant is_jewellery=card.is_jewellery %}
     {% if not is_jewellery %}
-    <div class="product-card">
+    <div class="product-card{% if card.in_stock == False %} product-card--oos{% endif %}">
         <div class="product-img-wrap">
+                        {% include "partials/_card_stock_badge.html" with in_stock=card.in_stock %}
             {% if variant.product.discount_percent %}<span class="product-badge badge-sale">−{{ variant.product.discount_percent }}%</span>{% endif %}
             {% include "partials/_rating_pill.html" with product=variant.product %}
             <a href="{% url 'store:product_detail' variant.product.slug %}?variant={{ variant.id }}">
@@ -58,7 +62,9 @@
                 <span class="price-old">₹{{ variant.original_price|floatformat:0 }}</span>
                 {% endif %}
             </div>
-            {% if variant.id in cart_variant_ids %}
+            {% if card.in_stock == False %}
+            <span class="product-cta product-cta--oos w-100 border-0 d-inline-block text-center">Out of stock</span>
+            {% elif variant.id in cart_variant_ids %}
             <a href="#" class="product-cta w-100 border-0 d-inline-block text-center text-decoration-none js-open-cart-drawer">View Cart</a>
             {% else %}
             <form method="post" action="{% url 'store:cart_add' %}" class="product-add-form d-inline-block w-100">
@@ -77,8 +83,9 @@
 {% endfor %}
 
 {% for product in simple_products %}
-<div class="product-card">
+<div class="product-card{% if product.card_in_stock == False %} product-card--oos{% endif %}">
     <div class="product-img-wrap">
+        {% include "partials/_card_stock_badge.html" with in_stock=product.card_in_stock %}
         {% if product.discount_percent %}<span class="product-badge badge-sale">{{ product.discount_percent }}% OFF</span>{% endif %}
         {% include "partials/_rating_pill.html" with product=product %}
         <a href="{% url 'store:product_detail' product.slug %}">
@@ -111,7 +118,11 @@
             {% endif %}
         </div>
         <div class="product-add-form">
+            {% if product.card_in_stock == False %}
+            <span class="product-cta product-cta--oos border-0 text-decoration-none d-inline-block text-center w-100">Out of stock</span>
+            {% else %}
             <a href="{% url 'store:product_detail' product.slug %}" class="product-cta border-0 text-decoration-none">View product</a>
+            {% endif %}
         </div>
     </div>
 </div>
