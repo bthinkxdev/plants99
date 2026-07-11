@@ -71,8 +71,8 @@ CACHES = {
         "OPTIONS": {"MAX_ENTRIES": 500},
     },
 }
-HOME_CACHE_TTL = 120
-SHOP_CACHE_TTL = 60
+HOME_CACHE_TTL = 30
+SHOP_CACHE_TTL = 30
 
 CAPTCHA_SECRET = config('CAPTCHA_SECRET', default='').strip()
 CAPTCHA_SITE_KEY = config('CAPTCHA_SITE_KEY', default='').strip()

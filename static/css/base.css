@@ -277,6 +277,13 @@ body.storefront {
   z-index: 2;
 }
 
+/* Never show native placeholder under the typed ghost (causes double-text) */
+.typed-ghost-wrap > input.typed-ghost-input::placeholder,
+.typed-ghost-wrap > input[placeholder=""]::placeholder {
+  color: transparent !important;
+  opacity: 0 !important;
+}
+
 /* Static "Search :" + animated product hint */
 .typed-ghost-hint {
   position: absolute;
@@ -1395,10 +1402,18 @@ body.storefront {
   color: var(--primary-green) !important;
   background: transparent !important;
   font-weight: 700 !important;
-  transition: background var(--ease-out), color var(--ease-out) !important;
+  transition: background var(--ease-out), color var(--ease-out), border-color var(--ease-out), box-shadow var(--ease-out) !important;
 }
-.product-detail-store .btn-buy-now:hover {
-  background: var(--secondary-green) !important;
+.product-detail-store .btn-buy-now:hover:not(:disabled) {
+  background: var(--primary-green) !important;
+  border-color: var(--primary-green) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 24px rgba(0, 106, 77, 0.28) !important;
+}
+.product-detail-store .btn-buy-now:active:not(:disabled) {
+  background: var(--primary-green-dark) !important;
+  border-color: var(--primary-green-dark) !important;
+  color: #ffffff !important;
 }
 .product-detail-store .pdp-details-inner {
   background: var(--surface);
@@ -1572,6 +1587,11 @@ body.storefront .p99-product-card .tpc-body {
   height: 12px;
   background: #ccc;
 }
+.p99-product-card .p99-rating-pill .p99-rating-count {
+  font-weight: 600;
+  color: #666;
+  letter-spacing: 0;
+}
 .p99-product-card .p99-tag-row {
   display: flex;
   flex-wrap: wrap;
@@ -1698,10 +1718,10 @@ body.storefront .p99-product-card .tpc-body {
   background: #fff !important;
   transform: scale(1.12) !important;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15) !important;
-  color: #e03030 !important;
+  color: #c62828 !important;
 }
 .p99-product-card .tpc-wishlist.in-wishlist {
-  color: #e03030 !important;
+  color: #c62828 !important;
   background: #fff !important;
 }
 

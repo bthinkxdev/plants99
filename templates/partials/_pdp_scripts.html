@@ -1,6 +1,6 @@
 ﻿{{ variant_json|json_script:"variant-data" }}
 {{ ordered_attributes|json_script:"ordered-attributes" }}
-{% if product.is_rent_available %}{{ product_rental_rates|json_script:"product-rental-rates" }}{% endif %}
+{% if pdp_rent_ready %}{{ product_rental_rates|json_script:"product-rental-rates" }}{% endif %}
 {{ pdp_rental_keys_in_cart|json_script:"pdp-rental-keys-cart" }}
 <script>window.productId = {{ product.id }};</script>
 
@@ -327,16 +327,19 @@
     var qtyInput = document.getElementById('qtyInput');
     var formQuantity = document.getElementById('formQuantity');
 
-    // Gallery thumbs
-    document.querySelectorAll('.gallery-thumb img').forEach(function(thumb){
-        thumb.addEventListener('click', function(){
-            var src = this.getAttribute('data-full') || this.src;
+    // Gallery thumbs — switch main image; if thumb belongs to another variant, select it
+    document.querySelectorAll('.gallery-thumb').forEach(function(thumbEl){
+        thumbEl.addEventListener('click', function(){
+            var src = thumbEl.getAttribute('data-full') || (thumbEl.querySelector('img') && (thumbEl.querySelector('img').getAttribute('data-full') || thumbEl.querySelector('img').src));
             if (mainImg && src) {
                 mainImg.src = src;
             }
             document.querySelectorAll('.gallery-thumb').forEach(function(t){ t.classList.remove('active'); });
-            var parent = thumb.closest('.gallery-thumb');
-            if (parent) parent.classList.add('active');
+            thumbEl.classList.add('active');
+            var vid = thumbEl.getAttribute('data-variant-id');
+            if (vid && typeof window.__pdpSelectVariantById === 'function') {
+                window.__pdpSelectVariantById(vid);
+            }
         });
     });
 
@@ -538,29 +541,96 @@
             mainImg.src = variant.image;
         }
         var thumbWrap = document.querySelector('.gallery-thumbs') || document.getElementById('galleryThumbs');
-        var urls = variant.image_urls && variant.image_urls.length ? variant.image_urls : (variant.image ? [variant.image] : []);
-        if (thumbWrap && urls.length) {
+        if (thumbWrap && variants.length) {
             thumbWrap.innerHTML = '';
-            urls.forEach(function(url, idx) {
-                var thumb = document.createElement('div');
-                thumb.className = 'gallery-thumb' + (idx === 0 ? ' active' : '');
-                var img = document.createElement('img');
-                img.src = url;
-                img.alt = '';
-                img.loading = 'lazy';
-                img.setAttribute('data-full', url);
-                thumb.appendChild(img);
-                thumb.addEventListener('click', function() {
-                    if (mainImg) mainImg.src = url;
-                    thumbWrap.querySelectorAll('.gallery-thumb').forEach(function(t){ t.classList.remove('active'); });
-                    thumb.classList.add('active');
+            variants.forEach(function(v) {
+                var urls = v.image_urls && v.image_urls.length ? v.image_urls : (v.image ? [v.image] : []);
+                urls.forEach(function(url, idx) {
+                    var thumb = document.createElement('div');
+                    var isActive = (v.id === variant.id && idx === 0);
+                    thumb.className = 'gallery-thumb' + (isActive ? ' active' : '');
+                    thumb.setAttribute('data-variant-id', String(v.id));
+                    thumb.setAttribute('data-full', url);
+                    var img = document.createElement('img');
+                    img.src = url;
+                    img.alt = '';
+                    img.loading = 'lazy';
+                    img.setAttribute('data-full', url);
+                    thumb.appendChild(img);
+                    thumb.addEventListener('click', function() {
+                        if (mainImg) mainImg.src = url;
+                        thumbWrap.querySelectorAll('.gallery-thumb').forEach(function(t){ t.classList.remove('active'); });
+                        thumb.classList.add('active');
+                        if (String(v.id) !== String(variant.id) && typeof window.__pdpSelectVariantById === 'function') {
+                            window.__pdpSelectVariantById(v.id);
+                        } else if (formVariantId) {
+                            formVariantId.value = String(v.id);
+                        }
+                    });
+                    thumbWrap.appendChild(thumb);
                 });
-                thumbWrap.appendChild(thumb);
             });
+        } else if (thumbWrap) {
+            var urls = variant.image_urls && variant.image_urls.length ? variant.image_urls : (variant.image ? [variant.image] : []);
+            if (urls.length) {
+                thumbWrap.innerHTML = '';
+                urls.forEach(function(url, idx) {
+                    var thumb = document.createElement('div');
+                    thumb.className = 'gallery-thumb' + (idx === 0 ? ' active' : '');
+                    var img = document.createElement('img');
+                    img.src = url;
+                    img.alt = '';
+                    img.loading = 'lazy';
+                    img.setAttribute('data-full', url);
+                    thumb.appendChild(img);
+                    thumb.addEventListener('click', function() {
+                        if (mainImg) mainImg.src = url;
+                        thumbWrap.querySelectorAll('.gallery-thumb').forEach(function(t){ t.classList.remove('active'); });
+                        thumb.classList.add('active');
+                    });
+                    thumbWrap.appendChild(thumb);
+                });
+            }
         }
         if (typeof syncStickyFromDom === 'function') syncStickyFromDom();
         if (typeof window.pdpUpdatePotTotal === 'function') window.pdpUpdatePotTotal()
     }
+
+    var _selectingVariantFromThumb = false;
+    window.__pdpSelectVariantById = function(vid) {
+        if (_selectingVariantFromThumb) return;
+        var found = null;
+        for (var i = 0; i < variants.length; i++) {
+            if (String(variants[i].id) === String(vid)) {
+                found = variants[i];
+                break;
+            }
+        }
+        if (!found) return;
+        if (currentVariant && String(currentVariant.id) === String(found.id)) {
+            if (formVariantId) formVariantId.value = String(found.id);
+            return;
+        }
+        _selectingVariantFromThumb = true;
+        try {
+            if (found.attributes) {
+                Object.keys(found.attributes).forEach(function(attrName) {
+                    selected[attrName] = found.attributes[attrName];
+                });
+                attributeGroups.forEach(function(group) {
+                    var name = group.getAttribute('data-attribute-name');
+                    var want = selected[name];
+                    group.querySelectorAll('[data-attribute-value]').forEach(function(btn) {
+                        var val = btn.getAttribute('data-attribute-value');
+                        btn.classList.toggle('active', attrValuesEqual(val, want));
+                    });
+                });
+            }
+            applyVariant(found);
+        } finally {
+            _selectingVariantFromThumb = false;
+        }
+    };
 
     function matchesSelectionUpToLevel(variant, levelIndex) {
         if (!variant || !variant.attributes) return false;
@@ -1220,7 +1290,13 @@
                 alert('Please select a variant.');
                 return;
             }
-            if (formLineType && formLineType.value === 'rental') syncRentalPriceDisplay();
+            if (formLineType && formLineType.value === 'rental') {
+                syncRentalPriceDisplay();
+                if (formRentalBilling) formRentalBilling.disabled = false;
+                if (formRentalUnits) formRentalUnits.disabled = false;
+                if (formRentalStart) formRentalStart.disabled = false;
+                if (formRentalEnd) formRentalEnd.disabled = false;
+            }
             addToCartForm.action = buyNowUrl;
             addToCartForm.submit();
         });

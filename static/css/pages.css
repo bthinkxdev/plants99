@@ -660,7 +660,7 @@ body.storefront .product-grid-layout > .p99-product-card {
 
 .storefront .tpc-wishlist:hover,
 .storefront .tpc-wishlist.in-wishlist {
-  color: var(--ug-accent-2);
+  color: #c62828;
 }
 
 
@@ -2171,6 +2171,11 @@ body.storefront .product-grid-layout > .p99-product-card {
   justify-content: flex-start;
   flex-shrink: 0;
 }
+.hc-pcard__rating-slot:not(:has(.p99-rating-pill)) {
+  display: none;
+  min-height: 0;
+  margin: 0;
+}
 
 .hc-pcard .p99-rating-pill,
 .hc-pcard__rating-slot .p99-rating-pill {
@@ -2196,6 +2201,11 @@ body.storefront .product-grid-layout > .p99-product-card {
   width: 1px;
   height: 10px;
   background: #ccc;
+}
+.hc-pcard__rating-slot .p99-rating-pill .p99-rating-count,
+.hc-pcard .p99-rating-pill .p99-rating-count {
+  font-weight: 600;
+  color: #666;
 }
 
 .hc-pcard__meta {
@@ -2786,6 +2796,10 @@ body.storefront .hc-hero__slide > .hc-pcard {
   width: 1px;
   height: 10px;
   background: #ccc;
+}
+.p99-compact-card .p99-rating-pill .p99-rating-count {
+  font-weight: 600;
+  color: #666;
 }
 
 /* Home banner + compact rail: deal of the day, best sellers, featured pick (shared layout) */
@@ -4449,10 +4463,13 @@ body.storefront .shop-page .toolbar-right .results-count {
     z-index: 3;
     transition: var(--transition);
 }
-#shopProductGrid .product-card .product-wishlist:hover,
+#shopProductGrid .product-card .product-wishlist:hover {
+    background: #fff !important;
+    color: #c62828 !important;
+}
 #shopProductGrid .product-card .product-wishlist.in-wishlist {
     background: #fff !important;
-    color: #e05 !important;
+    color: #c62828 !important;
 }
 
 
@@ -5090,26 +5107,28 @@ body.storefront .shop-page .toolbar-right .results-count {
     width: 100% !important;
     height: 52px !important;
     border-radius: 14px !important;
-    background: #0d1a3c !important;
-    color: #ffffff !important;
-    border: none !important;
+    background: transparent !important;
+    color: var(--primary-green, #006a4d) !important;
+    border: 2px solid var(--primary-green, #006a4d) !important;
     font-family: 'Muli', sans-serif !important;
     font-size: 0.9375rem !important;
-    font-weight: 500 !important;
+    font-weight: 700 !important;
     letter-spacing: 0.03em !important;
     text-transform: none !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     cursor: pointer;
-    transition: background 0.2s ease !important;
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease !important;
     min-height: unset !important;
     padding: 0 !important;
     flex: unset !important;
 }
 .btn-buy-now:hover:not(:disabled) {
-    background: #1a2d5a !important;
+    background: var(--primary-green, #006a4d) !important;
+    border-color: var(--primary-green, #006a4d) !important;
     color: #ffffff !important;
+    box-shadow: 0 8px 24px rgba(0, 106, 77, 0.28) !important;
 }
 .btn-buy-now:disabled {
     opacity: 0.45 !important;
@@ -5154,7 +5173,7 @@ body.storefront .shop-page .toolbar-right .results-count {
     padding: 0;
     font-family: 'Muli', sans-serif;
     font-size: 0.8125rem;
-    color: #9e9890;
+    color: #6e6860;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
@@ -5162,9 +5181,11 @@ body.storefront .shop-page .toolbar-right .results-count {
     transition: color 0.2s;
     margin-top: 6px;
 }
-.product-wishlist:hover,
+.product-wishlist:hover {
+    color: #c62828;
+}
 .product-wishlist.in-wishlist {
-    color: #e04;
+    color: #c62828;
 }
 .product-wishlist i {
     font-size: 1rem;
@@ -5206,18 +5227,18 @@ body.storefront .shop-page .toolbar-right .results-count {
 .pdp-wishlist-btn svg {
     width: 20px;
     height: 20px;
-    stroke: #0d1a3c;
+    stroke: #5a635c;
     fill: none;
     transition: stroke 0.2s ease, fill 0.2s ease;
     pointer-events: none;
     display: block;
 }
 .pdp-wishlist-btn:hover svg {
-    stroke: #e03030;
+    stroke: #c62828;
 }
 .pdp-wishlist-btn.in-wishlist svg {
-    fill: #e03030;
-    stroke: #e03030;
+    fill: #c62828;
+    stroke: #c62828;
 }
 .pdp-wishlist-btn:active {
     transform: scale(0.96);
@@ -8166,6 +8187,11 @@ body.storefront .order-line .line-info {
 .hc-pcard__rating-slot {
   min-height: unset !important;
   margin: 0 12px 2px !important;
+}
+.hc-pcard__rating-slot:not(:has(.p99-rating-pill)) {
+  display: none !important;
+  min-height: 0 !important;
+  margin: 0 !important;
 }
  
 .hc-pcard__meta {

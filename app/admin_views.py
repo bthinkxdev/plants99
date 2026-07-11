@@ -1351,7 +1351,16 @@ class DealOfDayListView(StaffRequiredMixin, TemplateView):
         return context
 
     def post(self, request, *args, **kwargs):
-        products = self.get_queryset()
+        # Only update products present on the submitted page (date fields are
+        # always posted). Iterating the full queryset cleared flags on other pages.
+        posted_ids = []
+        for key in request.POST:
+            if key.startswith('start_'):
+                try:
+                    posted_ids.append(int(key[len('start_'):]))
+                except (TypeError, ValueError):
+                    continue
+        products = Product.objects.filter(pk__in=posted_ids) if posted_ids else Product.objects.none()
         updated_count = 0
         for product in products:
             is_deal_flag = request.POST.get(f'is_deal_{product.pk}') == 'on'

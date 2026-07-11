@@ -1687,6 +1687,11 @@ html, body {
     color: #E65100;
 }
 
+.product-tag-deal {
+    background: #FFEBEE;
+    color: #B71C1C;
+}
+
 .product-tag-bestseller {
     background: #E3F2FD;
     color: #0D47A1;

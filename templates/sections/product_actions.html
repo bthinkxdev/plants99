@@ -2,8 +2,24 @@
 {% if combo_lines %}
 <div class="pdp-combo-bundle mb-3 p-3 border rounded-2 small pdp-card">
     <div class="fw-bold mb-2 text-uppercase small letter-spaced">Bundle includes</div>
-    <ul class="mb-0 ps-3">
-        {% for row in combo_lines %}<li>{{ row.name }} × {{ row.quantity }}</li>{% endfor %}
+    <ul class="mb-0 list-unstyled">
+        {% for row in combo_lines %}
+        <li class="d-flex align-items-center gap-2 mb-2">
+            {% if row.image_url %}
+            <img src="{{ row.image_url }}" alt="" width="40" height="40" style="object-fit:cover;border-radius:6px;flex-shrink:0;" loading="lazy">
+            {% else %}
+            <span style="width:40px;height:40px;border-radius:6px;background:#eee;flex-shrink:0;display:inline-block;"></span>
+            {% endif %}
+            <span>
+                {% if row.product_slug %}
+                <a href="{% url 'store:product_detail' row.product_slug %}" class="text-decoration-none">{{ row.name }}</a>
+                {% else %}
+                {{ row.name }}
+                {% endif %}
+                × {{ row.quantity }}
+            </span>
+        </li>
+        {% endfor %}
     </ul>
 </div>
 {% endif %}

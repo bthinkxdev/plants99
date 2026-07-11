@@ -15,8 +15,13 @@ def _d(val) -> Decimal | None:
 
 
 def get_rental_config(product):
-    cfg = getattr(product, 'rental_config', None)
-    return cfg
+    """Safe access to reverse OneToOne (missing row raises RelatedObjectDoesNotExist)."""
+    if product is None:
+        return None
+    try:
+        return product.rental_config
+    except Exception:
+        return None
 
 
 def product_is_rent_ready(product) -> bool:
@@ -36,6 +41,15 @@ def compute_rental_line_unit_price(product, *, days: int) -> Decimal:
 
     Rentals are priced per-day and stored as a single unit_price for the cart line.
     """
+    # Re-fetch with rental_config when the in-memory product was loaded without it
+    # (common on Buy Now / second rental add via variant.select_related('product')).
+    if product is not None and get_rental_config(product) is None:
+        from app.models import Product
+        pk = getattr(product, 'pk', None)
+        if pk:
+            refreshed = Product.objects.select_related('rental_config').filter(pk=pk).first()
+            if refreshed is not None:
+                product = refreshed
     if not getattr(product, 'is_rent_available', False):
         raise ValidationError('This product is not available for rent.')
     cfg = get_rental_config(product)

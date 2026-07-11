@@ -159,6 +159,7 @@
                                     {% if product.is_rent_available %}<span class="badge" style="font-size: 0.68rem; padding: 0.2rem 0.5rem; background:#e8f5e9; color:#2e7d32;">Rental</span>{% endif %}
                                     {% if product.is_combo_product %}<span class="badge" style="font-size: 0.68rem; padding: 0.2rem 0.5rem; background:#fff3e0; color:#e65100;">Combo</span>{% endif %}
                                     {% if product.is_featured %}<span class="badge badge-warning" style="font-size: 0.68rem; padding: 0.2rem 0.5rem;">Featured</span>{% endif %}
+                                    {% if product.is_deal_of_day %}<span class="badge badge-danger" style="font-size: 0.68rem; padding: 0.2rem 0.5rem;">Deal of Day</span>{% endif %}
                                     {% if product.is_bestseller %}<span class="badge badge-info" style="font-size: 0.68rem; padding: 0.2rem 0.5rem;">Bestseller</span>{% endif %}
                                 </div>
                             </div>
@@ -235,6 +236,7 @@
                                         {% if product.is_rent_available %}<span class="product-tag" style="background:#e3f2fd;color:#1565c0;">Rental</span>{% endif %}
                                         {% if product.is_combo_product %}<span class="product-tag" style="background:#fff3e0;color:#e65100;">Combo</span>{% endif %}
                                         {% if product.is_featured %}<span class="product-tag product-tag-featured">Featured</span>{% endif %}
+                                        {% if product.is_deal_of_day %}<span class="product-tag product-tag-deal">Deal of Day</span>{% endif %}
                                         {% if product.is_bestseller %}<span class="product-tag product-tag-bestseller">Bestseller</span>{% endif %}
                                         {% if product.is_out_of_stock %}<span class="product-tag" style="background:#fce4ec;color:#b71c1c;">Out of stock</span>
                                         {% elif product.is_low_stock %}<span class="product-tag" style="background:#fff8e1;color:#e65100;">⚠ Low stock</span>{% endif %}

@@ -7,10 +7,22 @@
 
     var urlCreateBasic = wrapper.dataset.urlCreateBasic || "";
     var urlEditTpl = wrapper.dataset.urlEdit || "";
+    var urlUploadTpl = wrapper.dataset.urlUploadImage || "";
     var csrf =
         (document.querySelector("[name=csrfmiddlewaretoken]") &&
             document.querySelector("[name=csrfmiddlewaretoken]").value) ||
         "";
+
+    var pendingFiles = [];
+    var maxImages = 3;
+    var imagesBlock = document.getElementById("create-images-block");
+    if (imagesBlock) {
+        maxImages = parseInt(imagesBlock.getAttribute("data-max-images") || "3", 10) || 3;
+    }
+    var imagesInput = document.getElementById("create-images-input");
+    var imagesPreview = document.getElementById("create-images-preview");
+    var imagesAddBtn = document.getElementById("create-images-add-btn");
+    var imagesHint = document.getElementById("create-images-hint");
 
     function toast(message, type) {
         type = type || "success";
@@ -48,6 +60,112 @@
                 el.setAttribute("aria-hidden", "true");
             }
         }
+    }
+
+    function setLoaderText(text) {
+        var el = document.querySelector("#action-loader-create .loader-text");
+        if (el) el.textContent = text || "Saving…";
+    }
+
+    function updateImagesHint() {
+        if (imagesHint) imagesHint.textContent = pendingFiles.length + " / " + maxImages + " selected";
+        if (imagesAddBtn) imagesAddBtn.disabled = pendingFiles.length >= maxImages;
+    }
+
+    function renderImagePreviews() {
+        if (!imagesPreview) return;
+        imagesPreview.innerHTML = "";
+        pendingFiles.forEach(function (file, index) {
+            var item = document.createElement("div");
+            item.className = "image-item";
+            item.style.cssText = "position:relative;width:72px;";
+            var img = document.createElement("img");
+            img.className = "image-thumb";
+            img.alt = file.name || "Preview";
+            img.src = URL.createObjectURL(file);
+            img.style.cssText = "width:72px;height:72px;object-fit:cover;border-radius:6px;display:block;";
+            img.onload = function () {
+                try {
+                    URL.revokeObjectURL(img.src);
+                } catch (e) {}
+            };
+            var removeBtn = document.createElement("button");
+            removeBtn.type = "button";
+            removeBtn.className = "btn btn-sm btn-danger";
+            removeBtn.setAttribute("aria-label", "Remove image");
+            removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+            removeBtn.style.cssText = "position:absolute;top:2px;right:2px;padding:0.15rem 0.35rem;";
+            removeBtn.addEventListener("click", function () {
+                pendingFiles.splice(index, 1);
+                renderImagePreviews();
+            });
+            item.appendChild(img);
+            item.appendChild(removeBtn);
+            imagesPreview.appendChild(item);
+        });
+        updateImagesHint();
+    }
+
+    if (imagesAddBtn && imagesInput) {
+        imagesAddBtn.addEventListener("click", function () {
+            if (pendingFiles.length >= maxImages) return;
+            imagesInput.value = "";
+            imagesInput.click();
+        });
+        imagesInput.addEventListener("change", function () {
+            var files = Array.prototype.slice.call(imagesInput.files || []);
+            files.forEach(function (file) {
+                if (pendingFiles.length >= maxImages) return;
+                if (!file.type || file.type.indexOf("image/") !== 0) return;
+                pendingFiles.push(file);
+            });
+            renderImagePreviews();
+            imagesInput.value = "";
+        });
+        updateImagesHint();
+    }
+
+    function uploadPendingImages(productId) {
+        if (!pendingFiles.length || !urlUploadTpl) {
+            return Promise.resolve({ uploaded: 0, failed: 0 });
+        }
+        var uploadUrl = urlUploadTpl.replace("/0/", "/" + productId + "/");
+        var uploaded = 0;
+        var failed = 0;
+        var chain = Promise.resolve();
+        pendingFiles.forEach(function (file, index) {
+            chain = chain.then(function () {
+                setLoaderText("Uploading image " + (index + 1) + " of " + pendingFiles.length + "…");
+                var fd = new FormData();
+                fd.append("image", file);
+                return fetch(uploadUrl, {
+                    method: "POST",
+                    headers: { "X-CSRFToken": csrf },
+                    body: fd,
+                    credentials: "same-origin",
+                })
+                    .then(function (r) {
+                        return r.json().then(function (data) {
+                            return { ok: r.ok, data: data };
+                        });
+                    })
+                    .then(function (res) {
+                        if (res.ok && res.data && res.data.success) uploaded += 1;
+                        else failed += 1;
+                    })
+                    .catch(function () {
+                        failed += 1;
+                    });
+            });
+        });
+        return chain.then(function () {
+            return { uploaded: uploaded, failed: failed };
+        });
+    }
+
+    function goToEdit(productId) {
+        var editUrl = urlEditTpl.replace("/0/", "/" + productId + "/") + "#simple-product-images";
+        window.location.href = editUrl;
     }
 
     
@@ -130,6 +248,7 @@
         btn.disabled = true;
         feedback.textContent = "Creating…";
         feedback.className = "save-feedback";
+        setLoaderText("Saving…");
         showLoader();
         fetch(urlCreateBasic, {
             method: "POST",
@@ -141,30 +260,38 @@
                 return r.json();
             })
             .then(function (data) {
-                btn.disabled = false;
                 if (data.success && data.product_id) {
-                    feedback.textContent = "";
-                    toast("Product created. Redirecting to edit…");
-                    var editUrl = urlEditTpl.replace("/0/", "/" + data.product_id + "/") + "#simple-product-images";
-                    window.location.href = editUrl;
-                } else {
-                    var errMsg = "Error creating product.";
-                    if (data.errors) {
-                        if (data.errors.__all__ && data.errors.__all__[0])
-                            errMsg = data.errors.__all__[0];
-                        else {
-                            for (var key in data.errors) {
-                                if (data.errors[key] && data.errors[key][0]) {
-                                    errMsg = data.errors[key][0];
-                                    break;
-                                }
+                    feedback.textContent = pendingFiles.length ? "Uploading images…" : "";
+                    return uploadPendingImages(data.product_id).then(function (result) {
+                        if (result.failed && !result.uploaded) {
+                            toast("Product created, but image upload failed. Add images on the edit page.", "error");
+                        } else if (result.failed) {
+                            toast("Product created. Some images failed — you can retry on the edit page.", "error");
+                        } else if (result.uploaded) {
+                            toast("Product created with images. Opening edit…");
+                        } else {
+                            toast("Product created. Redirecting to edit…");
+                        }
+                        goToEdit(data.product_id);
+                    });
+                }
+                btn.disabled = false;
+                var errMsg = "Error creating product.";
+                if (data.errors) {
+                    if (data.errors.__all__ && data.errors.__all__[0])
+                        errMsg = data.errors.__all__[0];
+                    else {
+                        for (var key in data.errors) {
+                            if (data.errors[key] && data.errors[key][0]) {
+                                errMsg = data.errors[key][0];
+                                break;
                             }
                         }
                     }
-                    feedback.textContent = errMsg;
-                    feedback.className = "save-feedback err";
-                    toast(errMsg, "error");
                 }
+                feedback.textContent = errMsg;
+                feedback.className = "save-feedback err";
+                toast(errMsg, "error");
             })
             .catch(function () {
                 btn.disabled = false;
@@ -174,6 +301,7 @@
             })
             .finally(function () {
                 hideLoader();
+                setLoaderText("Saving…");
             });
     });
 

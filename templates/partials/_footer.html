@@ -186,7 +186,8 @@
                 <span class="typed-ghost typed-ghost--mobile"></span>
             </div>
             <input type="text" name="q" id="mobileSearchInput"
-                   placeholder="Search plants, pots, tools…"
+                   placeholder=""
+                   aria-label="Search plants, pots, tools"
                    value="{{ request.GET.q|default:'' }}"
                    autocomplete="off">
         </div>

@@ -4,19 +4,24 @@ from .models import Address, Banner, BlogPost, Cart, CartItem, Category, Combo, 
 from django.core.cache import caches
 
 def _invalidate_home_cache():
-    try:
-        c = caches['locmem']
-        for key in [
-            'home_product_data_v1',
-            'home_product_data_v2',
-            'home_shop_categories_v1',
-            'home_reels_v1',
-            'home_testimonials_v1',
-            'home_combos_v1',
-        ]:
-            c.delete(key)
-    except Exception:
-        pass
+    keys = [
+        'home_product_data_v1',
+        'home_product_data_v2',
+        'home_shop_categories_v1',
+        'home_reels_v1',
+        'home_testimonials_v1',
+        'home_combos_v1',
+    ]
+    for alias in ('locmem', 'default'):
+        try:
+            c = caches[alias]
+        except Exception:
+            continue
+        for key in keys:
+            try:
+                c.delete(key)
+            except Exception:
+                pass
 class HomeCategoryProductInline(admin.TabularInline):
     model = HomeCategoryProduct
     extra = 0

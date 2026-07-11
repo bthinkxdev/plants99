@@ -35,7 +35,16 @@ def get_pdp_queryset():
     """queryset for ProductDetailView with prefetch to avoid N+1 on gallery, variants, and content modules."""
     combo_pf = Prefetch(
         'combo_components',
-        queryset=ProductComboItem.objects.select_related('component_product').order_by('display_order', 'id'),
+        queryset=ProductComboItem.objects.select_related('component_product')
+        .prefetch_related(
+            'component_product__images',
+            Prefetch(
+                'component_product__variants',
+                queryset=Variant.objects.filter(is_active=True).prefetch_related('images').order_by('display_order', 'id'),
+                to_attr='listing_variants',
+            ),
+        )
+        .order_by('display_order', 'id'),
     )
     variant_pf = Prefetch(
         'variants',
@@ -342,12 +351,18 @@ class ProductDetailService:
                     to_attr='listing_variants',
                 ),
                 'images',
-            )[:12]
+            )[:24]
         )
         related = []
         for rp in related_qs:
-            if attach_product_card_display(rp):
-                related.append(rp)
+            if not attach_product_card_display(rp):
+                continue
+            # Match main listing: hide out-of-stock / unpriced products
+            if getattr(rp, 'card_in_stock', False) is False:
+                continue
+            if getattr(rp, 'lowest_price', None) is None:
+                continue
+            related.append(rp)
             if len(related) >= 4:
                 break
         context['related_products'] = related
@@ -358,7 +373,35 @@ class ProductDetailService:
         combo_lines = []
         if getattr(product, 'is_combo_product', False):
             for row in product.combo_components.all():
-                combo_lines.append({'name': row.component_product.name, 'quantity': row.quantity})
+                component = row.component_product
+                img_url = ''
+                try:
+                    urls = component.get_card_image_urls(limit=1) if hasattr(component, 'get_card_image_urls') else []
+                    if urls:
+                        img_url = urls[0]
+                    else:
+                        imgs = list(component.images.all()[:1])
+                        if imgs and imgs[0].image:
+                            img_url = imgs[0].image.url
+                        else:
+                            v = next(
+                                (x for x in getattr(component, 'listing_variants', None) or [] if getattr(x, 'is_active', True)),
+                                None,
+                            )
+                            if v is None:
+                                v = component.variants.filter(is_active=True).prefetch_related('images').first()
+                            if v:
+                                vimgs = list(v.images.all()[:1])
+                                if vimgs and vimgs[0].image:
+                                    img_url = vimgs[0].image.url
+                except Exception:
+                    img_url = ''
+                combo_lines.append({
+                    'name': component.name,
+                    'quantity': row.quantity,
+                    'product_slug': component.slug,
+                    'image_url': img_url,
+                })
         context['combo_lines'] = combo_lines
 
         from app.services.rental_pricing import product_is_rent_ready

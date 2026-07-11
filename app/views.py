@@ -130,13 +130,8 @@ def _load_home_product_data():
     budget_cards    = _build_product_cards(budget_raw,      8)
     new_arrival_cards = _build_product_cards(new_arrivals_raw, 26)
  
-    # Fallbacks (same logic as original)
-    if not deal_cards and getattr(settings, 'HOME_DEAL_OF_DAY_ENABLED', True):
-        deal_cards = _build_product_cards(all_products, 8)
-    if not bestseller_cards and getattr(settings, 'HOME_BESTSELLER_ENABLED', True):
-        bestseller_cards = _build_product_cards(all_products, 8)
-    if not featured_cards and getattr(settings, 'HOME_FEATURED_ENABLED', True):
-        featured_cards = _build_product_cards(all_products, 8)
+    # Do not backfill empty curated sections with random products — that made
+    # Dashboard "Featured/Deal/Bestseller off" look broken on the storefront.
  
     # ── Home category sections — batch fix for the N+1 ──
     #
@@ -1717,11 +1712,15 @@ class AddToCartView(View):
             if action == 'buy':
                 return redirect('store:checkout')
             return redirect(reverse('store:home') + '?open_cart=1&added=1')
-        product = get_object_or_404(Product, pk=data['product_id'])
+        product = get_object_or_404(Product.objects.select_related('rental_config'), pk=data['product_id'])
         sellable = None
         variant_id = data.get('variant_id')
         if variant_id:
-            variant = Variant.objects.filter(product=product, pk=variant_id, is_active=True, stock_quantity__gt=0).select_related('product').first()
+            variant = (
+                Variant.objects.filter(product=product, pk=variant_id, is_active=True, stock_quantity__gt=0)
+                .select_related('product', 'product__rental_config')
+                .first()
+            )
             if variant:
                 sellable = variant
         if not sellable:
@@ -1778,22 +1777,41 @@ class BuyNowView(View):
         rs = parse_date(rs_raw) if rs_raw else None
         re = parse_date(re_raw) if re_raw else None
         try:
-            cart.items.all().delete()
             if data.get('combo_id'):
                 combo = get_object_or_404(Combo, pk=data['combo_id'], is_active=True)
-                CartService.add_combo_item(cart, combo, data['quantity'], line_type=line_type, is_gift=data.get('is_gift', False))
+                new_item = CartService.add_combo_item(cart, combo, data['quantity'], line_type=line_type, is_gift=data.get('is_gift', False))
             else:
-                product = get_object_or_404(Product, pk=data['product_id'])
+                product = get_object_or_404(
+                    Product.objects.select_related('rental_config'),
+                    pk=data['product_id'],
+                )
                 sellable = None
                 variant_id = data.get('variant_id')
                 if variant_id:
-                    sellable = Variant.objects.filter(product=product, pk=variant_id, is_active=True, stock_quantity__gt=0).select_related('product').first()
+                    sellable = (
+                        Variant.objects.filter(product=product, pk=variant_id, is_active=True, stock_quantity__gt=0)
+                        .select_related('product', 'product__rental_config')
+                        .first()
+                    )
                 if not sellable:
                     if product.variants.exists():
                         messages.error(request, 'Please select a variant or the selected variant is unavailable.')
                         return redirect('store:product_detail', slug=product.slug)
                     sellable = product
-                CartService.add_item(cart, sellable, data['quantity'], line_type=line_type, rental_billing=rb, rental_units=ru, rental_start_date=rs, rental_end_date=re, is_gift=data.get('is_gift', False), selected_pot_id=data.get('selected_pot_id'))
+                new_item = CartService.add_item(
+                    cart,
+                    sellable,
+                    data['quantity'],
+                    line_type=line_type,
+                    rental_billing=rb,
+                    rental_units=ru,
+                    rental_start_date=rs,
+                    rental_end_date=re,
+                    is_gift=data.get('is_gift', False),
+                    selected_pot_id=data.get('selected_pot_id'),
+                )
+            # Replace cart with this line only after a successful add
+            cart.items.exclude(pk=new_item.pk).delete()
         except StockError as exc:
             messages.error(request, str(exc))
             if data.get('combo_id'):

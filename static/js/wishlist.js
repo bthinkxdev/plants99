@@ -37,6 +37,14 @@
     document.addEventListener("DOMContentLoaded", function() {
         var config = getConfig();
 
+        document.querySelectorAll(".js-wishlist-toggle.in-wishlist").forEach(function(btn) {
+            var icon = btn.querySelector("i.fa-heart, i.far.fa-heart, i.fas.fa-heart");
+            if (icon) {
+                icon.classList.remove("far");
+                icon.classList.add("fas");
+            }
+        });
+
         document.body.addEventListener("click", function(e) {
             var btn = e.target.closest(".js-wishlist-toggle");
             if (!btn) return;
@@ -83,6 +91,11 @@
                     if (!data) return;
                     if (data.success) {
                         btn.classList.toggle("in-wishlist", data.added);
+                        var icon = btn.querySelector("i.fa-heart, i.far.fa-heart, i.fas.fa-heart");
+                        if (icon) {
+                            icon.classList.toggle("far", !data.added);
+                            icon.classList.toggle("fas", data.added);
+                        }
                         if (typeof data.count === "number") updateHeaderCount(data.count);
 
                         if (!data.added) {
