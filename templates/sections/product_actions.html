@@ -22,7 +22,7 @@
 </div>
 {% endif %}
 
-{% if product.is_rent_available %}
+{% if pdp_rent_ready %}
 <div class="pdp-offer-mode mb-3 pdp-card p-3 border rounded-2" id="pdpOfferMode" data-purchase-only="{{ purchase_only_pdp|yesno:'true,false' }}" data-rental-only="{{ rental_only_pdp|yesno:'true,false' }}">
     {% if show_pdp_mode_toggle %}
     <div class="btn-group w-100 mb-2" role="group" aria-label="Buy or rent">
@@ -103,7 +103,7 @@
     <input type="hidden" name="quantity" id="formQuantity" value="1">
     <input type="hidden" name="line_type" id="formLineType" value="{% if rental_only_pdp %}rental{% else %}purchase{% endif %}">
     <input type="hidden" name="is_gift" id="formIsGift" value="0">
-    {% if product.is_rent_available %}
+    {% if pdp_rent_ready %}
     <input type="hidden" name="rental_billing" id="formRentalBilling" value="">
     <input type="hidden" name="rental_period_count" id="formRentalUnits" value="">
     <input type="hidden" name="rental_start_date" id="formRentalStart" value="">

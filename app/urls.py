@@ -20,6 +20,7 @@ urlpatterns = [
     path('api/delivery/states/', views.ProductDeliveryStatesView.as_view(), name='product_delivery_states'),
     path('api/delivery/state/', views.StateServiceabilityView.as_view(), name='state_serviceability'),
     path('api/delivery/states/combo/', views.ComboDeliveryStatesView.as_view(), name='combo_delivery_states'),
+    path('api/search/suggest/', views.SearchSuggestView.as_view(), name='search_suggest'),
     
     # Legacy pincode stub - keeps old JS working during migration
     path('api/pincode/check/', views.PincodeServiceabilityView.as_view(), name='pincode_check'),

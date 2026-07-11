@@ -214,6 +214,7 @@ def _load_home_product_data():
                 is_active=True,
                 is_rent_available=True,
                 rental_config__is_rent_enabled=True,
+                rental_config__rent_price_per_day__isnull=False,
             )
             .select_related('category', 'rental_config')
             .prefetch_related(variant_pf)
@@ -525,6 +526,8 @@ class ProductListView(ListView):
         context['products']    = context.get('card_items', [])
         context['page_title']  = 'Shop'
         context['active_page'] = 'collection'
+        context['active_category_slug'] = ''
+        context['active_category_parent_slug'] = ''
 
         category_slug = request.GET.get('category')
         selected_category = None
@@ -536,6 +539,11 @@ class ProductListView(ListView):
             )
             if selected_category:
                 context['page_title'] = selected_category.name
+                context['active_category_slug'] = selected_category.slug
+                if selected_category.parent_id and selected_category.parent_id in tree.by_id:
+                    context['active_category_parent_slug'] = tree.by_id[selected_category.parent_id].slug
+                else:
+                    context['active_category_parent_slug'] = selected_category.slug
 
         if selected_category:
             parent_id = selected_category.parent_id
@@ -571,10 +579,15 @@ class ProductListView(ListView):
         sort       = request.GET.get('sort', 'newest')
         rent_only  = (request.GET.get('rent')  or '').strip() in ('1', 'true', 'yes')
         combo_only = (request.GET.get('combo') or '').strip().lower() in ('1', 'true', 'yes')
+        offer_discount = (request.GET.get('offer') or '').strip().lower() in ('discount', 'sale', 'offers')
 
         context['combo_only'] = combo_only
         if combo_only:
             context['page_title'] = 'Combos'
+        elif offer_discount:
+            context['page_title'] = 'Offers'
+        elif rent_only:
+            context['page_title'] = 'Rental'
 
         context['filters'] = {
             'category':   category_slug or 'all',
@@ -589,6 +602,7 @@ class ProductListView(ListView):
             'guide':      request.GET.get('guide', ''),
             'combo':      request.GET.get('combo', ''),
             'rent':       request.GET.get('rent', ''),
+            'offer':      request.GET.get('offer', ''),
         }
         context['sort_options'] = [
             ('newest',     'Newest'),
@@ -611,7 +625,14 @@ class ProductListView(ListView):
                 simple_qs = simple_qs.filter(
                     is_rent_available=True,
                     rental_config__is_rent_enabled=True,
+                    rental_config__rent_price_per_day__isnull=False,
                 ).select_related('rental_config')
+            if offer_discount:
+                from django.db.models import F as DjF
+                simple_qs = simple_qs.filter(
+                    base_original_price__isnull=False,
+                    base_original_price__gt=DjF('base_price'),
+                )
             if category_slug and category_slug != 'all':
                 _, ids = category_filter_ids_for_slug(category_slug, include_children=True, max_depth=10)
                 if ids:
@@ -726,7 +747,12 @@ class ComboDetailView(DetailView):
 
     def get_queryset(self):
         return Combo.objects.filter(is_active=True).prefetch_related(
-            Prefetch('items', queryset=ComboItem.objects.select_related('product').order_by('display_order', 'id'))
+            Prefetch(
+                'items',
+                queryset=ComboItem.objects.select_related('product')
+                .prefetch_related('product__images', 'product__variants__images')
+                .order_by('display_order', 'id'),
+            )
         )
 
     def get_context_data(self, **kwargs):
@@ -735,7 +761,28 @@ class ComboDetailView(DetailView):
 
         obj = self.object
         rows = list(obj.items.all())
-        ctx['combo_lines'] = [{'name': r.product.name, 'quantity': r.quantity, 'product_slug': r.product.slug} for r in rows]
+        combo_lines = []
+        for r in rows:
+            img_url = ''
+            try:
+                imgs = list(r.product.images.all()[:1]) if hasattr(r.product, 'images') else []
+                if imgs and imgs[0].image:
+                    img_url = imgs[0].image.url
+                elif not imgs:
+                    v = r.product.variants.filter(is_active=True).prefetch_related('images').first()
+                    if v:
+                        vimgs = list(v.images.all()[:1])
+                        if vimgs and vimgs[0].image:
+                            img_url = vimgs[0].image.url
+            except Exception:
+                img_url = ''
+            combo_lines.append({
+                'name': r.product.name,
+                'quantity': r.quantity,
+                'product_slug': r.product.slug,
+                'image_url': img_url,
+            })
+        ctx['combo_lines'] = combo_lines
         ctx['pdp_combo_available'] = bool(rows) and combo_is_in_stock(obj, multiplier=1)
         ctx['active_page'] = 'collection'
         try:
@@ -800,6 +847,31 @@ class ProductPdpSeoFragmentView(View):
     def get(self, request, slug, *args, **kwargs):
         product = get_object_or_404(Product.objects.active().select_related('extended_content'), slug=slug)
         return render(request, 'sections/product_seo.html', {'product': product})
+
+
+class SearchSuggestView(View):
+    """Lightweight product name typeahead for the header search box."""
+
+    def get(self, request, *args, **kwargs):
+        q = (request.GET.get('q') or '').strip()
+        if len(q) < 2:
+            return JsonResponse({'results': []})
+        qs = (
+            Product.objects.active()
+            .filter(Q(name__icontains=q) | Q(category__name__icontains=q))
+            .select_related('category')
+            .order_by('name')[:8]
+        )
+        results = [
+            {
+                'name': p.name,
+                'slug': p.slug,
+                'url': reverse('store:product_detail', kwargs={'slug': p.slug}),
+                'category': p.category.name if p.category_id else '',
+            }
+            for p in qs
+        ]
+        return JsonResponse({'results': results})
 
 
 class ProductDeliveryStatesView(View):
@@ -872,11 +944,28 @@ class StateServiceabilityView(View):
     """
  
     def get(self, request, *args, **kwargs):
-        from app.services.state_delivery_service import serviceability_payload
- 
+        from app.services.state_delivery_service import serviceability_payload, serviceability_payload_for_combo
+
         raw_product = request.GET.get("product_id", "")
+        raw_combo = request.GET.get("combo_id", "")
         raw_state   = request.GET.get("state_id", "")
- 
+
+        try:
+            state_id = int(raw_state) if raw_state else None
+        except (ValueError, TypeError):
+            state_id = None
+
+        if raw_combo:
+            try:
+                combo_id = int(raw_combo)
+            except (ValueError, TypeError):
+                return JsonResponse(
+                    {"serviceable": False, "message": "combo_id is invalid."},
+                    status=400,
+                )
+            payload = serviceability_payload_for_combo(combo_id=combo_id, state_id=state_id)
+            return JsonResponse(payload)
+
         try:
             product_id = int(raw_product)
         except (ValueError, TypeError):
@@ -884,12 +973,7 @@ class StateServiceabilityView(View):
                 {"serviceable": False, "message": "product_id is required."},
                 status=400,
             )
- 
-        try:
-            state_id = int(raw_state) if raw_state else None
-        except (ValueError, TypeError):
-            state_id = None
- 
+
         payload = serviceability_payload(product_id=product_id, state_id=state_id)
         return JsonResponse(payload)
  

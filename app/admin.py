@@ -8,6 +8,7 @@ def _invalidate_home_cache():
         c = caches['locmem']
         for key in [
             'home_product_data_v1',
+            'home_product_data_v2',
             'home_shop_categories_v1',
             'home_reels_v1',
             'home_testimonials_v1',

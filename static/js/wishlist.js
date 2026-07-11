@@ -21,9 +21,15 @@
             if (count > 0) {
                 badge.textContent = count;
                 badge.style.display = "";
+                badge.removeAttribute("aria-hidden");
+                badge.classList.remove("bottom-bar-badge--hidden");
+                badge.classList.add("bottom-bar-badge--visible");
             } else {
-                badge.textContent = "";
+                badge.textContent = "0";
                 badge.style.display = "none";
+                badge.setAttribute("aria-hidden", "true");
+                badge.classList.add("bottom-bar-badge--hidden");
+                badge.classList.remove("bottom-bar-badge--visible");
             }
         });
     }

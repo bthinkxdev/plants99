@@ -308,16 +308,18 @@ function removeItem(itemId) {
   function syncAllBadges(count) {
     if (badgeEl) badgeEl.textContent = count;
 
-    
     document.querySelectorAll('.js-cart-count').forEach(function (el) {
       el.textContent  = count;
       el.style.display = count > 0 ? 'inline-flex' : 'none';
-    });
-
-    
-    document.querySelectorAll('.bottom-bar-badge.js-cart-count').forEach(function (el) {
-      el.textContent  = count;
-      el.style.display = count > 0 ? 'inline-flex' : 'none';
+      if (count > 0) {
+        el.classList.remove('bottom-bar-badge--hidden');
+        el.classList.add('bottom-bar-badge--visible');
+        el.removeAttribute('aria-hidden');
+      } else {
+        el.classList.add('bottom-bar-badge--hidden');
+        el.classList.remove('bottom-bar-badge--visible');
+        el.setAttribute('aria-hidden', 'true');
+      }
     });
   }
 

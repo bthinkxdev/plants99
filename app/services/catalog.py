@@ -1,4 +1,4 @@
-from django.db.models import OuterRef, Subquery, Q, Prefetch
+from django.db.models import OuterRef, Subquery, Q, Prefetch, F
 from ..models import Combo, Variant
 from .category_tree import category_filter_ids_for_slug
 from .combo_catalog import combo_is_in_stock, prefetch_combo_items
@@ -202,17 +202,25 @@ def collection_card_items(request, paginate_by=12):
     query      = request.GET.get('q')
     sort       = (request.GET.get('sort') or '').strip().lower()
     rent_only  = (request.GET.get('rent') or '').strip() in ('1', 'true', 'yes')
- 
+    offer_discount = (request.GET.get('offer') or '').strip().lower() in ('discount', 'sale', 'offers')
+
     # ── Step 1: build the filtered base qs (no select_related yet — keep it cheap) ──
     base_qs = Variant.objects.filter(
         is_active=True,
         product__is_active=True,
     )
- 
+
     if rent_only:
         base_qs = base_qs.filter(
             product__is_rent_available=True,
             product__rental_config__is_rent_enabled=True,
+            product__rental_config__rent_price_per_day__isnull=False,
+        )
+
+    if offer_discount:
+        base_qs = base_qs.filter(
+            original_price__isnull=False,
+            original_price__gt=F('price'),
         )
  
     if category and category != 'all':

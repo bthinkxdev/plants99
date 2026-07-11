@@ -8,7 +8,7 @@
         <input type="hidden" name="sort" value="{{ filters.sort }}">
         <input type="hidden" name="q" value="{{ filters.q }}">
         {% if filters.combo %}<input type="hidden" name="combo" value="{{ filters.combo }}">{% endif %}
-        {% if filters.rent %}<input type="hidden" name="rent" value="{{ filters.rent }}">{% endif %}
+        {% if filters.offer %}<input type="hidden" name="offer" value="{{ filters.offer }}">{% endif %}
         <div class="filter-section">
             <h6>Category</h6>
             <select name="category" class="form-select mb-3">
@@ -35,8 +35,9 @@
                 <input type="number" name="max_price" value="{{ filters.max_price }}" placeholder="Max" class="form-control mb-2" min="0" step="1">
             </div>
         </div>
-        <div class="filter-actions">
+        <div class="filter-actions d-flex flex-column gap-2">
             <button type="submit" class="btn btn-dark w-100">Apply</button>
+            <a href="{% url 'store:product_list' %}{% if filters.combo %}?combo={{ filters.combo }}{% elif filters.rent %}?rent={{ filters.rent }}{% elif filters.offer %}?offer={{ filters.offer }}{% endif %}" class="btn btn-outline-dark w-100">Clear filters</a>
         </div>
     </form>
 </aside>

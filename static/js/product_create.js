@@ -145,7 +145,7 @@
                 if (data.success && data.product_id) {
                     feedback.textContent = "";
                     toast("Product created. Redirecting to edit…");
-                    var editUrl = urlEditTpl.replace("/0/", "/" + data.product_id + "/");
+                    var editUrl = urlEditTpl.replace("/0/", "/" + data.product_id + "/") + "#simple-product-images";
                     window.location.href = editUrl;
                 } else {
                     var errMsg = "Error creating product.";

@@ -35,6 +35,14 @@
         document.querySelectorAll(".js-cart-count").forEach(function(el) {
             el.textContent = n;
             el.style.display = n > 0 ? "" : "none";
+            el.removeAttribute("aria-hidden");
+            if (n > 0) {
+                el.classList.remove("bottom-bar-badge--hidden");
+                el.classList.add("bottom-bar-badge--visible");
+            } else {
+                el.classList.add("bottom-bar-badge--hidden");
+                el.classList.remove("bottom-bar-badge--visible");
+            }
         });
     }
 
@@ -51,8 +59,8 @@
 
     function replaceWithViewCart(btn, cartUrl) {
         var viewCart = document.createElement("a");
-        viewCart.href = cartUrl;
-        viewCart.className = (btn.className || "").replace(/\s*js-pdp-add-cart\s*/, " ").trim() + " btn-view-cart";
+        viewCart.href = cartUrl || "#";
+        viewCart.className = (btn.className || "").replace(/\s*js-pdp-add-cart\s*/, " ").trim() + " btn-view-cart js-open-cart-drawer";
         viewCart.innerHTML = '<i class="fas fa-shopping-cart me-2"></i> View Cart';
         viewCart.setAttribute("aria-label", "View cart");
         viewCart.addEventListener("click", function(e) {
@@ -62,6 +70,23 @@
             }
         });
         if (btn.parentNode) btn.parentNode.replaceChild(viewCart, btn);
+    }
+
+    function syncStickyToViewCart() {
+        var sticky = document.getElementById("pdpStickyAdd");
+        if (!sticky || sticky.tagName === "A") return;
+        var link = document.createElement("a");
+        link.href = "#";
+        link.id = "pdpStickyAdd";
+        link.className = "btn btn-dark btn-sm flex-shrink-0 js-open-cart-drawer";
+        link.textContent = "View Cart";
+        link.addEventListener("click", function(e) {
+            if (window.cartDrawer && typeof window.cartDrawer.open === "function") {
+                e.preventDefault();
+                window.cartDrawer.open();
+            }
+        });
+        if (sticky.parentNode) sticky.parentNode.replaceChild(link, sticky);
     }
 
     document.addEventListener("DOMContentLoaded", function() {
@@ -117,6 +142,7 @@
                             setTimeout(function() {
                                 btn.classList.remove("btn-added");
                                 replaceWithViewCart(btn, cartUrl);
+                                syncStickyToViewCart();
                             }, 800);
                         }
                     } else {

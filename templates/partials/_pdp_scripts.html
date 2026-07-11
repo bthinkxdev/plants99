@@ -537,6 +537,27 @@
         if (mainImg && variant.image) {
             mainImg.src = variant.image;
         }
+        var thumbWrap = document.querySelector('.gallery-thumbs') || document.getElementById('galleryThumbs');
+        var urls = variant.image_urls && variant.image_urls.length ? variant.image_urls : (variant.image ? [variant.image] : []);
+        if (thumbWrap && urls.length) {
+            thumbWrap.innerHTML = '';
+            urls.forEach(function(url, idx) {
+                var thumb = document.createElement('div');
+                thumb.className = 'gallery-thumb' + (idx === 0 ? ' active' : '');
+                var img = document.createElement('img');
+                img.src = url;
+                img.alt = '';
+                img.loading = 'lazy';
+                img.setAttribute('data-full', url);
+                thumb.appendChild(img);
+                thumb.addEventListener('click', function() {
+                    if (mainImg) mainImg.src = url;
+                    thumbWrap.querySelectorAll('.gallery-thumb').forEach(function(t){ t.classList.remove('active'); });
+                    thumb.classList.add('active');
+                });
+                thumbWrap.appendChild(thumb);
+            });
+        }
         if (typeof syncStickyFromDom === 'function') syncStickyFromDom();
         if (typeof window.pdpUpdatePotTotal === 'function') window.pdpUpdatePotTotal()
     }
@@ -1140,9 +1161,20 @@
     if (rentalEnd) rentalEnd.addEventListener('change', syncRentalPriceDisplay);
     syncRentalPriceDisplay();
     if (offerModeRoot) {
-        if (offerModeRoot.getAttribute('data-rental-only') === 'true') setOfferMode('rental');
-        else if (offerModeRoot.getAttribute('data-purchase-only') === 'true') setOfferMode('purchase');
-        else setOfferMode('purchase');
+        var urlMode = '';
+        try {
+            urlMode = (new URLSearchParams(window.location.search).get('mode') || '').toLowerCase();
+        } catch (e) {}
+        if (offerModeRoot.getAttribute('data-rental-only') === 'true' || urlMode === 'rent' || urlMode === 'rental') {
+            offerModeRoot.querySelectorAll('[data-mode]').forEach(function(b){
+                b.classList.toggle('active', b.getAttribute('data-mode') === 'rental');
+            });
+            setOfferMode('rental');
+        } else if (offerModeRoot.getAttribute('data-purchase-only') === 'true') {
+            setOfferMode('purchase');
+        } else {
+            setOfferMode('purchase');
+        }
     }
 
     var pinModule = document.getElementById('pdpPincodeModule');
@@ -1322,6 +1354,7 @@
     }, { passive: true });
     if (stickyAdd && addToCartForm) {
         stickyAdd.addEventListener('click', function(){
+            if (stickyAdd.tagName === 'A') return;
             if (stickyAdd.disabled) return;
             if (typeof addToCartForm.requestSubmit === 'function') addToCartForm.requestSubmit();
             else addToCartForm.submit();

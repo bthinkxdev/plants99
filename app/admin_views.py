@@ -255,9 +255,19 @@ class ProductRentalConfigUpdateView(StaffRequiredMixin, View):
                     messages.error(request, f'{field}: {e}')
             return redirect('admin_panel:product_edit', pk=product.pk)
         cfg = form.save()
-        # If rental is enabled at config level, ensure storefront flag is ON.
-        if cfg.is_rent_enabled and not product.is_rent_available:
+        # Keep storefront rent flag aligned with config readiness.
+        rent_ready = bool(cfg.is_rent_enabled and cfg.rent_price_per_day is not None)
+        if rent_ready and not product.is_rent_available:
             Product.objects.filter(pk=product.pk).update(is_rent_available=True)
+        elif not rent_ready and product.is_rent_available and not cfg.is_rent_enabled:
+            # Config explicitly disabled — hide rent on storefront.
+            Product.objects.filter(pk=product.pk).update(is_rent_available=False)
+        if cfg.is_rent_enabled and cfg.rent_price_per_day is None:
+            messages.warning(
+                request,
+                'Rental is enabled but no daily rate is set. Rent will not appear on the storefront until a price is saved.',
+            )
+        _invalidate_home_cache()
         messages.success(request, 'Rental configuration saved.')
         return redirect('admin_panel:product_edit', pk=product.pk)
 
@@ -1368,6 +1378,7 @@ class DealOfDayListView(StaffRequiredMixin, TemplateView):
             product.save(update_fields=['is_deal_of_day', 'is_bestseller', 'is_featured', 'deal_of_day_start', 'deal_of_day_end'])
             updated_count += 1
         if updated_count:
+            _invalidate_home_cache()
             messages.success(request, f'Updated deals for {updated_count} product(s).')
         else:
             messages.info(request, 'No changes were made.')

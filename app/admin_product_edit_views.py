@@ -9,6 +9,7 @@ from django.shortcuts import get_object_or_404
 from django.views.generic import DetailView, View
 from .models import Product, ProductAttribute, ProductAttributeValue, ProductComboItem, ProductImage, RentalConfig, Variant, VariantAttributeValue, VariantImage
 from .admin_forms import ProductBasicEditForm, RentalConfigForm, _validate_image_file, ProductDeliveryStateForm
+from .admin import _invalidate_home_cache
 logger = logging.getLogger(__name__)
 
 def _normalize_payload(data):
@@ -45,6 +46,7 @@ class ProductCreateBasicView(View):
             errors = {k: list(v) for k, v in form.errors.items()}
             return JsonResponse({'success': False, 'errors': errors}, status=400)
         product = form.save()
+        _invalidate_home_cache()
         return JsonResponse({'success': True, 'product_id': product.pk})
 
 class ProductEditView(DetailView):
@@ -84,6 +86,7 @@ class ProductUpdateBasicView(View):
             update_fields.append('slug')
         if update_fields:
             form.instance.save(update_fields=update_fields)
+            _invalidate_home_cache()
         return JsonResponse({'success': True})
 
 class ProductToggleActiveView(View):
@@ -100,6 +103,7 @@ class ProductToggleActiveView(View):
             new_active = not product.is_active
         product.is_active = new_active
         product.save(update_fields=['is_active'])
+        _invalidate_home_cache()
         return JsonResponse({'success': True, 'is_active': new_active})
 
 class ProductAttributesListApiView(View):
@@ -471,6 +475,7 @@ class ProductImageUploadView(View):
         is_primary = product.images.count() == 0
         display_order = product.images.count()
         img = ProductImage.objects.create(product=product, image=image_file, is_primary=is_primary, display_order=display_order)
+        _invalidate_home_cache()
         return JsonResponse({'success': True, 'image': {'id': img.id, 'url': img.image.url if img.image else None, 'is_primary': img.is_primary, 'display_order': img.display_order}})
 
 class ProductImageDeleteView(View):

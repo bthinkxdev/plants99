@@ -28,6 +28,7 @@ from app.services import CartService
 from app.services.pincode import allowed_pincode_list
 from app.services.rental_catalog import combo_is_in_stock
 from app.services.rental_pricing import rental_key as make_rental_key
+from app.services.catalog import attach_product_card_display
 
 
 def get_pdp_queryset():
@@ -117,11 +118,13 @@ def _variant_json_payload(product: Product, variants: List[Variant]) -> List[Dic
             attr_map[attr.name] = av.value
         imgs = list(v.images.filter(image__isnull=False).exclude(image='').order_by('-is_primary', 'display_order', 'id'))
         primary_image_url = None
+        image_urls = []
         for img in imgs:
             try:
                 if img.image and img.image.url:
-                    primary_image_url = img.image.url
-                    break
+                    image_urls.append(img.image.url)
+                    if not primary_image_url:
+                        primary_image_url = img.image.url
             except Exception:
                 continue
         variant_json.append(
@@ -135,6 +138,7 @@ def _variant_json_payload(product: Product, variants: List[Variant]) -> List[Dic
                 'attributes': attr_map,
                 'attribute_value_ids': list(v.attribute_values.order_by('id').values_list('id', flat=True)),
                 'image': primary_image_url,
+                'image_urls': image_urls,
                 'is_gst_applicable': bool(product.is_gst_applicable),
                 'gst_percentage': str(product.gst_percentage) if product.is_gst_applicable and product.gst_percentage is not None else None,
             }
@@ -326,13 +330,27 @@ class ProductDetailService:
                 user=request.user, product=product
             ).exists()
 
-        context['related_products'] = list(
+        related_qs = (
             Product.objects.active()
             .filter(category=product.category)
             .exclude(pk=product.pk)
-            .select_related('category')
-            .prefetch_related('variants__images', 'images')[:4]
+            .select_related('category', 'rental_config')
+            .prefetch_related(
+                Prefetch(
+                    'variants',
+                    queryset=Variant.objects.filter(is_active=True).prefetch_related('images'),
+                    to_attr='listing_variants',
+                ),
+                'images',
+            )[:12]
         )
+        related = []
+        for rp in related_qs:
+            if attach_product_card_display(rp):
+                related.append(rp)
+            if len(related) >= 4:
+                break
+        context['related_products'] = related
         context['similar_variants'] = [
             v for v in variants if selected_variant and v.id != selected_variant.id
         ][:12]
@@ -343,14 +361,18 @@ class ProductDetailService:
                 combo_lines.append({'name': row.component_product.name, 'quantity': row.quantity})
         context['combo_lines'] = combo_lines
 
-        if getattr(product, 'is_rent_available', False):
+        from app.services.rental_pricing import product_is_rent_ready
+        rent_ready = product_is_rent_ready(product)
+        context['pdp_rent_ready'] = rent_ready
+
+        if rent_ready:
             context['product_rental_options'] = [{'billing': 'day', 'units': 1, 'key': make_rental_key(1)}]
         else:
             context['product_rental_options'] = []
 
-        context['show_pdp_mode_toggle'] = bool(product.purchase_enabled and product.is_rent_available)
-        context['rental_only_pdp'] = bool(product.is_rent_available and not product.purchase_enabled)
-        context['purchase_only_pdp'] = bool(product.purchase_enabled and not product.is_rent_available)
+        context['show_pdp_mode_toggle'] = bool(product.purchase_enabled and rent_ready)
+        context['rental_only_pdp'] = bool(rent_ready and not product.purchase_enabled)
+        context['purchase_only_pdp'] = bool(product.purchase_enabled and not rent_ready)
 
         cart = CartService.get_or_create_cart(request)
         if selected_variant:
@@ -372,7 +394,7 @@ class ProductDetailService:
 
         cfg = getattr(product, 'rental_config', None)
         context['product_rental_rates'] = {
-            'day': str(cfg.rent_price_per_day) if cfg and cfg.rent_price_per_day is not None else '',
+            'day': str(cfg.rent_price_per_day) if rent_ready and cfg and cfg.rent_price_per_day is not None else '',
         }
 
         from app.forms import CartAddForm

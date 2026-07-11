@@ -19,6 +19,17 @@ def get_rental_config(product):
     return cfg
 
 
+def product_is_rent_ready(product) -> bool:
+    """Storefront rent UI + cart require flag, config enabled, and a day rate."""
+    if not getattr(product, 'is_rent_available', False):
+        return False
+    cfg = get_rental_config(product)
+    if not cfg or not getattr(cfg, 'is_rent_enabled', False):
+        return False
+    rate = _d(getattr(cfg, 'rent_price_per_day', None))
+    return rate is not None and rate >= 0
+
+
 def compute_rental_line_unit_price(product, *, days: int) -> Decimal:
     """
     Compute rental line unit price for a product using RentalConfig.

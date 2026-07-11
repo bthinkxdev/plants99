@@ -36,7 +36,7 @@
               <p class="p99-rent-focus__price">
                 ₹{{ cfg.rent_price_per_day|default:"—" }}<span class="p99-rent-focus__per">/day</span>
               </p>
-              <a class="p99-rent-focus__btn" href="{% url 'store:product_detail' product.slug %}">Choose dates</a>
+              <a class="p99-rent-focus__btn" href="{% url 'store:product_detail' product.slug %}?mode=rent">Choose dates</a>
             </div>
           </div>
           {% endwith %}

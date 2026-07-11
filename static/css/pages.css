@@ -2749,13 +2749,18 @@ body.storefront .hc-hero__slide > .hc-pcard {
 }
 
 .p99-compact-card__rating-slot {
-  min-height: 26px;
+  min-height: 0;
   margin: 0 auto 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   width: 100%;
+}
+.p99-compact-card__rating-slot:not(:has(.p99-rating-pill)) {
+  display: none;
+  margin: 0;
+  min-height: 0;
 }
 
 .p99-compact-card .p99-rating-pill {
