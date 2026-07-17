@@ -1,14 +1,31 @@
-version: "3.9"
-
 services:
   plants99_web:
     build: .
     container_name: plants99_container
+
     command: gunicorn ecom.wsgi:application --bind 0.0.0.0:8027
+
     volumes:
       - .:/app
+
     ports:
       - "8027:8027"
+
     env_file:
       - .env
-    restart: always
+
+    environment:
+      POSTGRES_DB: plants99
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: plants@098765
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+
+    networks:
+      - shared_network
+
+    restart: unless-stopped
+
+networks:
+  shared_network:
+    external: true
