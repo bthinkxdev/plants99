@@ -2070,7 +2070,10 @@ class CreateRazorpayOrderView(View):
                 order = OrderService.create_order(cart, cleaned, user=user, clear_cart=False)
                 order.status = Order.Status.PLACED
                 order.save(update_fields=['status'])
-                request.session['pending_checkout_data'] = cleaned
+                session_checkout_data = {k: v for k, v in cleaned.items() if k != 'delivery_state'}
+                if cleaned.get('delivery_state'):
+                    session_checkout_data['delivery_state_id'] = cleaned['delivery_state'].pk
+                request.session['pending_checkout_data'] = session_checkout_data
                 request.session['last_order_number'] = order.order_number
                 payment = order.payment
                 client = razorpay.Client(auth=(settings.RZP_CLIENT_ID, settings.RZP_CLIENT_SECRET))

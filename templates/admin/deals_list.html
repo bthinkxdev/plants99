@@ -627,6 +627,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     <tbody>
                         {% for product in products %}
                         <tr>
+                            <input type="hidden" name="row_{{ product.id }}" value="1">
                             <td>{{ product.name }}</td>
                             <td data-label="Category">{{ product.category.name }}</td>
                             <td data-label="Price">₹{{ product.price|floatformat:0 }}</td>

@@ -13,7 +13,7 @@
     </a>
     {% endwith %}
     <a href="{% url 'store:product_detail' product.slug %}?variant={{ v.id }}" class="p99-compact-card__name">{{ product.name }}</a>
-    <div class="p99-compact-card__rating-slot">{% include "partials/_rating_pill.html" with product=product %}</div>
+    <div class="p99-compact-card__rating-slot">{% include "partials/_rating_pill.html" with product=product show_empty=True %}</div>
     <span class="p99-compact-card__price">₹{{ product.lowest_price|default:v.price|floatformat:0 }}</span>
 </div>
 {% else %}
@@ -101,7 +101,7 @@
     </a>
     {% endwith %}
     <a href="{% url 'store:product_detail' product.slug %}" class="p99-compact-card__name">{{ product.name }}</a>
-    <div class="p99-compact-card__rating-slot">{% include "partials/_rating_pill.html" with product=product %}</div>
+    <div class="p99-compact-card__rating-slot">{% include "partials/_rating_pill.html" with product=product show_empty=True %}</div>
     <span class="p99-compact-card__price">₹{{ product.base_price|floatformat:0 }}</span>
 </div>
 {% else %}
@@ -174,7 +174,7 @@
 
 </div>
 {% endif %}
-{% elif product.is_rent_available %}
+{% elif product.rent_ready %}
 {% if compact %}
 <div class="p99-compact-card">
     {% with urls=product.get_card_image_urls %}
@@ -187,7 +187,7 @@
     </a>
     {% endwith %}
     <a href="{% url 'store:product_detail' product.slug %}" class="p99-compact-card__name">{{ product.name }}</a>
-    <div class="p99-compact-card__rating-slot">{% include "partials/_rating_pill.html" with product=product %}</div>
+    <div class="p99-compact-card__rating-slot">{% include "partials/_rating_pill.html" with product=product show_empty=True %}</div>
     {% with cfg=product.rental_config %}
     <span class="p99-compact-card__price">{% if cfg and cfg.rent_price_per_day %}₹{{ cfg.rent_price_per_day|floatformat:0 }}<span style="font-size:0.85em;font-weight:500;">/day</span>{% else %}Rent{% endif %}</span>
     {% endwith %}
@@ -241,7 +241,7 @@
     </a>
     {% endwith %}
     <a href="{% url 'store:product_detail' product.slug %}" class="p99-compact-card__name">{{ product.name }}</a>
-    <div class="p99-compact-card__rating-slot">{% include "partials/_rating_pill.html" with product=product %}</div>
+    <div class="p99-compact-card__rating-slot">{% include "partials/_rating_pill.html" with product=product show_empty=True %}</div>
     <span class="p99-compact-card__price">₹{{ product.lowest_price|default:product.base_price|floatformat:0 }}</span>
 </div>
 {% else %}

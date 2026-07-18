@@ -37,7 +37,7 @@
         </div>
         <div class="filter-actions d-flex flex-column gap-2">
             <button type="submit" class="btn btn-dark w-100">Apply</button>
-            <a href="{% url 'store:product_list' %}{% if filters.combo %}?combo={{ filters.combo }}{% elif filters.rent %}?rent={{ filters.rent }}{% elif filters.offer %}?offer={{ filters.offer }}{% endif %}" class="btn btn-outline-dark w-100">Clear filters</a>
+            <a href="{% url 'store:product_list' %}?{% if filters.category and filters.category != 'all' %}category={{ filters.category }}{% elif filters.combo %}combo={{ filters.combo }}{% elif filters.rent %}rent={{ filters.rent }}{% elif filters.offer %}offer={{ filters.offer }}{% endif %}" class="btn btn-outline-dark w-100">Clear filters</a>
         </div>
     </form>
 </aside>

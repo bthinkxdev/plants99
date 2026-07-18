@@ -116,6 +116,20 @@
                 {% endif %}
             </div>
 
+            <div class="form-group">
+                <div class="form-check">
+                    {{ form.show_plant_care_info }}
+                    <label class="form-check-label" for="{{ form.show_plant_care_info.id_for_label }}">
+                        Show plant care info on PDP <small style="color: var(--gray-500);">(uncheck for pots, fertilizer, tools, etc.)</small>
+                    </label>
+                </div>
+                {% if form.show_plant_care_info.errors %}
+                    <div style="color: var(--danger); font-size: 0.875rem; margin-top: 0.25rem;">
+                        {{ form.show_plant_care_info.errors }}
+                    </div>
+                {% endif %}
+            </div>
+
             <div class="d-flex gap-2" style="justify-content: flex-end; margin-top: 2rem;">
                 <a href="{% url 'admin_panel:category_list' %}" class="btn btn-secondary">
                     <i class="fas fa-times"></i> Cancel

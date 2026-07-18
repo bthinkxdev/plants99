@@ -37,8 +37,9 @@ class CategoryForm(forms.ModelForm):
 
     class Meta:
         model = Category
-        fields = ['name', 'parent', 'slug', 'is_active', 'image', 'banner_image', 'banner_tagline']
+        fields = ['name', 'parent', 'slug', 'is_active', 'show_plant_care_info', 'image', 'banner_image', 'banner_tagline']
         widgets = {
+            'show_plant_care_info': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Category Name'}),
             'parent': forms.Select(attrs={'class': 'form-control'}),
             'slug': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'category-slug'}),

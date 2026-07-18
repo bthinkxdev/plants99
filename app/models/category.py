@@ -16,6 +16,11 @@ class Category(TimeStampedModel):
     image = models.ImageField(upload_to='categories/', blank=True, null=True, help_text='Thumbnail / small tile; optional fallback if no shop banner is set.')
     banner_image = models.ImageField(upload_to='category_banners/', blank=True, null=True, help_text='Wide image for the shop page when this category is selected.')
     banner_tagline = models.CharField(max_length=200, blank=True, help_text='Optional short line over the banner (e.g. promotion text).')
+    show_plant_care_info = models.BooleanField(
+        default=True,
+        help_text='Uncheck for non-plant categories (pots, fertilizer, tools, etc.) to hide the '
+                   'Care guide / Plant information sections on the product page.',
+    )
 
     class Meta:
         ordering = ['name']

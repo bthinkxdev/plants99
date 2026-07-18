@@ -101,6 +101,16 @@ class Product(TimeStampedModel):
     def has_rent_option(self) -> bool:
         return bool(self.is_rent_available)
 
+    @property
+    def rent_ready(self) -> bool:
+        """True only when rent is enabled AND a daily rate is actually configured.
+        This is the single source of truth PDP and checkout already use
+        (app.services.rental_pricing.product_is_rent_ready) — storefront listing
+        cards must use this too, not the raw is_rent_available toggle, or they'll
+        advertise 'Rent'/'Choose dates' for a product with no price set."""
+        from app.services.rental_pricing import product_is_rent_ready
+        return product_is_rent_ready(self)
+
     def clean(self):
         super().clean()
         if not self.purchase_enabled and not self.is_rent_available:

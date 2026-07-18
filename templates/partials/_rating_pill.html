@@ -6,4 +6,8 @@
     <span class="p99-divider" aria-hidden="true"></span>
     <span class="p99-rating-count">{{ product.total_reviews }} review{{ product.total_reviews|pluralize }}</span>
 </div>
+{% elif show_empty %}
+<div class="p99-rating-pill p99-rating-pill--empty" aria-hidden="true">
+    <span class="p99-rating-count">No reviews yet</span>
+</div>
 {% endif %}

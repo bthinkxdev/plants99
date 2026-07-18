@@ -43,7 +43,7 @@
         <div class="wl-grid wow fadeInUp" data-wow-delay="0.1s" id="wishlistGrid">
             {% for item in wishlist_items %}
             {% if item.selected_variant %}
-            {% with v=item.selected_variant p=v.product %}
+            {% with v=item.selected_variant p=item.selected_variant.product %}
             <div class="wl-card" id="wl-card-{{ v.id }}" data-variant-id="{{ v.id }}">
                 <div class="wl-gallery">
                     {% if p.discount_percent %}

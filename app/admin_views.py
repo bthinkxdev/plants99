@@ -1355,11 +1355,11 @@ class DealOfDayListView(StaffRequiredMixin, TemplateView):
         # always posted). Iterating the full queryset cleared flags on other pages.
         posted_ids = []
         for key in request.POST:
-            if key.startswith('start_'):
-                try:
-                    posted_ids.append(int(key[len('start_'):]))
-                except (TypeError, ValueError):
-                    continue
+                if key.startswith('row_'):
+                    try:
+                        posted_ids.append(int(key[len('row_'):]))
+                    except (TypeError, ValueError):
+                        continue
         products = Product.objects.filter(pk__in=posted_ids) if posted_ids else Product.objects.none()
         updated_count = 0
         for product in products:
