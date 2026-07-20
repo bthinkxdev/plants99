@@ -4,13 +4,12 @@ from django.contrib.auth.models import User
 from django.utils.dateparse import parse_date
 from .models import Address, ContactMessage, NewsletterSubscription, Review
 from .delivery_utils import delivery_enabled
-from .services.state_delivery_service import resolve_delivery_state_id
+from .services.state_delivery_service import get_all_active_states, resolve_delivery_state_id
 from .services.cart_order import format_cart_delivery_error, get_cart_delivery_issues
 
 
 def active_delivery_state_queryset():
-    from app.models import DeliveryState
-    return DeliveryState.objects.filter(is_active=True).order_by('display_order', 'name')
+    return get_all_active_states()
 
 
 def configure_delivery_state_field(field, *, widget_class='form-input', empty_label='Select state…'):
@@ -19,17 +18,6 @@ def configure_delivery_state_field(field, *, widget_class='form-input', empty_la
     field.label = 'State'
     existing = field.widget.attrs.get('class', '')
     field.widget.attrs['class'] = f'{existing} {widget_class}'.strip()
-
-
-def delivery_state_pk(value):
-    if value is None:
-        return None
-    if hasattr(value, 'pk'):
-        return value.pk
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
 
 
 def sync_state_text_from_delivery_state(cleaned_data):
@@ -125,9 +113,8 @@ class CheckoutForm(forms.Form):
     )
  
     def __init__(self, *args, **kwargs):
-        self.user              = kwargs.pop("user", None)
-        self._cart_product_ids = kwargs.pop("cart_product_ids", [])
-        self._cart_items       = kwargs.pop("cart_items", None)
+        self.user        = kwargs.pop("user", None)
+        self._cart_items = kwargs.pop("cart_items", None)
         super().__init__(*args, **kwargs)
         self.fields["payment"].initial = "cod"
         configure_delivery_state_field(self.fields["delivery_state"], widget_class="form-control-bw")
@@ -199,9 +186,10 @@ class CheckoutForm(forms.Form):
                         self._validate_pincode_format(cleaned_data.get("pincode"))
                     sync_state_text_from_delivery_state(cleaned_data)
 
-            state_id = delivery_state_pk(cleaned_data.get("delivery_state"))
-            if not state_id:
-                state_id = resolve_delivery_state_id(state_text=cleaned_data.get("state", ""))
+            state_id = resolve_delivery_state_id(
+                delivery_state=cleaned_data.get("delivery_state"),
+                state_text=cleaned_data.get("state", ""),
+            )
             if self._cart_items is not None:
                 if not state_id:
                     self.add_error("delivery_state", "Please select a valid delivery state.")
@@ -209,38 +197,14 @@ class CheckoutForm(forms.Form):
                     delivery_issues = get_cart_delivery_issues(self._cart_items, state_id)
                     if delivery_issues:
                         self.add_error("delivery_state", format_cart_delivery_error(delivery_issues))
-            elif self._cart_product_ids:
-                self._validate_delivery_state(state_id, self._cart_product_ids)
- 
+
             return cleaned_data
- 
+
         except forms.ValidationError:
             raise
         except Exception:
             raise forms.ValidationError("An error occurred. Please try again.")
- 
-    def _validate_delivery_state(self, state_id, product_ids):
-        if not product_ids:
-            return
-        if not state_id:
-            self.add_error("delivery_state", "Please select your delivery state.")
-            return
-        from app.models import DeliveryState
-        from app.services.state_delivery_service import is_state_deliverable_for_product
-        try:
-            state = DeliveryState.objects.get(pk=state_id, is_active=True)
-        except DeliveryState.DoesNotExist:
-            self.add_error("delivery_state", "Invalid delivery state selected.")
-            return
-        for pid in product_ids:
-            if pid and not is_state_deliverable_for_product(int(pid), state_id):
-                self.add_error(
-                    "delivery_state",
-                    f"One or more items in your cart do not ship to {state.name}. "
-                    f"Please review your cart or choose a different state.",
-                )
-                return
- 
+
     def _validate_phone(self, phone):
         if not phone:
             self.add_error("phone", "Phone number is required.")

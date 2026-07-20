@@ -24,9 +24,9 @@ from .services import CartError, CartService, OrderService, StockError, decremen
 from .services.cart_order import (
     format_cart_delivery_error,
     format_cart_stock_error,
-    cart_product_ids_for_delivery,
     get_cart_delivery_issues,
     get_cart_stock_issues,
+    resolve_checkout_totals,
 )
 from .services.state_delivery_service import resolve_delivery_state_id
 from .services.product_service import ProductDetailService, get_pdp_queryset
@@ -887,8 +887,8 @@ class ProductDeliveryStatesView(View):
     """
  
     def get(self, request, *args, **kwargs):
-        from app.services.state_delivery_service import get_deliverable_states_for_product
- 
+        from app.services.state_delivery_service import get_deliverable_states_payload
+
         raw = request.GET.get("product_id", "")
         try:
             product_id = int(raw)
@@ -897,19 +897,8 @@ class ProductDeliveryStatesView(View):
                 {"states": [], "error": "product_id is required and must be an integer."},
                 status=400,
             )
- 
-        states = get_deliverable_states_for_product(product_id)
-        return JsonResponse({
-            "states": [
-                {
-                    "id":     s.id,
-                    "name":   s.name,
-                    "code":   s.code,
-                    "region": s.region,
-                }
-                for s in states
-            ]
-        })
+
+        return JsonResponse({"states": get_deliverable_states_payload(product_id)})
  
  
 class StateServiceabilityView(View):
@@ -1595,6 +1584,11 @@ def _checkout_items_queryset(cart):
 
 
 def _checkout_guard_context(cart, addresses=None, active_address=None):
+    """
+    Stock guards + saved-address delivery map + resolved active state id.
+
+    Active-state delivery issues/status come from resolve_checkout_totals (SSoT).
+    """
     stock_ctx = _cart_stock_context(cart)
     items = list(_checkout_items_queryset(cart))
     state_id = None
@@ -1604,7 +1598,6 @@ def _checkout_guard_context(cart, addresses=None, active_address=None):
             state_text=active_address.state,
         )
 
-    delivery_issues = get_cart_delivery_issues(items, state_id) if state_id else []
     address_delivery = {}
     if addresses:
         for addr in addresses:
@@ -1612,6 +1605,9 @@ def _checkout_guard_context(cart, addresses=None, active_address=None):
                 delivery_state=addr.delivery_state,
                 state_text=addr.state,
             )
+            # Expose on the instance for template data-state-id (legacy addresses
+            # often have state text but a null delivery_state FK).
+            addr.checkout_state_id = addr_state_id
             addr_issues = get_cart_delivery_issues(items, addr_state_id) if addr_state_id else []
             address_delivery[str(addr.pk)] = {
                 'state_id': addr_state_id,
@@ -1619,30 +1615,32 @@ def _checkout_guard_context(cart, addresses=None, active_address=None):
                 'message': format_cart_delivery_error(addr_issues),
             }
 
-    summary_parts = []
-    if stock_ctx['checkout_stock_summary']:
-        summary_parts.append(stock_ctx['checkout_stock_summary'])
-    delivery_summary = format_cart_delivery_error(delivery_issues)
-    if delivery_summary:
-        summary_parts.append(delivery_summary)
-
-    blocked = stock_ctx['checkout_blocked'] or bool(delivery_issues)
     return {
         **stock_ctx,
-        'checkout_blocked': blocked,
-        'checkout_delivery_issues': delivery_issues,
-        'checkout_delivery_summary': delivery_summary,
-        'checkout_summary': ' '.join(summary_parts),
         'checkout_address_delivery': address_delivery,
         'active_delivery_state_id': state_id,
     }
+
+
+def _apply_checkout_totals_context(context, guard_ctx, checkout_totals):
+    """Merge guard + resolve_checkout_totals into checkout template context (one path)."""
+    context.update(guard_ctx)
+    context['checkout_delivery_issues'] = checkout_totals.delivery_issues
+    context['checkout_delivery_summary'] = checkout_totals.delivery_message
+    context['checkout_shipping_label'] = checkout_totals.shipping_label
+    context['checkout_delivery_status'] = checkout_totals.status
+    context['checkout_blocked'] = bool(guard_ctx.get('checkout_blocked')) or checkout_totals.checkout_blocked
+    stock_summary = guard_ctx.get('checkout_stock_summary') or ''
+    context['checkout_summary'] = ' '.join(
+        part for part in (stock_summary, checkout_totals.delivery_message) if part
+    )
+    return context
 
 
 def _checkout_form_kwargs(request, cart, user, initial=None):
     items = list(_checkout_items_queryset(cart))
     kwargs = {
         'user': user,
-        'cart_product_ids': cart_product_ids_for_delivery(cart),
         'cart_items': items,
     }
     if initial is not None:
@@ -1650,9 +1648,17 @@ def _checkout_form_kwargs(request, cart, user, initial=None):
     return kwargs
 
 
-def _checkout_lines(cart, items):
+def _checkout_lines(cart, items, delivery_issues=None):
     issue_map = _cart_stock_context(cart)['cart_stock_issue_map']
-    return [{'item': item, 'stock_issue': issue_map.get(item.id)} for item in items]
+    delivery_map = {issue.item_id: issue for issue in (delivery_issues or [])}
+    return [
+        {
+            'item': item,
+            'stock_issue': issue_map.get(item.id),
+            'delivery_issue': delivery_map.get(item.id),
+        }
+        for item in items
+    ]
 
 
 class CartPageGoneRedirect(View):
@@ -1872,9 +1878,14 @@ class RemoveCartItemView(View):
             cart = CartService.get_or_create_cart(request)
             item = get_object_or_404(CartItem, pk=kwargs.get('item_id'), cart=cart)
             item.delete()
-            messages.success(request, 'Item removed.')
+            is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+            if not is_ajax:
+                messages.success(request, 'Item removed.')
         except Exception as e:
             logger.error('Error in RemoveCartItemView: %s', e, exc_info=True)
+            is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+            if is_ajax:
+                return JsonResponse({'success': False, 'error': 'Failed to remove item from cart.'}, status=400)
             messages.error(request, 'Failed to remove item from cart.')
         if next_url:
             return redirect(next_url)
@@ -1882,7 +1893,12 @@ class RemoveCartItemView(View):
         if is_ajax:
             cart = CartService.get_or_create_cart(request)
             item_count = sum(item.quantity for item in cart.items.all())
-            return JsonResponse({'success': True, 'cart_count': item_count})
+            return JsonResponse({
+                'success': True,
+                'cart_count': item_count,
+                'cart_empty': item_count == 0,
+            })
+        return _redirect_open_cart()
 
 class CheckoutView(TemplateView):
     template_name = 'pages/checkout.html'
@@ -1898,7 +1914,6 @@ class CheckoutView(TemplateView):
         try:
             context = super().get_context_data(**kwargs)
             cart = CartService.get_or_create_cart(self.request)
-            totals = CartService.compute_totals(cart)
             user = self.request.user if self.request.user.is_authenticated else None
             addresses = []
             default_address = None
@@ -1922,25 +1937,30 @@ class CheckoutView(TemplateView):
                     initial['payment'] = payment_method
             items = _checkout_items_queryset(cart)
             guard_ctx = _checkout_guard_context(cart, addresses=addresses, active_address=default_address)
+            state_id = guard_ctx.get('active_delivery_state_id')
+            checkout_totals = resolve_checkout_totals(cart, state_id=state_id, items=list(items))
             context.update({
                 'captcha_site_key': settings.CAPTCHA_SITE_KEY,
                 'cart': cart,
                 'items': items,
-                'checkout_lines': _checkout_lines(cart, items),
-                'totals': totals,
+                'checkout_lines': _checkout_lines(
+                    cart,
+                    items,
+                    delivery_issues=checkout_totals.delivery_issues,
+                ),
+                'totals': checkout_totals.as_cart_totals(),
                 'form': CheckoutForm(**_checkout_form_kwargs(self.request, cart, user, initial=initial)),
                 'addresses': addresses,
                 'default_address': default_address,
                 'is_guest_checkout': user is None,
                 'active_page': 'checkout',
             })
-            context.update(guard_ctx)
-            return context
+            return _apply_checkout_totals_context(context, guard_ctx, checkout_totals)
         except Exception as e:
             logger.error(f'Error in CheckoutView.get_context_data: {str(e)}', exc_info=True)
             user = self.request.user if self.request.user.is_authenticated else None
             context = super().get_context_data(**kwargs)
-            context.update({'cart': None, 'items': [], 'totals': {'subtotal': 0, 'gst_total': 0, 'shipping': 0, 'total': 0}, 'form': CheckoutForm(user=user), 'addresses': [], 'default_address': None, 'is_guest_checkout': user is None, 'active_page': 'checkout'})
+            context.update({'cart': None, 'items': [], 'totals': {'subtotal': 0, 'gst_total': 0, 'shipping': 0, 'total': 0}, 'form': CheckoutForm(user=user), 'addresses': [], 'default_address': None, 'is_guest_checkout': user is None, 'active_page': 'checkout', 'checkout_address_delivery': {}})
             return context
 
 class OrderCreateView(FormView):
@@ -1964,7 +1984,6 @@ class OrderCreateView(FormView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         cart = CartService.get_or_create_cart(self.request)
-        totals = CartService.compute_totals(cart)
         user = self.request.user if self.request.user.is_authenticated else None
         addresses = []
         default_address = None
@@ -1977,19 +1996,27 @@ class OrderCreateView(FormView):
             )
             default_address = next((a for a in addresses if a.is_default), addresses[0] if addresses else None)
         items = _checkout_items_queryset(cart)
+        guard_ctx = _checkout_guard_context(cart, addresses=addresses, active_address=default_address)
+        checkout_totals = resolve_checkout_totals(
+            cart,
+            state_id=guard_ctx.get('active_delivery_state_id'),
+            items=list(items),
+        )
         context.update({
             'cart': cart,
             'items': items,
-            'checkout_lines': _checkout_lines(cart, items),
-            'totals': totals,
+            'checkout_lines': _checkout_lines(
+                cart,
+                items,
+                delivery_issues=checkout_totals.delivery_issues,
+            ),
+            'totals': checkout_totals.as_cart_totals(),
             'addresses': addresses,
             'default_address': default_address,
             'is_guest_checkout': user is None,
             'active_page': 'checkout',
         })
-        context.update(_checkout_guard_context(cart, addresses=addresses, active_address=default_address))
-        return context
-
+        return _apply_checkout_totals_context(context, guard_ctx, checkout_totals)
     def form_valid(self, form):
         try:
             if captcha_required():
@@ -2037,7 +2064,6 @@ class CreateRazorpayOrderView(View):
         form = CheckoutForm(
             request.POST,
             user=user,
-            cart_product_ids=cart_product_ids_for_delivery(cart),
             cart_items=items,
         )
         if not form.is_valid():
@@ -2077,8 +2103,7 @@ class CreateRazorpayOrderView(View):
                 request.session['last_order_number'] = order.order_number
                 payment = order.payment
                 client = razorpay.Client(auth=(settings.RZP_CLIENT_ID, settings.RZP_CLIENT_SECRET))
-                totals = CartService.compute_totals(cart)
-                amount_paise = int(totals.total * 100)
+                amount_paise = int(order.total * 100)
                 razorpay_order = client.order.create({'amount': amount_paise, 'currency': 'INR', 'payment_capture': 1})
                 payment.razorpay_order_id = razorpay_order['id']
                 payment.save(update_fields=['razorpay_order_id'])
@@ -2397,6 +2422,8 @@ class CartDrawerView(View):
                 'items': items_data,
                 'total': str(totals.subtotal),
                 'subtotal': str(totals.subtotal),
+                'shipping': str(totals.shipping),
+                'grand_total': str(totals.total),
                 'item_count': item_count,
                 'has_stock_issues': bool(stock_issues),
                 'checkout_blocked': bool(stock_issues),
@@ -2405,3 +2432,19 @@ class CartDrawerView(View):
         except Exception as exc:
             logger.error('CartDrawerView error: %s', exc, exc_info=True)
             return JsonResponse({'success': False, 'items': [], 'total': '0', 'subtotal': '0', 'item_count': 0})
+
+
+class CheckoutTotalsView(View):
+    """
+    Recalculate checkout totals for a delivery state.
+
+    GET /api/checkout/totals/?state_id=5
+    """
+
+    def get(self, request, *args, **kwargs):
+        cart = CartService.get_or_create_cart(request)
+        items = list(_checkout_items_queryset(cart))
+        raw_state = request.GET.get('state_id') or ''
+        state_id = resolve_delivery_state_id(delivery_state=raw_state) if raw_state else None
+        result = resolve_checkout_totals(cart, state_id=state_id, items=items)
+        return JsonResponse(result.to_api_dict(items))

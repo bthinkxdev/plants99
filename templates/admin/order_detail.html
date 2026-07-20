@@ -255,10 +255,16 @@
                 <span class="order-detail-info-label">Shipping Address</span>
                 <span class="order-detail-info-value" style="line-height: 1.6; display: block;">
                     {{ order.address.address_line }}<br>
-                    {{ order.address.city }}, {{ order.address.state }}<br>
+                    {{ order.address.city }}, {{ order.delivery_state|default:order.address.state }}<br>
                     {{ order.address.pincode }}
                 </span>
             </div>
+            {% if order.delivery_state %}
+            <div class="order-detail-info-row">
+                <span class="order-detail-info-label">Delivery State</span>
+                <span class="order-detail-info-value">{{ order.delivery_state }}</span>
+            </div>
+            {% endif %}
         </div>
     </div>
     {% endif %}
@@ -438,8 +444,10 @@
                         <th>Variant</th>
                         <th>Rental Period</th>
                         <th>Unit Price</th>
-                        <th>Quantity</th>
-                        <th>Total</th>
+                        <th>Qty</th>
+                        <th>Delivery / Unit</th>
+                        <th>Delivery</th>
+                        <th>Line Total</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -504,7 +512,9 @@
                                 {% endif %}
                             </td>
                             <td>{{ item.quantity }}</td>
-                            <td style="font-weight: 600;">₹{{ item.line_total }}</td>
+                            <td>₹{{ item.delivery_charge_per_unit }}</td>
+                            <td>₹{{ item.total_delivery_charge }}</td>
+                            <td style="font-weight: 600;">₹{{ item.line_grand_total }}</td>
                         </tr>
                     {% endfor %}
                 </tbody>
@@ -518,11 +528,11 @@
                 <span class="amount">₹{{ order.subtotal }}</span>
             </div>
             <div class="order-detail-totals-row">
-                <span>Shipping</span>
-                <span class="amount">₹{{ order.shipping }}</span>
+                <span>Delivery Charge{% if order.delivery_state %} ({{ order.delivery_state }}){% endif %}</span>
+                <span class="amount">₹{{ order.total_delivery_charge }}</span>
             </div>
             <div class="order-detail-totals-row total-row">
-                <span>Total</span>
+                <span>Grand Total</span>
                 <span class="amount">₹{{ order.total }}</span>
             </div>
         </div>

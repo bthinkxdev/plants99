@@ -111,8 +111,8 @@
                         <span>&#8377;{{ order.subtotal }}</span>
                     </div>
                     <div class="order-total-row">
-                        <span>Shipping</span>
-                        <span>{% if order.shipping == 0 %}Free{% else %}&#8377;{{ order.shipping }}{% endif %}</span>
+                        <span>Delivery Charge{% if order.delivery_state %} ({{ order.delivery_state }}){% endif %}</span>
+                        <span>{% if order.total_delivery_charge == 0 %}Free{% else %}&#8377;{{ order.total_delivery_charge }}{% endif %}</span>
                     </div>
                     <div class="order-grand-total">
                         <span class="label">Total</span>

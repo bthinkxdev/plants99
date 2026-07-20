@@ -179,7 +179,10 @@ class CartItemAdmin(admin.ModelAdmin):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('order_number', 'display_customer', 'display_email', 'display_phone', 'status', 'total', 'payment_status', 'created_at')
+    list_display = (
+        'order_number', 'display_customer', 'display_email', 'display_phone',
+        'status', 'delivery_state_name', 'shipping', 'total', 'payment_status', 'created_at',
+    )
     list_filter = ('status',)
     search_fields = ('order_number', 'user__email', 'user__username', 'address__email', 'address__phone', 'address__full_name')
     list_select_related = ('address', 'user')
@@ -207,7 +210,11 @@ class OrderAdmin(admin.ModelAdmin):
 
 @admin.register(OrderItem)
 class OrderItemAdmin(admin.ModelAdmin):
-    list_display = ('order', 'product_name', 'line_type', 'is_gift', 'rental_snapshot', 'variant_snapshot', 'quantity', 'unit_price')
+    list_display = (
+        'order', 'product_name', 'line_type', 'is_gift', 'rental_snapshot',
+        'variant_snapshot', 'quantity', 'unit_price',
+        'delivery_charge_per_unit', 'total_delivery_charge',
+    )
     list_select_related = ('order', 'product', 'selected_variant')
 
 @admin.register(Address)
@@ -350,9 +357,10 @@ class DeliveryStateAdmin(admin.ModelAdmin):
 
 @admin.register(ProductDeliveryState)
 class ProductDeliveryStateAdmin(admin.ModelAdmin):
-    list_display = ('product', 'state', 'added_at')
+    list_display = ('product', 'state', 'delivery_charge', 'added_at')
     search_fields = ('product__name', 'state__name', 'state__code')
     list_select_related = ('product', 'state')
+    list_editable = ('delivery_charge',)
 
 
 @admin.register(UserProfile)

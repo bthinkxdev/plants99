@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initCheckoutRemoveItems();
     initCheckoutSubmit();
     initCheckoutDeliveryGuard();
+    initCheckoutDeliveryTotals();
 });
 
 function initCheckoutSubmit() {
@@ -235,14 +236,183 @@ function cancelPayment(orderNumber, cancelUrl, csrf) {
 
 
 function initCheckoutRemoveItems() {
-    document.querySelectorAll('.checkout-remove-form').forEach(function(form) {
-        form.addEventListener('submit', function(e) {
-            var msg = form.getAttribute('data-confirm');
-            if (msg && !window.confirm(msg)) {
-                e.preventDefault();
-            }
-        });
+    var root = document.getElementById('checkout-order-lines') || document;
+    root.addEventListener('click', function(e) {
+        var btn = e.target.closest('.js-checkout-remove');
+        if (!btn) return;
+        e.preventDefault();
+        var itemId = btn.getAttribute('data-item-id');
+        if (!itemId) return;
+        removeCheckoutItem(itemId, btn);
     });
+}
+
+
+function getCheckoutCsrfToken() {
+    var input = document.querySelector('#checkoutForm [name=csrfmiddlewaretoken]');
+    return input ? input.value : '';
+}
+
+
+function removeCheckoutItem(itemId, btn) {
+    var template = window.CHECKOUT_REMOVE_URL_TEMPLATE || '/cart/remove/0/';
+    var url = template.replace('/0/', '/' + encodeURIComponent(itemId) + '/');
+    if (btn) btn.disabled = true;
+
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCheckoutCsrfToken(),
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json',
+        },
+    })
+    .then(function(res) { return res.json().then(function(data) { return { ok: res.ok, data: data }; }); })
+    .then(function(result) {
+        if (!result.ok || !result.data.success) {
+            if (btn) btn.disabled = false;
+            showCheckoutError(result.data && result.data.error ? result.data.error : 'Could not remove item.');
+            return;
+        }
+        if (result.data.cart_empty) {
+            window.location.href = '/?open_cart=1';
+            return;
+        }
+        var line = document.querySelector('[data-checkout-line][data-item-id="' + itemId + '"]');
+        if (line) line.remove();
+        refreshCheckoutDeliveryTotals(resolveCheckoutStateId());
+    })
+    .catch(function() {
+        if (btn) btn.disabled = false;
+        showCheckoutError('Network error. Please try again.');
+    });
+}
+
+
+function setShippingDisplay(label, status) {
+    var shippingEl = document.getElementById('shipping-value');
+    if (!shippingEl) return;
+
+    shippingEl.textContent = label || '';
+    shippingEl.dataset.status = status || '';
+
+    var warn = status === 'state_required' || status === 'unavailable';
+    shippingEl.style.color = warn ? '#b91c1c' : 'var(--clr-black)';
+    shippingEl.style.fontWeight = warn ? '600' : '700';
+}
+
+
+function syncCheckoutLineDeliveryWarnings(data) {
+    var issueMap = {};
+    (data.delivery_issues || []).forEach(function(issue) {
+        issueMap[String(issue.item_id)] = issue;
+    });
+
+    document.querySelectorAll('[data-checkout-line]').forEach(function(line) {
+        var itemId = line.getAttribute('data-item-id');
+        var warn = line.querySelector('[data-line-delivery-warn]');
+        var issue = issueMap[String(itemId)];
+        if (issue) {
+            line.classList.add('order-line--delivery-issue');
+            if (warn) {
+                warn.textContent = issue.message || '';
+                warn.hidden = false;
+            }
+        } else {
+            line.classList.remove('order-line--delivery-issue');
+            if (warn) {
+                warn.textContent = '';
+                warn.hidden = true;
+            }
+        }
+    });
+}
+
+
+function applyCheckoutTotalsPayload(data) {
+    if (!data || !data.success) return;
+
+    var shipping = parseFloat(data.shipping || 0);
+    var subtotal = parseFloat(data.subtotal || 0);
+    var gst = parseFloat(data.gst_total || 0);
+    var total = parseFloat(data.total || 0);
+    var status = data.status || 'state_required';
+    var label = data.shipping_label || '';
+
+    var shippingEl = document.getElementById('shipping-value');
+    var shippingHidden = document.getElementById('shipping_charge');
+    var subtotalEl = document.getElementById('subtotal-value');
+    var totalEl = document.getElementById('total-value');
+    var placeOrderTotal = document.getElementById('placeOrderTotal');
+
+    if (shippingEl) {
+        shippingEl.dataset.value = (status === 'ok') ? String(shipping) : '';
+        setShippingDisplay(label, status);
+    }
+    if (shippingHidden) shippingHidden.value = (status === 'ok') ? String(shipping) : '0';
+    if (subtotalEl) {
+        subtotalEl.dataset.value = String(subtotal);
+        subtotalEl.textContent = '\u20B9' + subtotal.toFixed(0);
+    }
+    if (totalEl) {
+        totalEl.dataset.value = String(total);
+        totalEl.textContent = '\u20B9' + total.toFixed(0);
+    }
+    if (placeOrderTotal) {
+        placeOrderTotal.textContent = total.toFixed(0);
+    }
+
+    syncCheckoutLineDeliveryWarnings(data);
+
+    // Delivery/state blocks disable the button without duplicating the message
+    // into #checkoutErrorMessage (status already lives on Delivery Charge).
+    if (!window.CHECKOUT_STOCK_BLOCKED) {
+        if (status === 'state_required' || status === 'unavailable') {
+            window.CHECKOUT_BLOCKED = true;
+            window.CHECKOUT_SUMMARY = '';
+        } else {
+            window.CHECKOUT_BLOCKED = false;
+            window.CHECKOUT_SUMMARY = '';
+        }
+        applyCheckoutBlockedState();
+    }
+
+    document.dispatchEvent(new CustomEvent('shippingRatesUpdated', {
+        detail: {
+            shipping: shipping,
+            subtotal: subtotal,
+            gst_total: gst,
+            total: total,
+            status: status,
+            delivery_message: data.delivery_message || '',
+        }
+    }));
+}
+
+
+function applyCheckoutBlockedState() {
+    var placeOrderBtn = document.getElementById('placeOrderBtn');
+    var errDiv = document.getElementById('checkoutErrorMessage');
+    if (placeOrderBtn) {
+        placeOrderBtn.disabled = !!window.CHECKOUT_BLOCKED;
+        placeOrderBtn.setAttribute('aria-disabled', window.CHECKOUT_BLOCKED ? 'true' : 'false');
+    }
+    // Only surface the bottom alert for stock / submit errors — not delivery status.
+    if (errDiv) {
+        var msg = '';
+        if (window.CHECKOUT_BLOCKED && window.CHECKOUT_STOCK_BLOCKED) {
+            msg = window.CHECKOUT_STOCK_SUMMARY || window.CHECKOUT_SUMMARY || '';
+        } else if (window.CHECKOUT_BLOCKED && window.CHECKOUT_SUMMARY) {
+            msg = window.CHECKOUT_SUMMARY;
+        }
+        if (msg) {
+            errDiv.textContent = msg;
+            errDiv.style.display = 'block';
+        } else {
+            errDiv.style.display = 'none';
+            errDiv.textContent = '';
+        }
+    }
 }
 
 
@@ -253,14 +423,26 @@ function initAddressSelection() {
 
     if (!addressRadios.length) return;
 
+    function syncSelectedAddress(radio) {
+        if (!radio) return;
+        document.querySelectorAll('.address-card.selectable').forEach(card => {
+            card.classList.remove('selected');
+        });
+        const card = radio.closest('.address-card');
+        if (card) card.classList.add('selected');
+        if (selectedAddressInput) selectedAddressInput.value = radio.value;
+        if (useNewAddressInput) useNewAddressInput.value = 'false';
+    }
+
+    // Ensure hidden fields match the checked radio on first paint.
+    const initiallyChecked = document.querySelector('input[name="address_selection"]:checked');
+    if (initiallyChecked) {
+        syncSelectedAddress(initiallyChecked);
+    }
+
     addressRadios.forEach(radio => {
         radio.addEventListener('change', function() {
-            document.querySelectorAll('.address-card.selectable').forEach(card => {
-                card.classList.remove('selected');
-            });
-            this.closest('.address-card').classList.add('selected');
-            if (selectedAddressInput) selectedAddressInput.value = this.value;
-            if (useNewAddressInput) useNewAddressInput.value = 'false';
+            syncSelectedAddress(this);
             updateCheckoutDeliveryForSelectedAddress();
         });
     });
@@ -283,21 +465,69 @@ function initCheckoutDeliveryGuard() {
     var stateSelect = document.getElementById('id_delivery_state');
     if (stateSelect) {
         stateSelect.addEventListener('change', function() {
-            if (window.CHECKOUT_STOCK_BLOCKED) return;
-            window.CHECKOUT_BLOCKED = false;
-            window.CHECKOUT_SUMMARY = '';
-            applyCheckoutBlockedState();
+            refreshCheckoutDeliveryTotals(stateSelect.value);
         });
     }
+}
+
+
+function isUsingNewAddress() {
+    var newAddressSection = document.getElementById('newAddressSection');
+    var selected = document.querySelector('input[name="address_selection"]:checked');
+    var useNewInput = document.getElementById('id_use_new_address');
+    var useNew = useNewInput && String(useNewInput.value).toLowerCase() === 'true';
+
+    // Prefer explicit form flag when a saved-address radio group exists.
+    if (document.querySelector('input[name="address_selection"]')) {
+        if (useNew) return true;
+        if (selected) return false;
+        // No radio selected yet — treat as new-address flow if the section is visible.
+    }
+
+    if (!newAddressSection) return true;
+    var style = window.getComputedStyle(newAddressSection);
+    return style.display !== 'none' && style.visibility !== 'hidden';
+}
+
+
+function resolveCheckoutStateId() {
+    if (!isUsingNewAddress()) {
+        var selected = document.querySelector('input[name="address_selection"]:checked');
+        if (selected) {
+            var card = selected.closest('[data-address-id]');
+            var fromCard = card && card.getAttribute('data-state-id');
+            if (fromCard) return String(fromCard);
+
+            var map = readAddressDeliveryMap();
+            var meta = map[String(selected.value)] || map[selected.value] || {};
+            if (meta.state_id) return String(meta.state_id);
+        }
+        return '';
+    }
+
+    var stateSelect = document.getElementById('id_delivery_state');
+    return stateSelect && stateSelect.value ? stateSelect.value : '';
+}
+
+
+function refreshCheckoutDeliveryTotals(stateId) {
+    var url = window.CHECKOUT_TOTALS_URL || '/api/checkout/totals/';
+    var qs = stateId ? ('?state_id=' + encodeURIComponent(stateId)) : '';
+    fetch(url + qs, { headers: { 'Accept': 'application/json' } })
+        .then(function(res) { return res.json(); })
+        .then(applyCheckoutTotalsPayload)
+        .catch(function() { /* keep current totals */ });
+}
+
+
+function initCheckoutDeliveryTotals() {
+    refreshCheckoutDeliveryTotals(resolveCheckoutStateId());
 }
 
 
 function updateCheckoutDeliveryForSelectedAddress() {
     var map = readAddressDeliveryMap();
     var selected = document.querySelector('input[name="address_selection"]:checked');
-    var newAddressSection = document.getElementById('newAddressSection');
-    var usingNewAddress = newAddressSection && newAddressSection.style.display !== 'none'
-        && (!selected || document.getElementById('id_use_new_address')?.value === 'true');
 
     document.querySelectorAll('[data-address-warn]').forEach(function(node) {
         node.style.display = 'none';
@@ -306,52 +536,29 @@ function updateCheckoutDeliveryForSelectedAddress() {
 
     if (window.CHECKOUT_STOCK_BLOCKED) {
         applyCheckoutBlockedState();
+        refreshCheckoutDeliveryTotals(resolveCheckoutStateId());
         return;
     }
 
-    if (usingNewAddress) {
-        window.CHECKOUT_BLOCKED = false;
-        window.CHECKOUT_SUMMARY = '';
-        applyCheckoutBlockedState();
+    if (isUsingNewAddress()) {
+        refreshCheckoutDeliveryTotals(resolveCheckoutStateId());
         return;
     }
 
     if (!selected) {
-        applyCheckoutBlockedState();
+        refreshCheckoutDeliveryTotals('');
         return;
     }
 
-    var meta = map[String(selected.value)] || map[selected.value];
-    if (meta && meta.blocked) {
-        window.CHECKOUT_BLOCKED = true;
-        window.CHECKOUT_SUMMARY = meta.message || 'One or more items do not ship to this address.';
+    var meta = map[String(selected.value)] || map[selected.value] || {};
+    if (meta.blocked) {
         var warn = document.querySelector('[data-address-warn="' + selected.value + '"]');
         if (warn) {
             warn.textContent = meta.message || '';
             warn.style.display = meta.message ? 'block' : 'none';
         }
-    } else {
-        window.CHECKOUT_BLOCKED = false;
-        window.CHECKOUT_SUMMARY = '';
     }
-    applyCheckoutBlockedState();
-}
-
-
-function applyCheckoutBlockedState() {
-    var placeOrderBtn = document.getElementById('placeOrderBtn');
-    var errDiv = document.getElementById('checkoutErrorMessage');
-    if (placeOrderBtn) {
-        placeOrderBtn.disabled = !!window.CHECKOUT_BLOCKED;
-        placeOrderBtn.setAttribute('aria-disabled', window.CHECKOUT_BLOCKED ? 'true' : 'false');
-    }
-    if (window.CHECKOUT_BLOCKED && errDiv) {
-        errDiv.textContent = window.CHECKOUT_SUMMARY || window.CHECKOUT_STOCK_SUMMARY || '';
-        errDiv.style.display = errDiv.textContent ? 'block' : 'none';
-    } else if (errDiv && !window.CHECKOUT_BLOCKED) {
-        errDiv.style.display = 'none';
-        errDiv.textContent = '';
-    }
+    refreshCheckoutDeliveryTotals(resolveCheckoutStateId());
 }
 
 

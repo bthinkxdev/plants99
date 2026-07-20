@@ -33,7 +33,7 @@
     </span>
     <span class="hc-pcard__title">{{ product.name }}</span>
     <span class="hc-pcard__rating-slot">{% include "partials/_rating_pill.html" with product=product show_empty=True %}</span>
-    <span class="hc-pcard__meta">{% if product.rent_ready and not product.base_price %}Available to rent{% else %}Delivers in 48 hrs{% endif %}</span>
+    <span class="hc-pcard__meta">{% if product.rent_ready and not product.base_price %}Available to rent{% else %}Care-first packing{% endif %}</span>
     <span class="hc-pcard__cta">View product</span>
 </a>
 {% endif %}

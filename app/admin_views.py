@@ -1753,11 +1753,13 @@ class ProductDeliveryStatesUpdateView(View):
  
         if form.is_valid():
             form.save()
-            messages.success(request, "Delivery states updated successfully.")
+            messages.success(request, "Delivery states and charges updated successfully.")
         else:
             for field, errs in form.errors.items():
                 for err in errs:
                     messages.error(request, f"{field}: {err}")
+            for err in form.non_field_errors():
+                messages.error(request, str(err))
  
         return redirect("admin_panel:product_edit", pk=product.pk)
     
