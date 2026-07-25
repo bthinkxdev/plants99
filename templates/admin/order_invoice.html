@@ -213,7 +213,7 @@
                     <th style="width: 28%;">Item</th>
                     <th style="width: 8%; text-align: center;">Qty</th>
                     <th style="width: 14%;">Unit Price</th>
-                    <th style="width: 14%;">Delivery / Unit</th>
+                    <th style="width: 14%;">Delivery / Pack</th>
                     <th style="width: 14%;">Delivery Total</th>
                     <th style="width: 22%;">Line Total</th>
                 </tr>
@@ -247,6 +247,12 @@
                     <td>Product Subtotal:</td>
                     <td>₹{{ order.subtotal }}</td>
                 </tr>
+                {% if order.discount_amount and order.discount_amount > 0 %}
+                <tr>
+                    <td>Discount{% if order.coupon_code %} ({{ order.coupon_code }}){% endif %}:</td>
+                    <td>−₹{{ order.discount_amount }}</td>
+                </tr>
+                {% endif %}
                 {% if order.gst_total and order.gst_total > 0 %}
                 <tr>
                     <td>GST:</td>

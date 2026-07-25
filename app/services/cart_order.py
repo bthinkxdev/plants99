@@ -319,6 +319,28 @@ def format_cart_stock_error(issues: list[CartStockIssue]) -> str:
     )
 
 
+def cart_item_max_quantity(item, stock_issue: CartStockIssue | None = None) -> int:
+    """
+    Max selectable quantity for a cart line (drawer + checkout).
+    Honours stock issues, variant/base/pot stock, and MAX_CART_QTY.
+    """
+    max_qty_setting = int(getattr(settings, 'MAX_CART_QTY', 10) or 10)
+    if stock_issue is not None:
+        if stock_issue.issue in ('insufficient', 'pot_insufficient'):
+            return max(0, int(stock_issue.available_qty or 0))
+        return 0
+
+    max_quantity = max_qty_setting
+    if item.selected_variant_id and getattr(item, 'selected_variant', None):
+        max_quantity = min(max_quantity, int(item.selected_variant.stock_quantity or 0))
+    elif item.product_id and item.product and not item.combo_id:
+        if not getattr(item.product, 'is_combo_product', False):
+            max_quantity = min(max_quantity, int(item.product.base_stock or 0))
+    if item.selected_pot_id and getattr(item, 'selected_pot', None):
+        max_quantity = min(max_quantity, int(item.selected_pot.base_stock or 0))
+    return max(0, int(max_quantity))
+
+
 @dataclass
 class CartDeliveryIssue:
     item_id: int
@@ -391,6 +413,8 @@ class CartTotals:
     delivery_breakdown: object = None
     used_flat_fallback: bool = False
     state_missing: bool = False
+    discount: object = 0
+    coupon_code: str = ''
 
 
 @dataclass
@@ -410,6 +434,9 @@ class CheckoutTotalsResult:
     state_id: object = None
     delivery_breakdown: object = None
     used_flat_fallback: bool = False
+    discount: object = 0
+    coupon_code: str = ''
+    coupon_message: str = ''
 
     @property
     def state_missing(self) -> bool:
@@ -432,6 +459,8 @@ class CheckoutTotalsResult:
             delivery_breakdown=self.delivery_breakdown,
             used_flat_fallback=self.used_flat_fallback,
             state_missing=self.state_missing,
+            discount=self.discount,
+            coupon_code=self.coupon_code,
         )
 
     def line_payload(self, items) -> list[dict]:
@@ -469,6 +498,9 @@ class CheckoutTotalsResult:
             'shipping_label': self.shipping_label,
             'subtotal': str(self.subtotal),
             'gst_total': str(self.gst_total or 0),
+            'discount': str(self.discount or 0),
+            'coupon_code': self.coupon_code or '',
+            'coupon_message': self.coupon_message or '',
             'shipping': str(self.shipping),
             'total': str(self.total),
             'checkout_blocked': self.checkout_blocked,
@@ -487,7 +519,7 @@ def shipping_label_for_amount(shipping) -> str:
     return f'₹{quantized}'
 
 
-def resolve_checkout_totals(cart, state_id=None, items=None) -> CheckoutTotalsResult:
+def resolve_checkout_totals(cart, state_id=None, items=None, *, user=None, phone='') -> CheckoutTotalsResult:
     """
     Canonical checkout totals + delivery status.
 
@@ -495,6 +527,7 @@ def resolve_checkout_totals(cart, state_id=None, items=None) -> CheckoutTotalsRe
     - No state → shipping excluded, status state_required
     - State with undeliverable lines → shipping excluded, status unavailable
     - Valid state → state charges (or flat fallback) included, status ok
+    Discount (coupon) always comes from CartService.compute_totals.
     """
     from decimal import Decimal
 
@@ -507,43 +540,54 @@ def resolve_checkout_totals(cart, state_id=None, items=None) -> CheckoutTotalsRe
     delivery_issues = get_cart_delivery_issues(items, state_id) if state_id else []
     delivery_message = format_cart_delivery_error(delivery_issues)
 
-    if not state_id:
-        base = CartService.compute_totals(cart, state_id=None)
+    def _with_coupon(base, *, shipping, status, shipping_label, issues, message, sid, fallback):
+        discount = getattr(base, 'discount', 0) or 0
         subtotal = base.subtotal or 0
         gst_total = base.gst_total or 0
         return CheckoutTotalsResult(
             subtotal=subtotal,
             gst_total=gst_total,
+            shipping=shipping,
+            total=(subtotal - discount) + gst_total + shipping,
+            status=status,
+            shipping_label=shipping_label,
+            delivery_issues=issues,
+            delivery_message=message,
+            state_id=sid,
+            delivery_breakdown=getattr(base, 'delivery_breakdown', None),
+            used_flat_fallback=fallback,
+            discount=discount,
+            coupon_code=getattr(base, 'coupon_code', '') or '',
+            coupon_message='',
+        )
+
+    if not state_id:
+        base = CartService.compute_totals(cart, state_id=None, user=user, phone=phone)
+        return _with_coupon(
+            base,
             shipping=Decimal('0'),
-            total=subtotal + gst_total,
             status='state_required',
             shipping_label='Please select the state',
-            delivery_issues=[],
-            delivery_message='',
-            state_id=None,
-            delivery_breakdown=getattr(base, 'delivery_breakdown', None),
-            used_flat_fallback=False,
+            issues=[],
+            message='',
+            sid=None,
+            fallback=False,
         )
 
     if delivery_issues:
-        base = CartService.compute_totals(cart, state_id=None)
-        subtotal = base.subtotal or 0
-        gst_total = base.gst_total or 0
-        return CheckoutTotalsResult(
-            subtotal=subtotal,
-            gst_total=gst_total,
+        base = CartService.compute_totals(cart, state_id=None, user=user, phone=phone)
+        return _with_coupon(
+            base,
             shipping=Decimal('0'),
-            total=subtotal + gst_total,
             status='unavailable',
             shipping_label=delivery_message or 'Not deliverable in this state',
-            delivery_issues=delivery_issues,
-            delivery_message=delivery_message,
-            state_id=state_id,
-            delivery_breakdown=getattr(base, 'delivery_breakdown', None),
-            used_flat_fallback=False,
+            issues=delivery_issues,
+            message=delivery_message,
+            sid=state_id,
+            fallback=False,
         )
 
-    totals = CartService.compute_totals(cart, state_id=state_id)
+    totals = CartService.compute_totals(cart, state_id=state_id, user=user, phone=phone)
     return CheckoutTotalsResult(
         subtotal=totals.subtotal,
         gst_total=totals.gst_total,
@@ -556,6 +600,9 @@ def resolve_checkout_totals(cart, state_id=None, items=None) -> CheckoutTotalsRe
         state_id=state_id,
         delivery_breakdown=getattr(totals, 'delivery_breakdown', None),
         used_flat_fallback=bool(getattr(totals, 'used_flat_fallback', False)),
+        discount=getattr(totals, 'discount', 0) or 0,
+        coupon_code=getattr(totals, 'coupon_code', '') or '',
+        coupon_message='',
     )
 
 
@@ -669,12 +716,18 @@ class CartService:
         return issues
 
     @staticmethod
-    def compute_totals(cart, state_id=None):
+    def compute_totals(cart, state_id=None, *, user=None, phone=''):
         """
         Cart totals. With no state_id, shipping is ₹0 (state must be selected
         at checkout). With a state_id, shipping is state charges × qty, or the
         flat fallback when no product charge rows exist for that state.
+
+        Coupon discount applies to merchandise subtotal only:
+        total = max(0, subtotal - discount) + gst + shipping
         """
+        from decimal import Decimal
+
+        from .coupon_service import resolve_cart_coupon
         from .state_delivery_service import compute_cart_delivery_charges
 
         try:
@@ -686,7 +739,17 @@ class CartService:
             gst_total = cart.gst_total
             breakdown = compute_cart_delivery_charges(items, state_id)
             shipping = breakdown.total
-            total = subtotal + gst_total + shipping
+            coupon, discount, _msg = resolve_cart_coupon(
+                cart,
+                user=user,
+                phone=phone,
+                subtotal=subtotal,
+            )
+            discount = discount or Decimal('0')
+            payable_sub = subtotal - discount
+            if payable_sub < 0:
+                payable_sub = Decimal('0')
+            total = payable_sub + gst_total + shipping
             return CartTotals(
                 subtotal=subtotal,
                 gst_total=gst_total,
@@ -695,9 +758,19 @@ class CartService:
                 delivery_breakdown=breakdown,
                 used_flat_fallback=breakdown.used_flat_fallback,
                 state_missing=breakdown.state_missing,
+                discount=discount,
+                coupon_code=(coupon.code if coupon else '') or '',
             )
         except Exception:
-            return CartTotals(subtotal=0, gst_total=0, shipping=0, total=0, state_missing=True)
+            return CartTotals(
+                subtotal=0,
+                gst_total=0,
+                shipping=0,
+                total=0,
+                state_missing=True,
+                discount=0,
+                coupon_code='',
+            )
 
     @staticmethod
     def add_item(
@@ -1114,10 +1187,17 @@ class OrderService:
         elif address.state:
             delivery_state_name = address.state
 
-        totals = CartService.compute_totals(cart, state_id=delivery_state_id)
+        totals = CartService.compute_totals(
+            cart,
+            state_id=delivery_state_id,
+            user=user if user is not None else cart.user,
+            phone=address.phone or '',
+        )
         breakdown = getattr(totals, 'delivery_breakdown', None)
         order_number = cls._generate_order_number()
         gst_total = getattr(totals, 'gst_total', 0) or 0
+        discount_amount = getattr(totals, 'discount', 0) or 0
+        coupon_code = getattr(totals, 'coupon_code', '') or ''
         state = (address.state or '').strip()
         if (delivery_state_name or state).lower() == 'kerala':
             cgst = gst_total / 2
@@ -1138,15 +1218,29 @@ class OrderService:
             sgst=sgst,
             igst=igst,
             total=totals.total,
+            coupon_code=coupon_code,
+            discount_amount=discount_amount,
             address=address,
         )
+        if coupon_code and discount_amount:
+            from .coupon_service import get_coupon, record_redemption
+
+            coupon = get_coupon(coupon_code)
+            if coupon:
+                record_redemption(
+                    order,
+                    coupon,
+                    discount_amount,
+                    user=order.user,
+                    phone=address.phone or '',
+                    email=address.email or '',
+                )
         from decimal import Decimal
 
         def _line_delivery(item):
-            if breakdown and not breakdown.used_flat_fallback:
+            if breakdown:
                 line = breakdown.line_for(item.id)
                 return line['delivery_charge_per_unit'], line['total_delivery_charge']
-            # Flat order-level fallback: keep line charges at 0; order.shipping holds the total.
             return Decimal('0'), Decimal('0')
 
         for item in items:
@@ -1272,7 +1366,8 @@ class OrderService:
         Payment.objects.create(order=order, method=form_data.get('payment', Payment.Method.COD), amount=totals.total)
         if clear_cart:
             cart.status = Cart.Status.ORDERED
-            cart.save(update_fields=['status'])
+            cart.coupon_code = ''
+            cart.save(update_fields=['status', 'coupon_code'])
             cart.items.all().delete()
         send_order_notification_email_async(order)
         return order

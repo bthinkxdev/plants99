@@ -14,8 +14,16 @@
     <div class="site-header__inner">
         <div class="site-header__row1">
             <a href="{% url 'store:home' %}" class="site-brand" aria-label="{{ site_brand }} home">
-                <img src="{% static 'images/logo.png' %}" alt="{{ site_brand }}" style="height: 32px; width: 32px; object-fit: contain;">
-                <span class="site-brand__name ms-2 d-none d-lg-inline">{{ site_brand }}</span>
+                <img src="{% static 'images/plants99logo.jpeg' %}"
+                     alt="{{ site_brand }}"
+                     class="site-brand__logo site-brand__logo--mobile d-lg-none"
+                     width="120"
+                     height="120">
+                <img src="{% static 'images/logo.png' %}"
+                     alt="{{ site_brand }}"
+                     class="site-brand__logo site-brand__logo--desktop d-none d-lg-block"
+                     width="220"
+                     height="56">
             </a>
             <div class="site-header__search-slot">
                 <form class="site-search-pill" action="{% url 'store:product_list' %}" method="get" role="search">

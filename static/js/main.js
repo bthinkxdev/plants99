@@ -740,9 +740,11 @@
     // Show/hide pot breakdown
     if (selectedPotPrice > 0 && breakdown && breakdownPrice) {
       breakdownPrice.textContent = '+₹' + selectedPotPrice.toFixed(2);
-      breakdown.style.display = 'block';
+      breakdown.hidden = false;
+      breakdown.style.display = '';
     } else if (breakdown) {
-      breakdown.style.display = 'none';
+      breakdown.hidden = true;
+      breakdown.style.display = '';
     }
   }
  

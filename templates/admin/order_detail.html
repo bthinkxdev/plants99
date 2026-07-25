@@ -445,7 +445,7 @@
                         <th>Rental Period</th>
                         <th>Unit Price</th>
                         <th>Qty</th>
-                        <th>Delivery / Unit</th>
+                        <th>Delivery / Pack</th>
                         <th>Delivery</th>
                         <th>Line Total</th>
                     </tr>
@@ -527,6 +527,12 @@
                 <span>Subtotal</span>
                 <span class="amount">₹{{ order.subtotal }}</span>
             </div>
+            {% if order.discount_amount and order.discount_amount > 0 %}
+            <div class="order-detail-totals-row">
+                <span>Discount{% if order.coupon_code %} ({{ order.coupon_code }}){% endif %}</span>
+                <span class="amount">−₹{{ order.discount_amount }}</span>
+            </div>
+            {% endif %}
             <div class="order-detail-totals-row">
                 <span>Delivery Charge{% if order.delivery_state %} ({{ order.delivery_state }}){% endif %}</span>
                 <span class="amount">₹{{ order.total_delivery_charge }}</span>

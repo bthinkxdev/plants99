@@ -15,7 +15,7 @@ def site_contact_context(request):
     return {
         'site_phone': getattr(settings, 'SITE_PHONE', '+91 7559947750'),
         'site_whatsapp': getattr(settings, 'SITE_WHATSAPP', '917559947750'),
-        'site_email': getattr(settings, 'SITE_EMAIL', 'support@plants99.com'),
+        'site_email': getattr(settings, 'SITE_EMAIL', 'plants99official@gmail.com'),
         'site_instagram': getattr(settings, 'SITE_INSTAGRAM', 'plants_.99'),
     }
 
@@ -78,7 +78,10 @@ def admin_message_badge(request):
     return {'admin_unresolved_messages': count}
 
 def delivery_settings(request):
-    return {'DELIVERY_INTEGRATED': delivery_enabled()}
+    return {
+        'DELIVERY_INTEGRATED': delivery_enabled(),
+        'DELIVERY_PACK_SIZE': int(getattr(settings, 'DELIVERY_PACK_SIZE', 2) or 2),
+    }
 
 def home_section_flags(request):
     return {'HOME_DEAL_OF_DAY_ENABLED': getattr(settings, 'HOME_DEAL_OF_DAY_ENABLED', True), 'HOME_FEATURED_ENABLED': getattr(settings, 'HOME_FEATURED_ENABLED', True), 'HOME_BESTSELLER_ENABLED': getattr(settings, 'HOME_BESTSELLER_ENABLED', True), 'HOME_RECENTLY_ADDED_ENABLED': getattr(settings, 'HOME_RECENTLY_ADDED_ENABLED', True), 'REVIEW_ENABLED': getattr(settings, 'REVIEW_ENABLED', True)}
@@ -130,4 +133,4 @@ def storefront_brand(request):
         children = [tree.by_id[cid] for cid in child_ids if cid in tree.by_id]
         children.sort(key=lambda c: (c.name.lower(), c.pk))
         nav_category_menu.append({'parent': parent, 'children': children})
-    return {'site_brand': getattr(settings, 'SITE_BRAND', 'Plants 99'), 'site_tagline': getattr(settings, 'SITE_TAGLINE', 'Bring nature home'), 'nav_categories': nav, 'nav_category_menu': nav_category_menu}
+    return {'site_brand': getattr(settings, 'SITE_BRAND', 'Plants 99'), 'site_tagline': getattr(settings, 'SITE_TAGLINE', 'Rooted in Kerala. Growing Happier Homes Across India.'), 'nav_categories': nav, 'nav_category_menu': nav_category_menu}

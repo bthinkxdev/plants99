@@ -1442,90 +1442,68 @@
     var module = document.getElementById('pdpStateModule');
     if (!module) return;
 
-    var select  = document.getElementById('pdpStateSelect');
-    var result  = document.getElementById('pdpStateResult');
-    var hint    = document.getElementById('pdpStateHint');
-    var pid     = window.productId || null;
+    var tipsEl = document.getElementById('pdpStateTips');
+    var hint = document.getElementById('pdpStateHint');
+    var pid = window.productId || null;
 
-    if (!select || !pid) return;
+    if (!tipsEl || !pid) return;
 
-    // ── Load deliverable states from seller config ─────────────────────────
-    var statesUrl = '/api/delivery/states/?product_id=' + encodeURIComponent(pid);
+    function formatCharge(raw) {
+        var n = parseFloat(raw);
+        if (isNaN(n) || n <= 0) return '';
+        return '₹' + (Number.isInteger(n) ? String(n) : n.toFixed(0));
+    }
 
-    fetch(statesUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    function createStateTip(s) {
+        var card = document.createElement('div');
+        card.className = 'pdp-state-tip';
+        card.setAttribute('role', 'listitem');
+        card.setAttribute('data-state-id', String(s.id));
+
+        var nameEl = document.createElement('span');
+        nameEl.className = 'pdp-state-tip__name';
+        nameEl.textContent = s.name;
+        card.appendChild(nameEl);
+
+        var chargeText = formatCharge(s.delivery_charge);
+        if (chargeText) {
+            var chargeEl = document.createElement('span');
+            chargeEl.className = 'pdp-state-tip__charge';
+            chargeEl.textContent = chargeText;
+            card.appendChild(chargeEl);
+        }
+        return card;
+    }
+
+    function renderStateTips(states) {
+        tipsEl.textContent = '';
+        var list = document.createElement('div');
+        list.className = 'pdp-state-tips__list';
+        states.forEach(function (s) {
+            list.appendChild(createStateTip(s));
+        });
+        tipsEl.appendChild(list);
+    }
+
+    fetch('/api/delivery/states/?product_id=' + encodeURIComponent(pid), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
         .then(function (r) { return r.json(); })
         .then(function (data) {
             var states = data.states || [];
-            if (states.length === 0) {
+            if (!states.length) {
                 module.style.display = 'none';
                 return;
             }
-
-            // Group by region for <optgroup>
-            var REGION_LABELS = {
-                south:     'South India',
-                west:      'West India',
-                central:   'Central India',
-                east:      'East India',
-                north:     'North India',
-                northeast: 'North-East India',
-                ut:        'Union Territories'
-            };
-            var REGION_ORDER = ['south','west','central','east','north','northeast','ut'];
-            var grouped = {};
-            states.forEach(function (s) {
-                if (!grouped[s.region]) grouped[s.region] = [];
-                grouped[s.region].push(s);
-            });
-
-            REGION_ORDER.forEach(function (region) {
-                var group = grouped[region];
-                if (!group || group.length === 0) return;
-                var og = document.createElement('optgroup');
-                og.label = REGION_LABELS[region] || region;
-                group.forEach(function (s) {
-                    var opt = document.createElement('option');
-                    opt.value = s.id;
-                    opt.textContent = s.name + ' (' + s.code + ')';
-                    og.appendChild(opt);
-                });
-                select.appendChild(og);
-            });
-
-            hint.textContent = 'Delivered to ' + states.length + ' state' + (states.length === 1 ? '' : 's');
-            hint.style.display = '';
+            renderStateTips(states);
+            if (hint) {
+                hint.textContent = 'Available in ' + states.length + ' state' + (states.length === 1 ? '' : 's');
+                hint.hidden = false;
+            }
         })
         .catch(function () {
             module.style.display = 'none';
         });
-
-    // ── On state select — show serviceable or not ──────────────────────────
-    select.addEventListener('change', function () {
-        var stateId = select.value;
-        result.textContent = '';
-        result.className = 'small fw-semibold';
-
-        if (!stateId) return;
-
-        var checkUrl = '/api/delivery/state/?product_id=' + encodeURIComponent(pid)
-                     + '&state_id=' + encodeURIComponent(stateId);
-
-        fetch(checkUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                if (data.serviceable) {
-                    result.textContent = '✓ Delivery available';
-                    result.style.color = '#16a34a';
-                } else {
-                    result.textContent = '✗ Not deliverable';
-                    result.style.color = '#dc2626';
-                }
-            })
-            .catch(function () {
-                result.textContent = 'Could not check. Try again.';
-                result.style.color = '#6b7280';
-            });
-    });
 })();
 
 /* ── Share Sheet ─────────────────────────────────────────────── */

@@ -16,6 +16,12 @@ class Cart(TimeStampedModel):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, blank=True, null=True, related_name='carts')
     session_key = models.CharField(max_length=40, blank=True, db_index=True)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.ACTIVE, db_index=True)
+    coupon_code = models.CharField(
+        max_length=40,
+        blank=True,
+        default='',
+        help_text='Applied checkout coupon code (uppercase). Cleared when invalid or ordered.',
+    )
 
     class Meta:
         indexes = [models.Index(fields=['user', 'status']), models.Index(fields=['session_key', 'status'])]

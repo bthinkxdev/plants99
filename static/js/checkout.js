@@ -6,6 +6,9 @@ document.addEventListener('DOMContentLoaded', function() {
     initPaymentButtonText();
     initAddressToggle();
     initCheckoutRemoveItems();
+    initCheckoutQtyControls();
+    initCheckoutPackTips();
+    initCheckoutCoupon();
     initCheckoutSubmit();
     initCheckoutDeliveryGuard();
     initCheckoutDeliveryTotals();
@@ -280,11 +283,185 @@ function removeCheckoutItem(itemId, btn) {
         }
         var line = document.querySelector('[data-checkout-line][data-item-id="' + itemId + '"]');
         if (line) line.remove();
+        syncCheckoutCartCount(result.data.cart_count);
         refreshCheckoutDeliveryTotals(resolveCheckoutStateId());
     })
     .catch(function() {
         if (btn) btn.disabled = false;
         showCheckoutError('Network error. Please try again.');
+    });
+}
+
+
+function syncCheckoutCartCount(count) {
+    if (typeof count === 'undefined' || count === null) return;
+    document.querySelectorAll('.js-cart-count').forEach(function(el) {
+        el.textContent = String(count);
+        if (count > 0) {
+            el.style.display = '';
+            el.removeAttribute('aria-hidden');
+            el.classList.remove('bottom-bar-badge--hidden');
+            el.classList.add('bottom-bar-badge--visible');
+        } else {
+            el.style.display = 'none';
+            el.setAttribute('aria-hidden', 'true');
+            el.classList.add('bottom-bar-badge--hidden');
+            el.classList.remove('bottom-bar-badge--visible');
+        }
+    });
+}
+
+
+function setCheckoutQtyControlsBusy(wrap, busy) {
+    if (!wrap) return;
+    wrap.querySelectorAll('button').forEach(function(btn) {
+        btn.disabled = !!busy;
+    });
+}
+
+
+function syncCheckoutQtyButtons(wrap, quantity, maxQuantity) {
+    if (!wrap) return;
+    var qty = parseInt(quantity, 10) || 1;
+    var maxQ = parseInt(maxQuantity, 10);
+    if (isNaN(maxQ)) maxQ = parseInt(wrap.getAttribute('data-max'), 10) || qty;
+    wrap.setAttribute('data-max', String(maxQ));
+    var line = wrap.closest('[data-checkout-line]');
+    if (line) line.setAttribute('data-max', String(maxQ));
+    var valEl = wrap.querySelector('[data-checkout-qty-val]');
+    if (valEl) valEl.textContent = String(qty);
+    var dec = wrap.querySelector('.js-checkout-qty-dec');
+    var inc = wrap.querySelector('.js-checkout-qty-inc');
+    if (dec) dec.disabled = qty <= 1;
+    if (inc) inc.disabled = qty >= maxQ;
+}
+
+
+function checkoutPackUpsellMessage(quantity) {
+    var packSize = parseInt(window.DELIVERY_PACK_SIZE, 10);
+    if (isNaN(packSize) || packSize < 1) packSize = 2;
+    var qty = parseInt(quantity, 10) || 0;
+    if (qty <= 0 || packSize <= 1) return '';
+    var rem = qty % packSize;
+    if (rem === 0) return '';
+    var slots = packSize - rem;
+    if (slots === 1) return 'Add 1 more - no extra delivery';
+    return 'Add ' + slots + ' more - no extra delivery';
+}
+
+
+function syncCheckoutPackUpsell(lineOrWrap, message) {
+    var root = lineOrWrap && lineOrWrap.closest
+        ? (lineOrWrap.closest('[data-checkout-line]') || lineOrWrap)
+        : null;
+    if (!root) return;
+    var tip = root.querySelector('[data-checkout-pack-tip]');
+    if (!tip) return;
+    var text = (message == null || message === '')
+        ? ''
+        : String(message).trim();
+    if (!text) {
+        var valEl = root.querySelector('[data-checkout-qty-val]');
+        text = checkoutPackUpsellMessage(valEl ? valEl.textContent : 0);
+    }
+    tip.textContent = text;
+    if (text) tip.removeAttribute('hidden');
+    else tip.setAttribute('hidden', '');
+}
+
+
+function initCheckoutPackTips() {
+    document.querySelectorAll('[data-checkout-line]').forEach(function(line) {
+        syncCheckoutPackUpsell(line, null);
+    });
+}
+
+
+function updateCheckoutItemQuantity(itemId, nextQty, wrap) {
+    var url = window.CHECKOUT_UPDATE_URL || '/cart/update/';
+    setCheckoutQtyControlsBusy(wrap, true);
+
+    fetch(url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCheckoutCsrfToken(),
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json',
+        },
+        body: 'item_id=' + encodeURIComponent(itemId) + '&quantity=' + encodeURIComponent(nextQty),
+    })
+    .then(function(res) { return res.json().then(function(data) { return { ok: res.ok, data: data }; }); })
+    .then(function(result) {
+        if (!result.ok || !result.data.success) {
+            setCheckoutQtyControlsBusy(wrap, false);
+            syncCheckoutQtyButtons(
+                wrap,
+                (wrap.querySelector('[data-checkout-qty-val]') || {}).textContent,
+                wrap.getAttribute('data-max')
+            );
+            showCheckoutError(result.data && result.data.error ? result.data.error : 'Could not update quantity.');
+            return;
+        }
+
+        syncCheckoutCartCount(result.data.cart_count);
+
+        if (result.data.cart_empty || result.data.item_removed) {
+            if (result.data.cart_empty) {
+                window.location.href = '/?open_cart=1';
+                return;
+            }
+            var gone = document.querySelector('[data-checkout-line][data-item-id="' + itemId + '"]');
+            if (gone) gone.remove();
+            refreshCheckoutDeliveryTotals(resolveCheckoutStateId());
+            return;
+        }
+
+        var line = document.querySelector('[data-checkout-line][data-item-id="' + itemId + '"]');
+        var priceEl = line ? line.querySelector('[data-checkout-line-price]') : null;
+        if (priceEl && result.data.line_total != null) {
+            var amount = parseFloat(result.data.line_total);
+            priceEl.textContent = '\u20B9' + (isNaN(amount) ? result.data.line_total : amount.toFixed(0));
+        }
+        syncCheckoutQtyButtons(wrap, result.data.quantity, result.data.max_quantity);
+        syncCheckoutPackUpsell(wrap, result.data.pack_upsell_message);
+        refreshCheckoutDeliveryTotals(resolveCheckoutStateId());
+    })
+    .catch(function() {
+        setCheckoutQtyControlsBusy(wrap, false);
+        syncCheckoutQtyButtons(
+            wrap,
+            (wrap.querySelector('[data-checkout-qty-val]') || {}).textContent,
+            wrap.getAttribute('data-max')
+        );
+        showCheckoutError('Network error. Please try again.');
+    });
+}
+
+
+function initCheckoutQtyControls() {
+    var root = document.getElementById('checkout-order-lines');
+    if (!root) return;
+
+    root.addEventListener('click', function(e) {
+        var btn = e.target.closest('.js-checkout-qty-inc, .js-checkout-qty-dec');
+        if (!btn || btn.disabled) return;
+        e.preventDefault();
+
+        var wrap = btn.closest('[data-checkout-qty]');
+        var itemId = btn.getAttribute('data-item-id') || (wrap && wrap.getAttribute('data-item-id'));
+        if (!wrap || !itemId) return;
+
+        var valEl = wrap.querySelector('[data-checkout-qty-val]');
+        var current = parseInt(valEl && valEl.textContent, 10) || 1;
+        var maxQ = parseInt(wrap.getAttribute('data-max'), 10);
+        if (isNaN(maxQ)) maxQ = current;
+        var delta = btn.classList.contains('js-checkout-qty-inc') ? 1 : -1;
+        var next = current + delta;
+        if (next < 1 || next > maxQ) return;
+
+        updateCheckoutItemQuantity(itemId, next, wrap);
     });
 }
 
@@ -335,15 +512,21 @@ function applyCheckoutTotalsPayload(data) {
     var shipping = parseFloat(data.shipping || 0);
     var subtotal = parseFloat(data.subtotal || 0);
     var gst = parseFloat(data.gst_total || 0);
+    var discount = parseFloat(data.discount || 0);
     var total = parseFloat(data.total || 0);
     var status = data.status || 'state_required';
     var label = data.shipping_label || '';
+    var couponCode = data.coupon_code || '';
 
     var shippingEl = document.getElementById('shipping-value');
     var shippingHidden = document.getElementById('shipping_charge');
     var subtotalEl = document.getElementById('subtotal-value');
     var totalEl = document.getElementById('total-value');
     var placeOrderTotal = document.getElementById('placeOrderTotal');
+    var discountRow = document.getElementById('discount-row');
+    var discountValue = document.getElementById('discount-value');
+    var discountAmountText = document.getElementById('discount-amount-text');
+    var discountCodeLabel = document.getElementById('discount-code-label');
 
     if (shippingEl) {
         shippingEl.dataset.value = (status === 'ok') ? String(shipping) : '';
@@ -354,6 +537,17 @@ function applyCheckoutTotalsPayload(data) {
         subtotalEl.dataset.value = String(subtotal);
         subtotalEl.textContent = '\u20B9' + subtotal.toFixed(0);
     }
+    if (discountRow) {
+        if (discount > 0) {
+            discountRow.hidden = false;
+            if (discountValue) discountValue.dataset.value = String(discount);
+            if (discountAmountText) discountAmountText.textContent = discount.toFixed(0);
+            if (discountCodeLabel) discountCodeLabel.textContent = couponCode;
+        } else {
+            discountRow.hidden = true;
+        }
+    }
+    syncCheckoutCouponControls(couponCode, data.coupon_message || '');
     if (totalEl) {
         totalEl.dataset.value = String(total);
         totalEl.textContent = '\u20B9' + total.toFixed(0);
@@ -382,11 +576,127 @@ function applyCheckoutTotalsPayload(data) {
             shipping: shipping,
             subtotal: subtotal,
             gst_total: gst,
+            discount: discount,
+            coupon_code: couponCode,
             total: total,
             status: status,
             delivery_message: data.delivery_message || '',
         }
     }));
+}
+
+
+function syncCheckoutCouponControls(couponCode, message) {
+    var input = document.getElementById('checkoutCouponInput');
+    var applyBtn = document.getElementById('checkoutCouponApply');
+    var removeBtn = document.getElementById('checkoutCouponRemove');
+    var msg = document.getElementById('checkoutCouponMsg');
+    var hasCode = !!(couponCode && String(couponCode).trim());
+    if (input) {
+        input.value = hasCode ? couponCode : (input.value || '');
+        input.readOnly = hasCode;
+    }
+    if (applyBtn) applyBtn.hidden = hasCode;
+    if (removeBtn) removeBtn.hidden = !hasCode;
+    if (msg) {
+        msg.textContent = message || (hasCode ? 'Coupon applied.' : '');
+        msg.classList.toggle('is-error', !!(message && !hasCode));
+        msg.classList.toggle('is-ok', hasCode);
+    }
+}
+
+
+function initCheckoutCoupon() {
+    var applyBtn = document.getElementById('checkoutCouponApply');
+    var removeBtn = document.getElementById('checkoutCouponRemove');
+    var input = document.getElementById('checkoutCouponInput');
+    if (!applyBtn && !removeBtn) return;
+
+    function phoneValue() {
+        var phone = document.querySelector('#checkoutForm [name=phone]');
+        return phone ? phone.value.trim() : '';
+    }
+
+    function postCoupon(url, body) {
+        return fetch(url, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': getCheckoutCsrfToken(),
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json',
+            },
+            body: body,
+        }).then(function(res) {
+            return res.json().then(function(data) {
+                return { ok: res.ok, data: data || {} };
+            });
+        });
+    }
+
+    if (applyBtn) {
+        applyBtn.addEventListener('click', function() {
+            var code = input ? input.value.trim() : '';
+            if (!code) {
+                syncCheckoutCouponControls('', 'Enter a coupon code.');
+                return;
+            }
+            applyBtn.disabled = true;
+            var stateId = resolveCheckoutStateId() || '';
+            var body = 'code=' + encodeURIComponent(code)
+                + '&phone=' + encodeURIComponent(phoneValue())
+                + '&state_id=' + encodeURIComponent(stateId);
+            postCoupon(window.CHECKOUT_COUPON_APPLY_URL || '/api/checkout/coupon/', body)
+                .then(function(result) {
+                    applyBtn.disabled = false;
+                    if (!result.ok || !result.data.success) {
+                        syncCheckoutCouponControls('', (result.data && result.data.error) || 'Could not apply coupon.');
+                        return;
+                    }
+                    applyCheckoutTotalsPayload(result.data);
+                })
+                .catch(function() {
+                    applyBtn.disabled = false;
+                    syncCheckoutCouponControls('', 'Network error. Try again.');
+                });
+        });
+    }
+
+    if (removeBtn) {
+        removeBtn.addEventListener('click', function() {
+            removeBtn.disabled = true;
+            var stateId = resolveCheckoutStateId() || '';
+            var body = 'state_id=' + encodeURIComponent(stateId);
+            postCoupon(window.CHECKOUT_COUPON_REMOVE_URL || '/api/checkout/coupon/remove/', body)
+                .then(function(result) {
+                    removeBtn.disabled = false;
+                    if (input) {
+                        input.value = '';
+                        input.readOnly = false;
+                    }
+                    if (!result.ok || !result.data.success) {
+                        syncCheckoutCouponControls('', (result.data && result.data.error) || 'Could not remove coupon.');
+                        return;
+                    }
+                    applyCheckoutTotalsPayload(result.data);
+                    syncCheckoutCouponControls('', '');
+                })
+                .catch(function() {
+                    removeBtn.disabled = false;
+                    syncCheckoutCouponControls('', 'Network error. Try again.');
+                });
+        });
+    }
+
+    if (input) {
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (applyBtn && !applyBtn.hidden) applyBtn.click();
+            }
+        });
+    }
 }
 
 

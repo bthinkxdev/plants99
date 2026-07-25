@@ -1,0 +1,78 @@
+{% extends "admin_panel/base.html" %}
+{% load static %}
+
+{% block title %}Coupon {{ coupon.code }}{% endblock %}
+{% block page_title %}Coupon {{ coupon.code }}{% endblock %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h3 class="card-title">{{ coupon.code }}</h3>
+        <div class="d-flex gap-2">
+            <a href="{% url 'admin_panel:coupon_edit' coupon.pk %}" class="btn btn-secondary btn-sm">Edit</a>
+            <form method="post" action="{% url 'admin_panel:coupon_toggle_active' coupon.pk %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'admin_panel:coupon_detail' coupon.pk %}">
+                <button type="submit" class="btn btn-sm btn-outline-dark">
+                    {% if coupon.is_active %}Disable{% else %}Enable{% endif %}
+                </button>
+            </form>
+            {% if not redemptions %}
+            <form method="post" action="{% url 'admin_panel:coupon_delete' coupon.pk %}" onsubmit="return confirm('Delete this coupon?');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4"><strong>Status</strong><div>{% if coupon.is_active %}<span class="badge badge-success">Active</span>{% else %}<span class="badge badge-secondary">Inactive</span>{% endif %}</div></div>
+            <div class="col-md-4"><strong>Discount</strong><div>{% if coupon.discount_type == 'percent' %}{{ coupon.discount_value }}%{% else %}₹{{ coupon.discount_value }}{% endif %}</div></div>
+            <div class="col-md-4"><strong>Usage</strong><div>{{ coupon.uses_remaining_label }}</div></div>
+            <div class="col-md-4"><strong>Min subtotal</strong><div>₹{{ coupon.min_subtotal }}</div></div>
+            <div class="col-md-4"><strong>Once per customer</strong><div>{{ coupon.once_per_customer|yesno:"Yes,No" }}</div></div>
+            <div class="col-md-4"><strong>Expires</strong><div>{% if coupon.expires_at %}{{ coupon.expires_at }}{% else %}—{% endif %}</div></div>
+        </div>
+        {% if coupon.description %}<p class="mt-3 mb-0 text-muted">{{ coupon.description }}</p>{% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Redemption history</h3>
+    </div>
+    <div class="card-body has-list-table">
+        {% if redemptions %}
+        <div class="table-responsive list-table">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>When</th>
+                        <th>Order</th>
+                        <th>Customer</th>
+                        <th>Discount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in redemptions %}
+                    <tr>
+                        <td>{{ row.created_at|date:"d M Y H:i" }}</td>
+                        <td><a href="{% url 'admin_panel:order_detail' row.order.order_number %}">{{ row.order.order_number }}</a></td>
+                        <td>
+                            {% if row.customer_phone %}{{ row.customer_phone }}{% elif row.user %}{{ row.user }}{% else %}—{% endif %}
+                            {% if row.customer_email %}<div class="small text-muted">{{ row.customer_email }}</div>{% endif %}
+                        </td>
+                        <td>₹{{ row.discount_amount }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state"><p>No redemptions yet.</p></div>
+        {% endif %}
+    </div>
+</div>
+<p class="mt-3"><a href="{% url 'admin_panel:coupon_list' %}">&larr; Back to coupons</a></p>
+{% endblock %}

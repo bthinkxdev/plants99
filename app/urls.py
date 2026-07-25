@@ -54,6 +54,8 @@ urlpatterns = [
     path('webhooks/shiprocket/', ShiprocketWebhookView.as_view(), name='shiprocket_webhook'),
     path('api/cart/drawer/', views.CartDrawerView.as_view(), name='cart_drawer'),
     path('api/checkout/totals/', views.CheckoutTotalsView.as_view(), name='checkout_totals'),
+    path('api/checkout/coupon/', views.CheckoutCouponApplyView.as_view(), name='checkout_coupon_apply'),
+    path('api/checkout/coupon/remove/', views.CheckoutCouponRemoveView.as_view(), name='checkout_coupon_remove'),
 
     path('api/home/reels/', views.HomeLazyReelsView.as_view(), name='home_reels'),
     path('api/home/testimonials/', views.HomeLazyTestimonialsView.as_view(), name='home_testimonials'),

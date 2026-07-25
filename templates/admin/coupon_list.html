@@ -1,0 +1,128 @@
+{% extends "admin_panel/base.html" %}
+{% load static %}
+
+{% block title %}Coupons{% endblock %}
+{% block page_title %}Coupons{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Manage Coupons</h3>
+        <a href="{% url 'admin_panel:coupon_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i>
+            <span>Add Coupon</span>
+        </a>
+    </div>
+
+    <div class="card-body has-list-table">
+        <form method="get" class="filters filters-inline">
+            <div class="filter-group">
+                <input type="text" name="q" class="form-control" placeholder="Search code…" value="{{ filter_q }}">
+            </div>
+            <div class="filter-group">
+                <select name="status" class="form-control" onchange="this.form.submit()">
+                    <option value="">All statuses</option>
+                    <option value="active" {% if filter_status == 'active' %}selected{% endif %}>Active</option>
+                    <option value="inactive" {% if filter_status == 'inactive' %}selected{% endif %}>Inactive</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-secondary">Filter</button>
+        </form>
+
+        {% if coupons %}
+        <div class="table-responsive list-table">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>Discount</th>
+                        <th>Validity</th>
+                        <th>Usage</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for coupon in coupons %}
+                    <tr>
+                        <td>
+                            <strong><a href="{% url 'admin_panel:coupon_detail' coupon.pk %}">{{ coupon.code }}</a></strong>
+                            {% if coupon.name %}<div class="text-muted small">{{ coupon.name }}</div>{% endif %}
+                        </td>
+                        <td>
+                            {% if coupon.discount_type == 'percent' %}
+                                {{ coupon.discount_value }}% OFF
+                            {% else %}
+                                ₹{{ coupon.discount_value }} OFF
+                            {% endif %}
+                            {% if coupon.min_subtotal and coupon.min_subtotal > 0 %}
+                                <div class="text-muted small">Min ₹{{ coupon.min_subtotal }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="small">
+                            {% if coupon.starts_at %}From {{ coupon.starts_at|date:"d M Y" }}<br>{% endif %}
+                            {% if coupon.expires_at %}Until {{ coupon.expires_at|date:"d M Y H:i" }}{% else %}No expiry{% endif %}
+                        </td>
+                        <td>{{ coupon.uses_remaining_label }}{% if coupon.once_per_customer %}<div class="text-muted small">1× / customer</div>{% endif %}</td>
+                        <td>
+                            {% if coupon.is_active %}
+                                <span class="badge badge-success">Active</span>
+                            {% else %}
+                                <span class="badge badge-secondary">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td class="table-actions">
+                            <a href="{% url 'admin_panel:coupon_edit' coupon.pk %}" class="btn btn-sm btn-secondary">Edit</a>
+                            <form method="post" action="{% url 'admin_panel:coupon_toggle_active' coupon.pk %}" style="display:inline;">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{% url 'admin_panel:coupon_list' %}">
+                                <button type="submit" class="btn btn-sm btn-outline-dark">
+                                    {% if coupon.is_active %}Disable{% else %}Enable{% endif %}
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="list-cards">
+            {% for coupon in coupons %}
+            <div class="list-card">
+                <div class="list-card-header">
+                    <div class="list-card-title">{{ coupon.code }}</div>
+                    {% if coupon.is_active %}<span class="badge badge-success">Active</span>{% else %}<span class="badge badge-secondary">Inactive</span>{% endif %}
+                </div>
+                <div class="small text-muted mb-2">
+                    {% if coupon.discount_type == 'percent' %}{{ coupon.discount_value }}% OFF{% else %}₹{{ coupon.discount_value }} OFF{% endif %}
+                    · Usage {{ coupon.uses_remaining_label }}
+                </div>
+                <div class="list-card-actions">
+                    <a href="{% url 'admin_panel:coupon_detail' coupon.pk %}" class="btn btn-sm btn-secondary">View</a>
+                    <a href="{% url 'admin_panel:coupon_edit' coupon.pk %}" class="btn btn-sm btn-secondary">Edit</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if is_paginated %}
+        <div class="pagination">
+            {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}&status={{ filter_status }}&q={{ filter_q }}">Previous</a>
+            {% endif %}
+            <span class="current">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}&status={{ filter_status }}&q={{ filter_q }}">Next</a>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="empty-state">
+            <p>No coupons yet. Create WELCOME10 or a festive offer to get started.</p>
+            <a href="{% url 'admin_panel:coupon_create' %}" class="btn btn-primary">Add Coupon</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

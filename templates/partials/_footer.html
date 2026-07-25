@@ -35,11 +35,17 @@
                     <span class="text-white fw-bold fs-4">{{ site_brand }}</span>
                 </div>
                 <p class="mt-3 footer-lead">
-                    {{ site_brand }} — {{ site_tagline }}. Plants, pots, seeds &amp; garden tools for modern homes.
+                    Rooted in Kerala. Growing Happier Homes Across India.
+                </p>
+                <p class="footer-lead mb-2">
+                    📍 Wandoor, Kerala, India<br>
+                    WhatsApp: <a href="https://wa.me/{{ site_whatsapp }}" target="_blank" rel="noopener">{{ site_phone }}</a><br>
+                    Email: <a href="mailto:{{ site_email }}">{{ site_email }}</a><br>
+                    Website: <a href="https://www.plants99.com" target="_blank" rel="noopener">www.plants99.com</a>
                 </p>
                 <div class="social-links">
                     <a href="https://www.instagram.com/{{ site_instagram }}/" target="_blank" rel="noopener" class="social-link" title="Instagram @{{ site_instagram }}" aria-label="Instagram"><i class="fab fa-instagram"></i></a>
-                    <a href="https://wa.me/{{ site_whatsapp }}" target="_blank" rel="noopener" class="social-link" title="WhatsApp {{ site_whatsapp }}" aria-label="WhatsApp"> <i class="fab fa-whatsapp"></i></a>
+                    <a href="https://wa.me/{{ site_whatsapp }}" target="_blank" rel="noopener" class="social-link" title="WhatsApp {{ site_phone }}" aria-label="WhatsApp"> <i class="fab fa-whatsapp"></i></a>
                 </div>
             </div>
             <div class="col-md-6 col-lg-2">
@@ -61,7 +67,7 @@
             </div>
             <div class="col-md-6 col-lg-3">
                 <h6 class="footer-heading">Policies</h6>
-                <a href="{% url 'store:about' %}"    class="footer-link"><i class="fas fa-angle-right"></i> Our Story</a>
+                <a href="{% url 'store:about' %}"    class="footer-link"><i class="fas fa-angle-right"></i> About the Founder</a>
                 <a href="{% url 'store:privacy' %}"  class="footer-link"><i class="fas fa-angle-right"></i> Privacy Policy</a>
                 <a href="{% url 'store:terms' %}"    class="footer-link"><i class="fas fa-angle-right"></i> Terms &amp; Conditions</a>
                 <a href="{% url 'store:shipping' %}" class="footer-link"><i class="fas fa-angle-right"></i> Refund &amp; Shipping</a>

@@ -68,4 +68,24 @@
         {% endif %}
     </div>
 
-<div class="stock-indicator small mb-2 text-muted"></div>
+{% with threshold=product.low_stock_threshold|default:5 %}
+{% if product.is_simple_product and not product.is_combo_product %}
+    {% if product.base_stock and product.base_stock > 0 %}
+        {% if product.base_stock <= threshold %}
+        <div class="stock-indicator small">
+            <i class="fas fa-exclamation-circle me-1"></i> Only {{ product.base_stock }} left in stock!
+        </div>
+        {% else %}
+        <div class="stock-indicator small">
+            <i class="fas fa-check-circle me-1"></i> In Stock ({{ product.base_stock }})
+        </div>
+        {% endif %}
+    {% else %}
+        <div class="stock-indicator small stock-indicator--oos">
+            <i class="fas fa-times-circle me-1"></i> Out of Stock
+        </div>
+    {% endif %}
+{% else %}
+    <div class="stock-indicator small"></div>
+{% endif %}
+{% endwith %}

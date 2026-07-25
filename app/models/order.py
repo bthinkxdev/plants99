@@ -70,6 +70,19 @@ class Order(TimeStampedModel):
     sgst = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)])
     igst = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)])
     total = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    coupon_code = models.CharField(
+        max_length=40,
+        blank=True,
+        default='',
+        help_text='Snapshot of coupon code applied at order time.',
+    )
+    discount_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(0)],
+        help_text='Merchandise discount from coupon (excludes shipping).',
+    )
     address = models.ForeignKey(Address, on_delete=models.PROTECT, related_name='orders')
 
     class Meta:
@@ -141,14 +154,14 @@ class OrderItem(TimeStampedModel):
         decimal_places=2,
         default=0,
         validators=[MinValueValidator(0)],
-        help_text='State delivery charge per unit at time of order.',
+        help_text='State delivery pack charge at time of order (up to 2 pieces per pack).',
     )
     total_delivery_charge = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         default=0,
         validators=[MinValueValidator(0)],
-        help_text='delivery_charge_per_unit × quantity (persisted).',
+        help_text='Pack charge × ceil(quantity / pack size), persisted.',
     )
 
     @property

@@ -69,7 +69,8 @@ class ProductDeliveryState(models.Model):
     """
     One row = this product can be delivered to this state at a given charge.
 
-    delivery_charge is per unit (quantity 1). Checkout multiplies by qty.
+    delivery_charge is per delivery pack (up to DELIVERY_PACK_SIZE pieces,
+    default 2 ≈ 500g–1kg). Checkout bills ceil(qty / pack_size) packs.
     """
 
     product = models.ForeignKey(
@@ -87,7 +88,10 @@ class ProductDeliveryState(models.Model):
         decimal_places=2,
         default=0,
         validators=[MinValueValidator(0)],
-        help_text="Delivery charge for this product to this state (per unit).",
+        help_text=(
+            "Delivery charge for this product to this state per pack "
+            "(up to 2 pieces / ~1kg share one charge)."
+        ),
     )
     added_at = models.DateTimeField(auto_now_add=True)
 

@@ -2,7 +2,7 @@
 {% load static %}
 {% block title %}Checkout — {{ site_brand }}{% endblock %}
 {% block content %}
-<section class="section-pad" style="padding-top:40px;">
+<section class="section-pad checkout-page">
     <div class="container">
         {% if checkout_blocked and cart_stock_issues %}
         <div class="checkout-stock-banner alert alert-warning mb-4" role="alert">
@@ -34,16 +34,17 @@
             {{ form.use_new_address }}
             {{ form.state }}
 
-            <div class="row g-5">
-                <div class="col-lg-5">
-                    <div class="order-summary-card wow fadeInRight" data-wow-delay="0.1s">
+            <div class="row g-4 checkout-layout">
+                <div class="col-lg-5 order-1 order-lg-2">
+                    <div class="order-summary-card checkout-summary-sticky wow fadeInRight" data-wow-delay="0.1s">
                         <h5>Your Order</h5>
                         <div id="checkout-order-lines">
                         {% for row in checkout_lines %}
                         {% with item=row.item stock_issue=row.stock_issue delivery_issue=row.delivery_issue %}
                         <div class="order-line{% if stock_issue %} order-line--stock-issue{% endif %}{% if delivery_issue %} order-line--delivery-issue{% endif %}"
                              data-checkout-line
-                             data-item-id="{{ item.id }}">
+                             data-item-id="{{ item.id }}"
+                             data-max="{{ row.max_quantity }}">
                             {% if item.combo %}
                             {% if item.get_display_image_url %}
                             <img src="{{ item.get_display_image_url }}" alt="{{ item.combo.name }}">
@@ -52,7 +53,7 @@
                             {% endif %}
                             <div class="line-info">
                                 <h6>{{ item.combo.name }}</h6>
-                                <small>{{ item.variant_display }} · Qty: {{ item.quantity }}</small>
+                                <small>{{ item.variant_display }}</small>
                                 {% if stock_issue %}
                                 <small class="order-line-stock-warn d-block">{{ stock_issue.message }}</small>
                                 {% endif %}
@@ -60,6 +61,7 @@
                                        data-line-delivery-warn>
                                     {% if delivery_issue %}{{ delivery_issue.message }}{% endif %}
                                 </small>
+                                {% include "partials/_checkout_line_qty.html" with item=item max_quantity=row.max_quantity pack_upsell_message=row.pack_upsell_message only %}
                             </div>
                             {% else %}
                             {% if item.get_display_image_url %}
@@ -69,7 +71,7 @@
                             {% endif %}
                             <div class="line-info">
                                 <h6>{{ item.product.name }}</h6>
-                                <small>{{ item.variant_display }} · Qty: {{ item.quantity }}</small>
+                                <small>{{ item.variant_display }}</small>
                                 {% if stock_issue %}
                                 <small class="order-line-stock-warn d-block">{{ stock_issue.message }}</small>
                                 {% endif %}
@@ -77,10 +79,11 @@
                                        data-line-delivery-warn>
                                     {% if delivery_issue %}{{ delivery_issue.message }}{% endif %}
                                 </small>
+                                {% include "partials/_checkout_line_qty.html" with item=item max_quantity=row.max_quantity pack_upsell_message=row.pack_upsell_message only %}
                             </div>
                             {% endif %}
                             <div class="line-actions">
-                                <div class="line-price">&#8377;{{ item.line_total }}</div>
+                                <div class="line-price" data-checkout-line-price>&#8377;{{ item.line_total }}</div>
                                 <button type="button"
                                         class="btn-remove-item js-checkout-remove"
                                         data-item-id="{{ item.id }}"
@@ -103,6 +106,35 @@
                             <span>&#8377;{{ totals.gst_total|floatformat:0 }}</span>
                         </div>
                         {% endif %}
+
+                        <div class="checkout-coupon" id="checkoutCoupon">
+                            <label class="checkout-coupon__label" for="checkoutCouponInput">Coupon code</label>
+                            <div class="checkout-coupon__row">
+                                <input type="text"
+                                       id="checkoutCouponInput"
+                                       class="form-control-bw checkout-coupon__input"
+                                       placeholder="Enter code"
+                                       maxlength="40"
+                                       autocomplete="off"
+                                       value="{{ totals.coupon_code|default:'' }}"
+                                       {% if totals.coupon_code %}readonly{% endif %}>
+                                <button type="button"
+                                        class="btn btn-outline-dark btn-sm"
+                                        id="checkoutCouponApply"
+                                        {% if totals.coupon_code %}hidden{% endif %}>Apply</button>
+                                <button type="button"
+                                        class="btn btn-outline-dark btn-sm"
+                                        id="checkoutCouponRemove"
+                                        {% if not totals.coupon_code %}hidden{% endif %}>Remove</button>
+                            </div>
+                            <p class="checkout-coupon__msg small mb-0" id="checkoutCouponMsg" aria-live="polite"></p>
+                        </div>
+
+                        <div class="order-total-row" id="discount-row"{% if not totals.discount %} hidden{% endif %}>
+                            <span>Discount (<span id="discount-code-label">{{ totals.coupon_code|default:'' }}</span>)</span>
+                            <span id="discount-value" data-value="{{ totals.discount|default:0 }}">−&#8377;<span id="discount-amount-text">{{ totals.discount|default:0|floatformat:0 }}</span></span>
+                        </div>
+
                         <div class="order-total-row">
                             <span>Delivery Charge</span>
                             <span id="shipping-value"
@@ -125,7 +157,7 @@
                             <span class="amount" id="total-value" data-value="{{ totals.total }}">&#8377;{{ totals.total|floatformat:0 }}</span>
                         </div>
 
-                        <div class="d-flex flex-column gap-2 mt-4 pt-3" style="border-top:1px solid var(--clr-grey-2);">
+                        <div class="order-trust-row">
                             <div class="order-trust-item">
                                 <i class="fas fa-lock"></i> Secure checkout
                             </div>
@@ -136,21 +168,19 @@
                     </div>
                 </div>
 
-                <div class="col-lg-7">
+                <div class="col-lg-7 order-2 order-lg-1 checkout-form-col">
                     {% if addresses %}
                     <div class="checkout-card mb-4" id="savedAddresses">
                         <h5><i class="fas fa-map-marker-alt me-2"></i> Delivery Address</h5>
                         <div class="saved-addresses">
                             {% for address in addresses %}
                             <label class="address-card selectable {% if default_address and address.pk == default_address.pk and not form.is_bound %}selected{% endif %}"
-                                   style="cursor:pointer;display:block;margin-bottom:12px;"
                                    data-address-id="{{ address.pk }}"
                                    data-state-id="{{ address.checkout_state_id|default:'' }}">
                                 <input type="radio"
                                        name="address_selection"
                                        value="{{ address.pk }}"
-                                       {% if default_address and address.pk == default_address.pk and not form.is_bound %}checked{% endif %}
-                                       style="position:absolute;opacity:0;pointer-events:none;">
+                                       {% if default_address and address.pk == default_address.pk and not form.is_bound %}checked{% endif %}>
                                 <div class="address-card-content">
                                     <div class="address-checkmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>
                                     <div class="address-info">
@@ -184,7 +214,7 @@
                                 <label class="form-label-bw">
                                     {% if DELIVERY_INTEGRATED %}Address *{% else %}Address{% endif %}
                                 </label>
-                                <textarea name="address_line" class="form-control-bw" rows="2" placeholder="Address" style="min-height:80px;resize:vertical;">{{ form.address_line.value|default:'' }}</textarea>
+                                <textarea name="address_line" class="form-control-bw checkout-address-textarea" rows="2" placeholder="Address">{{ form.address_line.value|default:'' }}</textarea>
                                 {% if form.address_line.errors %}<div class="text-danger small mt-1">{{ form.address_line.errors.0 }}</div>{% endif %}
                             </div>
                             <div class="col-md-6">
@@ -195,7 +225,7 @@
                             <div class="col-md-6">
                                 <label class="form-label-bw">{% if DELIVERY_INTEGRATED %}Pincode *{% else %}Pincode{% endif %}</label>
                                 {% if DELIVERY_INTEGRATED %}
-                                <div class="d-flex gap-2">
+                                <div class="d-flex gap-2 checkout-pincode-row">
                                     <input type="text" 
                                            name="pincode" 
                                            id="id_pincode"
@@ -208,8 +238,7 @@
                                            data-verified="">
                                     <button type="button" 
                                             id="checkPincodeBtn" 
-                                            class="btn btn-outline-dark whitespace-nowrap"
-                                            style="min-width:80px;">
+                                            class="btn btn-outline-dark whitespace-nowrap checkout-pincode-check">
                                         Check
                                     </button>
                                 </div>
@@ -260,13 +289,13 @@
                         <input type="hidden" name="payment" id="id_payment" value="cod">
                         
                         {% if DELIVERY_INTEGRATED %}
-                        <div class="mt-3 pt-3" style="border-top: 1px solid var(--clr-grey-2);">
+                        <div class="checkout-open-box mt-3 pt-3">
                             <div id="openBoxContainer">
-                                <label class="d-flex align-items-start gap-2" style="cursor:pointer;">
+                                <label class="checkout-open-box__label d-flex align-items-start gap-2">
                                     <input type="checkbox" name="is_open_box" id="id_is_open_box" class="form-checkbox mt-1">
                                     <div>
-                                        <strong style="font-size:var(--text-sm);">Request Open Box Delivery</strong>
-                                        <p style="font-size:var(--text-xs);color:var(--clr-black-4);margin:2px 0 0;">
+                                        <strong class="checkout-open-box__title">Request Open Box Delivery</strong>
+                                        <p class="checkout-open-box__hint">
                                             Delivery agent waits while you open and inspect the package before accepting.
                                         </p>
                                     </div>
@@ -291,7 +320,7 @@
                         </button>
                         {% if captcha_site_key %}
                         <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-                        <div class="cf-turnstile" data-sitekey="{{ captcha_site_key }}" style="margin-bottom: 1rem;"></div>
+                        <div class="cf-turnstile checkout-captcha" data-sitekey="{{ captcha_site_key }}"></div>
                         {% endif %}
                     </div>
                 </div>
@@ -322,7 +351,11 @@
     window.CHECKOUT_STOCK_BLOCKED = false;
     {% endif %}
     window.CHECKOUT_TOTALS_URL = "{% url 'store:checkout_totals' %}";
+    window.CHECKOUT_COUPON_APPLY_URL = "{% url 'store:checkout_coupon_apply' %}";
+    window.CHECKOUT_COUPON_REMOVE_URL = "{% url 'store:checkout_coupon_remove' %}";
     window.CHECKOUT_REMOVE_URL_TEMPLATE = "{% url 'store:cart_remove' item_id=0 %}";
+    window.CHECKOUT_UPDATE_URL = "{% url 'store:cart_update' %}";
+    window.DELIVERY_PACK_SIZE = {{ DELIVERY_PACK_SIZE|default:2 }};
 })();
 </script>
 

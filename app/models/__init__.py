@@ -22,6 +22,7 @@ from .engagement import Banner, ContactMessage, NewsletterSubscription, OTPReque
 from .cms import BlogPost, Reel, Testimonial
 from .delivery import DeliveryState, ProductDeliveryState
 from .rental import RentalBooking, RentalConfig
+from .coupon import Coupon, CouponRedemption
 
 __all__ = [
     'Address',
@@ -33,6 +34,8 @@ __all__ = [
     'Combo',
     'ComboItem',
     'ContactMessage',
+    'Coupon',
+    'CouponRedemption',
     'HomeCategory',
     'HomeCategoryProduct',
     'NewsletterSubscription',

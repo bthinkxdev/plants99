@@ -1,14 +1,14 @@
 {% load static %}
 {% if combo_lines %}
-<div class="pdp-combo-bundle mb-3 p-3 border rounded-2 small pdp-card">
-    <div class="fw-bold mb-2 text-uppercase small letter-spaced">Bundle includes</div>
-    <ul class="mb-0 list-unstyled">
+<div class="pdp-combo-bundle pdp-card pdp-block">
+    <div class="pdp-block__label">Bundle includes</div>
+    <ul class="mb-0 list-unstyled pdp-combo-bundle__list">
         {% for row in combo_lines %}
-        <li class="d-flex align-items-center gap-2 mb-2">
+        <li class="pdp-combo-bundle__item">
             {% if row.image_url %}
-            <img src="{{ row.image_url }}" alt="" width="40" height="40" style="object-fit:cover;border-radius:6px;flex-shrink:0;" loading="lazy">
+            <img src="{{ row.image_url }}" alt="" width="36" height="36" class="pdp-combo-bundle__thumb" loading="lazy">
             {% else %}
-            <span style="width:40px;height:40px;border-radius:6px;background:#eee;flex-shrink:0;display:inline-block;"></span>
+            <span class="pdp-combo-bundle__thumb pdp-combo-bundle__thumb--empty"></span>
             {% endif %}
             <span>
                 {% if row.product_slug %}
@@ -25,81 +25,51 @@
 {% endif %}
 
 {% if not product.is_legacy_combo %}
-<div class="pdp-state-check mb-3 pdp-card p-3 border rounded-2" id="pdpStateModule">
-    <label class="form-label small fw-bold mb-1">Check delivery availability</label>
-    <div class="d-flex flex-wrap gap-2 align-items-center">
-        <select class="form-select form-select-sm" style="max-width:16rem;"
-                id="pdpStateSelect" aria-label="Select your state">
-            <option value="">Select your state…</option>
-        </select>
-        <span class="small fw-semibold" id="pdpStateResult" aria-live="polite"></span>
-    </div>
-    <p class="text-muted small mt-1 mb-0" id="pdpStateHint" style="display:none;"></p>
+<div class="pdp-state-check pdp-card pdp-block" id="pdpStateModule">
+    <div class="pdp-block__label" id="pdpStateLabel">Deliverable states</div>
+    <div class="pdp-state-tips" id="pdpStateTips" role="list" aria-labelledby="pdpStateLabel"></div>
+    <p class="pdp-state-hint" id="pdpStateHint" hidden></p>
 </div>
 {% endif %}
 
 {% if pdp_rent_ready %}
-<div class="pdp-offer-mode mb-3 pdp-card p-3 border rounded-2" id="pdpOfferMode" data-purchase-only="{{ purchase_only_pdp|yesno:'true,false' }}" data-rental-only="{{ rental_only_pdp|yesno:'true,false' }}">
+<div class="pdp-offer-mode pdp-card pdp-block" id="pdpOfferMode" data-purchase-only="{{ purchase_only_pdp|yesno:'true,false' }}" data-rental-only="{{ rental_only_pdp|yesno:'true,false' }}">
     {% if show_pdp_mode_toggle %}
-    <div class="btn-group w-100 mb-2" role="group" aria-label="Buy or rent">
-        <button type="button" class="btn btn-outline-dark px-3 active" data-mode="purchase">Buy</button>
-        <button type="button" class="btn btn-outline-dark px-3" data-mode="rental">Rent</button>
+    <div class="btn-group w-100 pdp-offer-mode__toggle" role="group" aria-label="Buy or rent">
+        <button type="button" class="btn btn-outline-dark active" data-mode="purchase">Buy</button>
+        <button type="button" class="btn btn-outline-dark" data-mode="rental">Rent</button>
     </div>
     {% endif %}
-    <div class="pdp-rental-panel mt-1{% if purchase_only_pdp %} d-none{% endif %}" id="pdpRentalPanel">
-        <label class="form-label small mb-1">Rental dates</label>
-        <div class="d-flex flex-wrap gap-2">
+    <div class="pdp-rental-panel{% if purchase_only_pdp %} d-none{% endif %}" id="pdpRentalPanel">
+        <div class="pdp-block__label">Rental dates</div>
+        <div class="pdp-rental-panel__dates">
             <input type="date" class="form-control form-control-sm" id="pdpRentalStart" aria-label="Rental start date">
             <input type="date" class="form-control form-control-sm" id="pdpRentalEnd" aria-label="Rental end date">
         </div>
-        <div class="small mt-2 fw-semibold" id="pdpRentalPriceLine"></div>
+        <div class="pdp-rental-panel__price" id="pdpRentalPriceLine"></div>
     </div>
 </div>
 {% endif %}
 
-{% if product.is_simple_product %}
-    {% with threshold=product.low_stock_threshold|default:5 %}
-        {% if not product.is_combo_product %}
-            {% if product.base_stock and product.base_stock > 0 %}
-                {% if product.base_stock <= threshold %}
-                    <div class="stock-indicator small mb-2" style="color:#c00;">
-                        <i class="fas fa-exclamation-circle me-1"></i> Only {{ product.base_stock }} left in stock!
-                    </div>
-                {% else %}
-                    <div class="stock-indicator small mb-2 text-muted">
-                        <i class="fas fa-check-circle me-1"></i> In Stock
-                    </div>
-                {% endif %}
-            {% else %}
-                <div class="stock-indicator small mb-2" style="color:#c00;">
-                    <i class="fas fa-times-circle me-1"></i> Out of Stock
-                </div>
-            {% endif %}
-        {% endif %}
-    {% endwith %}
-{% else %}
-    <div class="stock-indicator small mb-2 text-muted"></div>
-{% endif %}
-
 {% if attributes_grouped %}
-<div class="mb-3" id="variantAttributeGroups">
+<div class="pdp-block pdp-variants" id="variantAttributeGroups">
     {% for attr in attributes_grouped %}
-    <div class="mb-2">
-        <span class="small fw-bold text-uppercase">{{ attr.name }}</span>
-        <div class="d-flex gap-2 mt-1 flex-wrap" data-attribute-id="{{ attr.id }}" data-attribute-name="{{ attr.name }}">
+    <div class="pdp-variants__group">
+        <span class="pdp-block__label">{{ attr.name }}</span>
+        <div class="pdp-variants__options" data-attribute-id="{{ attr.id }}" data-attribute-name="{{ attr.name }}">
             {% for av in attr.values %}
-            <button type="button" class="btn {% if av.id in selected_attribute_value_ids %}btn-dark{% else %}btn-outline-dark{% endif %} px-3 attribute-value-btn" data-attribute-value-id="{{ av.id }}" data-attribute-value="{{ av.value }}" style="min-height:38px;">{{ av.value }}</button>
+            <button type="button" class="btn {% if av.id in selected_attribute_value_ids %}btn-dark{% else %}btn-outline-dark{% endif %} attribute-value-btn" data-attribute-value-id="{{ av.id }}" data-attribute-value="{{ av.value }}">{{ av.value }}</button>
             {% endfor %}
         </div>
     </div>
     {% endfor %}
 </div>
 {% elif variants %}
-<div class="mb-3">
-    <span class="small fw-bold text-uppercase">Option</span>
-    <div class="d-flex gap-2 mt-2 flex-wrap" id="variantOptions">
+<div class="pdp-block pdp-variants">
+    <span class="pdp-block__label">Option</span>
+    <div class="pdp-variants__options" id="variantOptions">
         {% for v in variants %}
-        <a href="?variant={{ v.id }}" class="btn {% if selected_variant and selected_variant.id == v.id %}btn-dark{% else %}btn-outline-dark{% endif %} px-3 variant-option" data-variant-id="{{ v.id }}" style="min-height:38px;">{{ v.get_attribute_values_display|default:"Option" }} {{ forloop.counter }}</a>
+        <a href="?variant={{ v.id }}" class="btn {% if selected_variant and selected_variant.id == v.id %}btn-dark{% else %}btn-outline-dark{% endif %} variant-option" data-variant-id="{{ v.id }}">{{ v.get_attribute_values_display|default:"Option" }} {{ forloop.counter }}</a>
         {% endfor %}
     </div>
 </div>
@@ -112,7 +82,7 @@
 </div>
 {% endif %} {% endcomment %}
 
-<form method="post" action="{% url 'store:cart_add' %}" id="addToCartForm" class="product-add-form mb-3" data-simple-product="{{ product.is_simple_product|yesno:'true,false' }}" data-cart-url="#" data-pincode-url="{{ pincode_check_url }}" data-purchase-in-cart="{{ pdp_purchase_in_cart|yesno:'true,false' }}">
+<form method="post" action="{% url 'store:cart_add' %}" id="addToCartForm" class="product-add-form" data-simple-product="{{ product.is_simple_product|yesno:'true,false' }}" data-cart-url="#" data-pincode-url="{{ pincode_check_url }}" data-purchase-in-cart="{{ pdp_purchase_in_cart|yesno:'true,false' }}">
     {% csrf_token %}
     <input type="hidden" name="product_id" value="{{ product.id }}">
     <input type="hidden" name="variant_id" id="formVariantId" value="{{ selected_variant.id|default:'' }}">
@@ -127,67 +97,51 @@
     {% endif %}
 
     {% if pot_addons %}
-    <div class="pdp-pot-selector mb-3" id="pdpPotSelector">
-    
-    {# Header #}
-    <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:10px;">
-        <span style="font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:.04em;">Add a Pot</span>
-        <span style="font-size:.75rem;color:#9ca3af;">(optional)</span>
-    </div>
-    
-    {# Horizontal scrollable strip #}
-    <div class="pdp-pot-strip-wrap">
-        <div class="pdp-pot-strip" id="pdpPotStrip">
-    
-        {# No pot option — always first #}
-        <button type="button"
-                class="pdp-pot-card pdp-pot-card--selected"
-                data-pot-id=""
-                data-pot-price="0"
-                id="pdpPotNone"
-                aria-pressed="true">
-            <div class="pdp-pot-img-wrap">
-            <span style="font-size:1.5rem;line-height:1;">🚫</span>
-            </div>
-            <div class="pdp-pot-name">Without Pot</div>
-            <div class="pdp-pot-price" style="color:#9ca3af;">—</div>
-        </button>
-    
-        {# Pot options #}
-        {% for pot in pot_addons %}
-        <button type="button"
-                class="pdp-pot-card{% if not pot.in_stock %} pdp-pot-card--oos{% endif %}"
-                data-pot-id="{{ pot.id }}"
-                data-pot-price="{{ pot.price }}"
-                data-pot-name="{{ pot.name }}"
-                {% if not pot.in_stock %}disabled aria-disabled="true"{% endif %}
-                aria-pressed="false">
-            <div class="pdp-pot-img-wrap">
-            {% if pot.image_url %}
-            <img src="{{ pot.image_url }}" alt="{{ pot.name }}" loading="lazy"
-                style="width:100%;height:100%;object-fit:cover;border-radius:6px;">
-            {% else %}
-            <span style="font-size:1.5rem;line-height:1;">🪴</span>
-            {% endif %}
-            </div>
-            <div class="pdp-pot-name">{{ pot.name }}</div>
-            <div class="pdp-pot-price">
-            {% if pot.in_stock %}+₹{{ pot.price }}{% else %}<span style="color:#dc2626;font-size:.65rem;">Out of stock</span>{% endif %}
-            </div>
-        </button>
-        {% endfor %}
-    
+    <div class="pdp-pot-selector pdp-block" id="pdpPotSelector">
+        <div class="pdp-block__label">
+            Add a Pot <span class="pdp-block__label-muted">(optional)</span>
         </div>
-    </div>
-    
-    {# Hidden input — submitted with the add-to-cart form #}
-    <input type="hidden" name="selected_pot_id" id="formSelectedPotId" value="">
-    
-    {# Pot price breakdown line — shown when a pot is selected #}
-    <div id="pdpPotBreakdown" style="display:none;font-size:.78rem;color:#6b7280;margin-top:6px;">
-        Includes pot: <span id="pdpPotBreakdownPrice"></span>
-    </div>
-    
+        <div class="pdp-pot-strip-wrap">
+            <div class="pdp-pot-strip" id="pdpPotStrip">
+                <button type="button"
+                        class="pdp-pot-card pdp-pot-card--selected"
+                        data-pot-id=""
+                        data-pot-price="0"
+                        id="pdpPotNone"
+                        aria-pressed="true">
+                    <div class="pdp-pot-img-wrap">
+                        <span class="pdp-pot-img-wrap__fallback" aria-hidden="true">×</span>
+                    </div>
+                    <div class="pdp-pot-name">Without Pot</div>
+                    <div class="pdp-pot-price pdp-pot-price--muted">—</div>
+                </button>
+                {% for pot in pot_addons %}
+                <button type="button"
+                        class="pdp-pot-card{% if not pot.in_stock %} pdp-pot-card--oos{% endif %}"
+                        data-pot-id="{{ pot.id }}"
+                        data-pot-price="{{ pot.price }}"
+                        data-pot-name="{{ pot.name }}"
+                        {% if not pot.in_stock %}disabled aria-disabled="true"{% endif %}
+                        aria-pressed="false">
+                    <div class="pdp-pot-img-wrap">
+                        {% if pot.image_url %}
+                        <img src="{{ pot.image_url }}" alt="{{ pot.name }}" loading="lazy">
+                        {% else %}
+                        <span class="pdp-pot-img-wrap__fallback" aria-hidden="true">🪴</span>
+                        {% endif %}
+                    </div>
+                    <div class="pdp-pot-name">{{ pot.name }}</div>
+                    <div class="pdp-pot-price">
+                        {% if pot.in_stock %}+₹{{ pot.price|floatformat:0 }}{% else %}<span class="pdp-pot-price--oos">Out of stock</span>{% endif %}
+                    </div>
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+        <input type="hidden" name="selected_pot_id" id="formSelectedPotId" value="">
+        <div id="pdpPotBreakdown" class="pdp-pot-breakdown" hidden>
+            Includes pot: <span id="pdpPotBreakdownPrice"></span>
+        </div>
     </div>
     {% endif %}
 
@@ -233,11 +187,11 @@
     </div>
 
     {% if product.is_simple_product %}
-    <button type="button" class="btn-buy-now btn mt-2 w-100" id="buyNowBtn" {% if product.is_combo_product %}{% if not pdp_combo_available %}disabled{% endif %}{% elif not product.base_stock or product.base_stock <= 0 %}disabled{% endif %}>
+    <button type="button" class="btn-buy-now btn w-100" id="buyNowBtn" {% if product.is_combo_product %}{% if not pdp_combo_available %}disabled{% endif %}{% elif not product.base_stock or product.base_stock <= 0 %}disabled{% endif %}>
         Buy Now
     </button>
     {% else %}
-    <button type="button" class="btn-buy-now btn mt-2 w-100" id="buyNowBtn" {% if not selected_variant or selected_variant.stock_quantity <= 0 %}disabled{% endif %}>
+    <button type="button" class="btn-buy-now btn w-100" id="buyNowBtn" {% if not selected_variant or selected_variant.stock_quantity <= 0 %}disabled{% endif %}>
         Buy Now
     </button>
     {% endif %}

@@ -4,7 +4,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.forms.formsets import DELETION_FIELD_NAME
-from .models import Banner, BlogPost, Category, Combo, Product, HomeCategory, HomeCategoryProduct, Reel, Testimonial
+from .models import Banner, BlogPost, Category, Combo, Product, HomeCategory, HomeCategoryProduct, Reel, Testimonial, Coupon
 from .models import RentalConfig
 logger = logging.getLogger(__name__)
 
@@ -265,6 +265,70 @@ class BannerForm(forms.ModelForm):
         if url is not None and str(url).strip() == '':
             return None
         return url
+
+
+class CouponForm(forms.ModelForm):
+    class Meta:
+        model = Coupon
+        fields = [
+            'code', 'name', 'description', 'discount_type', 'discount_value',
+            'starts_at', 'expires_at', 'is_active', 'max_uses',
+            'once_per_customer', 'min_subtotal',
+        ]
+        widgets = {
+            'code': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'WELCOME10', 'style': 'text-transform:uppercase'}),
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Optional label'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Internal notes'}),
+            'discount_type': forms.Select(attrs={'class': 'form-control'}),
+            'discount_value': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0.01'}),
+            'starts_at': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
+            'expires_at': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'max_uses': forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'placeholder': 'Blank = unlimited'}),
+            'once_per_customer': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'min_subtotal': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['name'].required = False
+        self.fields['description'].required = False
+        self.fields['starts_at'].required = False
+        self.fields['expires_at'].required = False
+        self.fields['max_uses'].required = False
+        for field_name in ('starts_at', 'expires_at'):
+            value = getattr(self.instance, field_name, None) if self.instance and self.instance.pk else None
+            if value:
+                self.initial[field_name] = value.strftime('%Y-%m-%dT%H:%M')
+
+    def clean_code(self):
+        code = (self.cleaned_data.get('code') or '').strip().upper()
+        if not code:
+            raise forms.ValidationError('Coupon code is required.')
+        qs = Coupon.objects.filter(code=code)
+        if self.instance and self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError('A coupon with this code already exists.')
+        return code
+
+    def clean(self):
+        from decimal import Decimal
+        cleaned = super().clean()
+        dtype = cleaned.get('discount_type')
+        value = cleaned.get('discount_value')
+        starts = cleaned.get('starts_at')
+        expires = cleaned.get('expires_at')
+        if value is not None:
+            if value <= 0:
+                self.add_error('discount_value', 'Discount value must be greater than zero.')
+            elif dtype == Coupon.DiscountType.PERCENT and value > Decimal('100'):
+                self.add_error('discount_value', 'Percentage discount cannot exceed 100.')
+        if starts and expires and expires <= starts:
+            self.add_error('expires_at', 'Expiry must be after the start date.')
+        return cleaned
+
+
 BASIC_EDIT_FIELDS = ['category', 'name', 'slug', 'description', 'brand', 'base_price', 'base_original_price', 'base_stock', 'is_featured', 'is_bestseller', 'is_deal_of_day', 'deal_of_day_start', 'deal_of_day_end', 'is_active', 'is_gst_applicable', 'gst_percentage', 'hsn_code', 'is_rent_available', 'purchase_enabled', 'is_plant_combo', 'care_instructions']
 
 class ProductBasicEditForm(forms.ModelForm):
@@ -438,7 +502,8 @@ class ComboForm(forms.ModelForm):
 class ProductDeliveryStateForm(forms.Form):
     """
     Multi-checkbox form: seller picks which states this product delivers to,
-    and sets a per-unit delivery charge for each selected state.
+    and sets a per-pack delivery charge for each selected state
+    (up to 2 pieces / ~1kg share one charge).
     """
 
     states = forms.ModelMultipleChoiceField(
@@ -449,7 +514,8 @@ class ProductDeliveryStateForm(forms.Form):
         help_text=(
             "Tick every state this product can be shipped to. "
             "Since the shop is in Kerala, start with South India. "
-            "Every selected state requires a non-negative delivery charge."
+            "Every selected state requires a non-negative delivery charge "
+            "(charged per pack of up to 2 pieces)."
         ),
     )
 

@@ -62,16 +62,10 @@
                 <div class="mb-4 small text-muted"><strong>Good to know:</strong> {{ combo.instructions|linebreaks }}</div>
                 {% endif %}
 
-                <div class="pdp-state-check mb-3 pdp-card p-3 border rounded-2" id="pdpStateModule" data-combo-id="{{ combo.id }}">
-                    <label class="form-label small fw-bold mb-1">Check delivery availability</label>
-                    <div class="d-flex flex-wrap gap-2 align-items-center">
-                        <select class="form-select form-select-sm" style="max-width:16rem;"
-                                id="pdpStateSelect" aria-label="Select your state">
-                            <option value="">Select your state…</option>
-                        </select>
-                        <span class="small fw-semibold" id="pdpStateResult" aria-live="polite"></span>
-                    </div>
-                    <p class="text-muted small mt-1 mb-0" id="pdpStateHint" style="display:none;"></p>
+                <div class="pdp-state-check pdp-card pdp-block" id="pdpStateModule" data-combo-id="{{ combo.id }}">
+                    <div class="pdp-block__label" id="pdpStateLabel">Deliverable states</div>
+                    <div class="pdp-state-tips" id="pdpStateTips" role="list" aria-labelledby="pdpStateLabel"></div>
+                    <p class="pdp-state-hint" id="pdpStateHint" hidden></p>
                 </div>
 
                 {% if combo.id in cart_combo_ids %}
@@ -101,11 +95,43 @@
 (function () {
     var module = document.getElementById('pdpStateModule');
     if (!module) return;
-    var select = document.getElementById('pdpStateSelect');
-    var result = document.getElementById('pdpStateResult');
+    var tipsEl = document.getElementById('pdpStateTips');
     var hint = document.getElementById('pdpStateHint');
     var comboId = module.getAttribute('data-combo-id');
-    if (!select || !comboId) return;
+    if (!tipsEl || !comboId) return;
+
+    function formatCharge(raw) {
+        var n = parseFloat(raw);
+        if (isNaN(n) || n <= 0) return '';
+        return '₹' + (Number.isInteger(n) ? String(n) : n.toFixed(0));
+    }
+
+    function renderStateTips(states) {
+        tipsEl.textContent = '';
+        var list = document.createElement('div');
+        list.className = 'pdp-state-tips__list';
+        states.forEach(function (s) {
+            var card = document.createElement('div');
+            card.className = 'pdp-state-tip';
+            card.setAttribute('role', 'listitem');
+            card.setAttribute('data-state-id', String(s.id));
+
+            var nameEl = document.createElement('span');
+            nameEl.className = 'pdp-state-tip__name';
+            nameEl.textContent = s.name;
+            card.appendChild(nameEl);
+
+            var chargeText = formatCharge(s.delivery_charge);
+            if (chargeText) {
+            var chargeEl = document.createElement('span');
+            chargeEl.className = 'pdp-state-tip__charge';
+            chargeEl.textContent = chargeText;
+            card.appendChild(chargeEl);
+            }
+            list.appendChild(card);
+        });
+        tipsEl.appendChild(list);
+    }
 
     fetch('/api/delivery/states/combo/?combo_id=' + encodeURIComponent(comboId), {
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -117,42 +143,13 @@
                 module.style.display = 'none';
                 return;
             }
-            states.forEach(function (s) {
-                var opt = document.createElement('option');
-                opt.value = s.id;
-                opt.textContent = s.name + (s.code ? ' (' + s.code + ')' : '');
-                select.appendChild(opt);
-            });
+            renderStateTips(states);
             if (hint) {
-                hint.textContent = 'Delivered to ' + states.length + ' state' + (states.length === 1 ? '' : 's');
-                hint.style.display = '';
+                hint.textContent = 'Available in ' + states.length + ' state' + (states.length === 1 ? '' : 's');
+                hint.hidden = false;
             }
         })
         .catch(function () { module.style.display = 'none'; });
-
-    select.addEventListener('change', function () {
-        var stateId = select.value;
-        if (!result) return;
-        result.textContent = '';
-        if (!stateId) return;
-        fetch('/api/delivery/state/?combo_id=' + encodeURIComponent(comboId) + '&state_id=' + encodeURIComponent(stateId), {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                if (data.serviceable) {
-                    result.textContent = '✓ Delivery available';
-                    result.style.color = '#16a34a';
-                } else {
-                    result.textContent = data.message || '✗ Not deliverable';
-                    result.style.color = '#dc2626';
-                }
-            })
-            .catch(function () {
-                result.textContent = 'Could not check. Try again.';
-                result.style.color = '#6b7280';
-            });
-    });
 })();
 </script>
 {% endblock %}

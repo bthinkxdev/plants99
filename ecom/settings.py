@@ -71,6 +71,7 @@ HOME_RECENTLY_ADDED_ENABLED = True
 ALLOW_ATTRIBUTES_AND_VARIANTS = True
 REVIEW_ENABLED = True
 FLAT_DELIVERY_CHARGE = 60  # Fallback when no state-based product charges are configured
+DELIVERY_PACK_SIZE = 2  # Pieces per delivery pack (~500g–1kg); qty 1–2 share one state charge
 MAX_CART_QTY = 10
 LOGIN_URL = '/accounts/login/'
 LOGIN_REDIRECT_URL = '/'
@@ -104,10 +105,10 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 ADMIN_NOTIFICATION_EMAILS = ['adithyamc@bthinkx.com']
 SITE_PHONE = config('SITE_PHONE', default='+91 7559947750')
 SITE_WHATSAPP = config('SITE_WHATSAPP', default='917559947750')
-SITE_EMAIL = config('SITE_EMAIL', default='plants99@gmail.com')
+SITE_EMAIL = config('SITE_EMAIL', default='plants99official@gmail.com')
 SITE_INSTAGRAM = config('SITE_INSTAGRAM', default='plants_.99')
 SITE_BRAND = config('SITE_BRAND', default='Plants 99')
-SITE_TAGLINE = config('SITE_TAGLINE', default='Bring nature home')
+SITE_TAGLINE = config('SITE_TAGLINE', default='Rooted in Kerala. Growing Happier Homes Across India.')
 RZP_CLIENT_ID = config('RZP_CLIENT_ID')
 RZP_CLIENT_SECRET = config('RZP_CLIENT_SECRET')
 SHIPROCKET_EMAIL = config('SHIPROCKET_EMAIL')

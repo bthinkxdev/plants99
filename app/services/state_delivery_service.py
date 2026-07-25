@@ -10,7 +10,10 @@ get_all_active_states()  → QuerySet[DeliveryState]
 set_product_delivery_states(product_id, state_ids, charges=None)  → None
 get_product_delivery_charge(product_id, state_id) → Decimal | None
 get_combo_delivery_charge(combo_id, state_id) → Decimal | None
-resolve_item_delivery_charge(item, state_id) → (per_unit, line_total, has_row)
+delivery_packs_for_quantity(quantity) → int
+delivery_pack_free_slots(quantity) → int
+delivery_pack_upsell_message(quantity) → str
+resolve_item_delivery_charge(item, state_id) → (per_pack, line_total, has_row)
 compute_cart_delivery_charges(items, state_id) → CartDeliveryBreakdown
 serviceability_payload(*, product_id, state_id)  → dict
 get_deliverable_states_payload(product_id) → list[dict]
@@ -32,6 +35,45 @@ ZERO = Decimal('0')
 
 def _flat_fallback() -> Decimal:
     return Decimal(str(getattr(settings, 'FLAT_DELIVERY_CHARGE', 60)))
+
+
+def delivery_pack_size() -> int:
+    """Pieces that share one state delivery charge (default 2 ≈ 500g–1kg)."""
+    try:
+        size = int(getattr(settings, 'DELIVERY_PACK_SIZE', 2) or 2)
+    except (TypeError, ValueError):
+        size = 2
+    return max(1, size)
+
+
+def delivery_packs_for_quantity(quantity) -> int:
+    """ceil(qty / pack_size) — minimum 1 when quantity >= 1."""
+    import math
+
+    qty = int(quantity or 0)
+    if qty <= 0:
+        return 0
+    return int(math.ceil(qty / delivery_pack_size()))
+
+
+def delivery_pack_free_slots(quantity) -> int:
+    """Pieces that can still be added without starting a new delivery pack."""
+    size = delivery_pack_size()
+    qty = int(quantity or 0)
+    if qty <= 0 or size <= 1:
+        return 0
+    rem = qty % size
+    return 0 if rem == 0 else size - rem
+
+
+def delivery_pack_upsell_message(quantity) -> str:
+    """Short checkout tip when another piece fits the current pack for free."""
+    slots = delivery_pack_free_slots(quantity)
+    if slots == 1:
+        return 'Add 1 more - no extra delivery'
+    if slots > 1:
+        return f'Add {slots} more - no extra delivery'
+    return ''
 
 
 def _as_decimal(value) -> Decimal:
@@ -212,27 +254,30 @@ def get_combo_delivery_charge(combo_id: int, state_id: int) -> Optional[Decimal]
 
 def resolve_item_delivery_charge(item, state_id: Optional[int]) -> Tuple[Decimal, Decimal, bool]:
     """
-    Resolve (per_unit, line_total, has_configured_row) for a cart/order line.
+    Resolve (per_pack, line_total, has_configured_row) for a cart/order line.
 
     has_configured_row is True when the product/combo has a ProductDeliveryState
     row for the selected state (charge may still be zero).
+
+    Pack billing (Approach A): line_total = per_pack × ceil(qty / DELIVERY_PACK_SIZE).
+    Qty 1 and 2 share one pack charge when pack size is 2.
     """
     if not state_id:
         return ZERO, ZERO, False
 
-    per_unit: Optional[Decimal]
+    per_pack: Optional[Decimal]
     if getattr(item, 'combo_id', None):
-        per_unit = get_combo_delivery_charge(item.combo_id, state_id)
+        per_pack = get_combo_delivery_charge(item.combo_id, state_id)
     elif getattr(item, 'product_id', None):
-        per_unit = get_product_delivery_charge(item.product_id, state_id)
+        per_pack = get_product_delivery_charge(item.product_id, state_id)
     else:
-        per_unit = None
+        per_pack = None
 
-    if per_unit is None:
+    if per_pack is None:
         return ZERO, ZERO, False
 
-    qty = Decimal(int(getattr(item, 'quantity', 1) or 1))
-    return per_unit, per_unit * qty, True
+    packs = Decimal(delivery_packs_for_quantity(getattr(item, 'quantity', 1)))
+    return per_pack, per_pack * packs, True
 
 
 @dataclass
@@ -256,9 +301,10 @@ def compute_cart_delivery_charges(items, state_id: Optional[int] = None) -> Cart
     Rules:
     - No state selected → ₹0 (checkout must prompt to select a state).
     - State selected + at least one line has a configured charge row →
-      sum(state_charge × qty) across lines (missing rows contribute 0).
-    - State selected + no lines have a charge row → flat fallback
-      (preserves behaviour for unrestricted catalogues).
+      sum(state_charge × ceil(qty / DELIVERY_PACK_SIZE)) across lines
+      (missing rows contribute 0; each line packs independently).
+    - State selected + no lines have a charge row → flat fallback with the
+      same pack rule: FLAT_DELIVERY_CHARGE × ceil(qty / pack_size) per line.
     """
     if not state_id:
         return CartDeliveryBreakdown(total=ZERO, used_flat_fallback=False, state_missing=True)
@@ -269,11 +315,13 @@ def compute_cart_delivery_charges(items, state_id: Optional[int] = None) -> Cart
     any_configured = False
 
     for item in items:
-        per_unit, line_total, has_row = resolve_item_delivery_charge(item, state_id)
+        per_pack, line_total, has_row = resolve_item_delivery_charge(item, state_id)
         item_id = getattr(item, 'id', None)
         if item_id is not None:
             lines[item_id] = {
-                'delivery_charge_per_unit': per_unit,
+                # Field name kept for API/order snapshot compatibility;
+                # value is the configured pack charge (not per piece).
+                'delivery_charge_per_unit': per_pack,
                 'total_delivery_charge': line_total,
             }
         if has_row:
@@ -281,7 +329,23 @@ def compute_cart_delivery_charges(items, state_id: Optional[int] = None) -> Cart
             total += line_total
 
     if not any_configured:
-        return CartDeliveryBreakdown(total=flat, used_flat_fallback=True, lines=lines)
+        pack_lines: Dict[int, Dict[str, Decimal]] = {}
+        pack_total = ZERO
+        for item in items:
+            packs = Decimal(delivery_packs_for_quantity(getattr(item, 'quantity', 1)))
+            line_total = flat * packs
+            item_id = getattr(item, 'id', None)
+            if item_id is not None:
+                pack_lines[item_id] = {
+                    'delivery_charge_per_unit': flat,
+                    'total_delivery_charge': line_total,
+                }
+            pack_total += line_total
+        return CartDeliveryBreakdown(
+            total=pack_total,
+            used_flat_fallback=True,
+            lines=pack_lines,
+        )
 
     return CartDeliveryBreakdown(total=total, used_flat_fallback=False, lines=lines)
 

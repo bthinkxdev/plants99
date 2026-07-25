@@ -16,10 +16,10 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView, View
-from .models import Banner, BlogPost, CartItem, Category, Combo, ComboItem, ContactMessage, HomeCategory, HomeCategoryProduct, Order, OrderItem, Product, ProductAttributeValue, Reel, RentalBooking, Review, Shipment, Variant, VariantImage, Testimonial
+from .models import Banner, BlogPost, CartItem, Category, Combo, ComboItem, ContactMessage, Coupon, CouponRedemption, HomeCategory, HomeCategoryProduct, Order, OrderItem, Product, ProductAttributeValue, Reel, RentalBooking, Review, Shipment, Variant, VariantImage, Testimonial
 from django.conf import settings
 from .admin import _invalidate_home_cache
-from .admin_forms import AdminLoginForm, BannerForm, BlogPostForm, CategoryForm, ComboForm, HomeCategoryForm, ProductBasicEditForm, ReelForm, RentalConfigForm, _validate_image_file, TestimonialForm
+from .admin_forms import AdminLoginForm, BannerForm, BlogPostForm, CategoryForm, ComboForm, CouponForm, HomeCategoryForm, ProductBasicEditForm, ReelForm, RentalConfigForm, _validate_image_file, TestimonialForm
 from .utils.debug_trace import Trace
 from .admin_product_edit_views import ProductCreateBasicView as BaseProductCreateBasicView, ProductEditView as BaseProductEditView, ProductUpdateBasicView as BaseProductUpdateBasicView, ProductToggleActiveView as BaseProductToggleActiveView, ProductAttributesListApiView as BaseProductAttributesListApiView, ProductAttributeCreateApiView as BaseProductAttributeCreateApiView, ProductAttributesReorderApiView as BaseProductAttributesReorderApiView, ProductAttributeUpdateApiView as BaseProductAttributeUpdateApiView, ProductAttributeDeleteApiView as BaseProductAttributeDeleteApiView, ProductAttributeValueCreateApiView as BaseProductAttributeValueCreateApiView, ProductAttributeValuesReorderApiView as BaseProductAttributeValuesReorderApiView, ProductAttributeValueUpdateApiView as BaseProductAttributeValueUpdateApiView, ProductAttributeValueDeleteApiView as BaseProductAttributeValueDeleteApiView, ProductVariantsListApiView as BaseProductVariantsListApiView, VariantCreateApiView as BaseVariantCreateApiView, VariantUpdateApiView as BaseVariantUpdateApiView, VariantDeleteApiView as BaseVariantDeleteApiView, VariantUploadImageView as BaseVariantUploadImageView, VariantImageDeleteView as BaseVariantImageDeleteView, VariantImageSetPrimaryView as BaseVariantImageSetPrimaryView, VariantImageReorderView as BaseVariantImageReorderView, ProductImageUploadView as BaseProductImageUploadView, ProductImageDeleteView as BaseProductImageDeleteView, ProductImageSetPrimaryView as BaseProductImageSetPrimaryView, ProductImageReorderView as BaseProductImageReorderView, ProductComboComponentsListApiView as BaseProductComboComponentsListApiView, ProductComboCandidateProductsApiView as BaseProductComboCandidateProductsApiView, ProductComboComponentAddApiView as BaseProductComboComponentAddApiView, ProductComboComponentUpdateApiView as BaseProductComboComponentUpdateApiView, ProductComboComponentDeleteApiView as BaseProductComboComponentDeleteApiView
 logger = logging.getLogger(__name__)
@@ -595,6 +595,110 @@ class BannerDeleteView(StaffRequiredMixin, DeleteView):
         except Exception as e:
             messages.error(request, f'Error deleting banner: {str(e)}')
         return redirect(success_url)
+
+
+class CouponListView(StaffRequiredMixin, ListView):
+    model = Coupon
+    template_name = 'admin/coupon_list.html'
+    context_object_name = 'coupons'
+    paginate_by = 20
+
+    def get_queryset(self):
+        qs = Coupon.objects.all()
+        status = self.request.GET.get('status')
+        if status == 'active':
+            qs = qs.filter(is_active=True)
+        elif status == 'inactive':
+            qs = qs.filter(is_active=False)
+        q = (self.request.GET.get('q') or '').strip()
+        if q:
+            qs = qs.filter(Q(code__icontains=q) | Q(name__icontains=q))
+        return qs.order_by('-created_at')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['active_menu'] = 'coupons'
+        context['filter_status'] = self.request.GET.get('status', '')
+        context['filter_q'] = self.request.GET.get('q', '')
+        return context
+
+
+class CouponCreateView(StaffRequiredMixin, CreateView):
+    model = Coupon
+    form_class = CouponForm
+    template_name = 'admin/coupon_form.html'
+    success_url = reverse_lazy('admin_panel:coupon_list')
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Coupon created successfully!')
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['active_menu'] = 'coupons'
+        context['form_title'] = 'Create Coupon'
+        return context
+
+
+class CouponUpdateView(StaffRequiredMixin, UpdateView):
+    model = Coupon
+    form_class = CouponForm
+    template_name = 'admin/coupon_form.html'
+    success_url = reverse_lazy('admin_panel:coupon_list')
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Coupon updated successfully!')
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['active_menu'] = 'coupons'
+        context['form_title'] = 'Edit Coupon'
+        return context
+
+
+class CouponDetailView(StaffRequiredMixin, DetailView):
+    model = Coupon
+    template_name = 'admin/coupon_detail.html'
+    context_object_name = 'coupon'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['active_menu'] = 'coupons'
+        context['redemptions'] = (
+            CouponRedemption.objects.filter(coupon=self.object)
+            .select_related('order', 'user')
+            .order_by('-created_at')[:50]
+        )
+        return context
+
+
+class CouponDeleteView(StaffRequiredMixin, DeleteView):
+    model = Coupon
+    success_url = reverse_lazy('admin_panel:coupon_list')
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        if self.object.redemptions.exists():
+            messages.error(
+                request,
+                'Cannot delete a coupon that has redemptions. Disable it instead.',
+            )
+            return redirect('admin_panel:coupon_detail', pk=self.object.pk)
+        messages.success(request, 'Coupon deleted successfully!')
+        return super().post(request, *args, **kwargs)
+
+
+class CouponToggleActiveView(StaffRequiredMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        coupon = get_object_or_404(Coupon, pk=pk)
+        coupon.is_active = not coupon.is_active
+        coupon.save(update_fields=['is_active', 'updated_at'])
+        state = 'enabled' if coupon.is_active else 'disabled'
+        messages.success(request, f'Coupon {coupon.code} {state}.')
+        next_url = request.POST.get('next') or reverse('admin_panel:coupon_list')
+        return redirect(next_url)
+
 
 class ProductListView(StaffRequiredMixin, ListView):
     model = Product
