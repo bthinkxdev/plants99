@@ -70,9 +70,9 @@ def delivery_pack_upsell_message(quantity) -> str:
     """Short checkout tip when another piece fits the current pack for free."""
     slots = delivery_pack_free_slots(quantity)
     if slots == 1:
-        return 'Add 1 more - no extra delivery'
+        return 'Add 1 more - no extra delivery charge'
     if slots > 1:
-        return f'Add {slots} more - no extra delivery'
+        return f'Add {slots} more - no extra delivery charge'
     return ''
 
 

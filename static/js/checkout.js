@@ -345,8 +345,8 @@ function checkoutPackUpsellMessage(quantity) {
     var rem = qty % packSize;
     if (rem === 0) return '';
     var slots = packSize - rem;
-    if (slots === 1) return 'Add 1 more - no extra delivery';
-    return 'Add ' + slots + ' more - no extra delivery';
+    if (slots === 1) return 'Add 1 more - no extra delivery charge';
+    return 'Add ' + slots + ' more - no extra delivery charge';
 }
 
 
