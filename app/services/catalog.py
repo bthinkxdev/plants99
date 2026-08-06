@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db.models import OuterRef, Subquery, Q, Prefetch, F
 from ..models import Combo, Variant
 from .category_tree import category_filter_ids_for_slug
@@ -29,7 +30,7 @@ def attach_product_card_display(product, variants_attr='listing_variants'):
         product.lowest_price = product.base_price
         product.card_in_stock = combo_is_in_stock(product, multiplier=1)
         return True
-    if getattr(product, 'is_rent_available', False):
+    if getattr(product, 'is_rent_available', False) and getattr(settings, 'RENTAL_ENABLED', True):
         cfg = getattr(product, 'rental_config', None)
         rent_price = getattr(cfg, 'rent_price_per_day', None) if cfg else None
         if rent_price is not None or product.base_price is not None:

@@ -84,7 +84,7 @@ def delivery_settings(request):
     }
 
 def home_section_flags(request):
-    return {'HOME_DEAL_OF_DAY_ENABLED': getattr(settings, 'HOME_DEAL_OF_DAY_ENABLED', True), 'HOME_FEATURED_ENABLED': getattr(settings, 'HOME_FEATURED_ENABLED', True), 'HOME_BESTSELLER_ENABLED': getattr(settings, 'HOME_BESTSELLER_ENABLED', True), 'HOME_RECENTLY_ADDED_ENABLED': getattr(settings, 'HOME_RECENTLY_ADDED_ENABLED', True), 'REVIEW_ENABLED': getattr(settings, 'REVIEW_ENABLED', True)}
+    return {'HOME_DEAL_OF_DAY_ENABLED': getattr(settings, 'HOME_DEAL_OF_DAY_ENABLED', True), 'HOME_FEATURED_ENABLED': getattr(settings, 'HOME_FEATURED_ENABLED', True), 'HOME_BESTSELLER_ENABLED': getattr(settings, 'HOME_BESTSELLER_ENABLED', True), 'HOME_RECENTLY_ADDED_ENABLED': getattr(settings, 'HOME_RECENTLY_ADDED_ENABLED', True), 'REVIEW_ENABLED': getattr(settings, 'REVIEW_ENABLED', True), 'RENTAL_ENABLED': getattr(settings, 'RENTAL_ENABLED', True)}
 
 def admin_product_settings(request):
     return {'ALLOW_ATTRIBUTES_AND_VARIANTS': getattr(settings, 'ALLOW_ATTRIBUTES_AND_VARIANTS', True)}

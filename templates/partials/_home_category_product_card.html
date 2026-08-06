@@ -1,7 +1,7 @@
 {% load static %}
 {# Hero carousel card: badge, image, title, delivery line, View product CTA #}
 {% with v=product.primary_variant card_urls=product.get_card_image_urls %}
-{% if v or product.rent_ready or product.is_combo_product or product.is_simple_product and product.base_price %}
+{% if v or product.is_combo_product or product.is_simple_product and product.base_price or product.rent_ready and RENTAL_ENABLED %}
 <a href="{% if v %}{% url 'store:product_detail' product.slug %}?variant={{ v.id }}{% else %}{% url 'store:product_detail' product.slug %}{% endif %}" class="hc-pcard{% if product.card_in_stock == False %} hc-pcard--oos{% endif %}">
     {% if product.card_in_stock == False %}
     <span class="hc-pcard__oos">Out of stock</span>
@@ -13,7 +13,7 @@
     <span class="hc-pcard__badge">Perfect for gifting</span>
     {% elif product.is_featured %}
     <span class="hc-pcard__badge">Staff favourite</span>
-    {% elif product.rent_ready %}
+    {% elif product.rent_ready and RENTAL_ENABLED %}
     <span class="hc-pcard__badge">Rent this plant</span>
     {% else %}
     <span class="hc-pcard__badge">Shop now</span>
@@ -33,7 +33,7 @@
     </span>
     <span class="hc-pcard__title">{{ product.name }}</span>
     <span class="hc-pcard__rating-slot">{% include "partials/_rating_pill.html" with product=product show_empty=True %}</span>
-    <span class="hc-pcard__meta">{% if product.rent_ready and not product.base_price %}Available to rent{% else %}Care-first packing{% endif %}</span>
+    <span class="hc-pcard__meta">{% if product.rent_ready and RENTAL_ENABLED and not product.base_price %}Available to rent{% else %}Care-first packing{% endif %}</span>
     <span class="hc-pcard__cta">View product</span>
 </a>
 {% endif %}

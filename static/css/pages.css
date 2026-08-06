@@ -523,12 +523,13 @@ body.storefront .shop-breadcrumb {
 }
 
 .product-section-title {
+  font-family: 'Fredoka', 'Montserrat', sans-serif;
   font-size: clamp(1.4rem, 2.5vw, 1.875rem);
-  font-weight: 800;
+  font-weight: 700;
   color: var(--ug-text);
   margin: 0;
   line-height: 1.15;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
 .link-view-all {
@@ -618,7 +619,6 @@ body.storefront .product-grid-layout > .p99-product-card {
   font-weight: 600;
   color: var(--ug-text);
   line-height: 1.35;
-  min-height: var(--store-pc-title-minh, 2.75em);
 }
 
 .storefront .tpc-price {
@@ -2771,11 +2771,11 @@ body.storefront .hc-hero__slide > .hc-pcard {
   flex-shrink: 0;
   width: 100%;
 }
-/* .p99-compact-card__rating-slot:not(:has(.p99-rating-pill)) {
+.p99-compact-card__rating-slot:not(:has(.p99-rating-pill)) {
   display: none;
   margin: 0;
   min-height: 0;
-} */
+}
 
 .p99-compact-card .p99-rating-pill {
   position: static;
@@ -3408,6 +3408,7 @@ body.storefront .featured-pick-rail__slide > .p99-compact-card {
 }
 
 .p99-reels-title {
+  font-family: 'Fredoka', 'Montserrat', sans-serif;
   margin: 0;
   font-size: clamp(1.2rem, 2.2vw, 1.5rem);
   font-weight: 700;
@@ -8415,10 +8416,15 @@ body.storefront .order-line .line-info {
   margin: 0 12px 2px !important;
 }
 .hc-pcard__rating-slot {
-  min-height: 24px !important;  
+  min-height: 24px !important;
   margin: 0 12px 6px !important;
   display: flex !important;
   align-items: center !important;
+}
+.hc-pcard__rating-slot:not(:has(.p99-rating-pill)) {
+  display: none !important;
+  margin: 0 !important;
+  min-height: 0 !important;
 }
  
 .hc-pcard__meta {

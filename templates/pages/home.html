@@ -10,8 +10,8 @@
     {% include "sections/categories.html" %}
     {% include "sections/home_category_heroes.html" %}
 
-    {# Rent plants (hero focus section) #}
-    {% include "sections/rent_plants_focus.html" with rent_products=rent_products cta_label="See all plants" cta_url=shop_url view_all_url=shop_url aria_label="Rent plants" %}
+    {# Rent plants (hero focus section) — hidden from storefront for now #}
+    {% comment %} {% include "sections/rent_plants_focus.html" with rent_products=rent_products cta_label="See all plants" cta_url=shop_url view_all_url=shop_url aria_label="Rent plants" %} {% endcomment %}
 
     {# Featured Products #}
     {% comment %} {% if HOME_FEATURED_ENABLED and featured_products %}

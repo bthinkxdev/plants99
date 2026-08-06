@@ -84,7 +84,7 @@
             <a href="{% url 'store:product_list' %}" class="site-nav-link">Shop</a>
             {% endfor %}
             <a href="{% url 'store:product_list' %}" class="site-nav-link {% if active_page == 'collection' and not active_category_slug and not request.GET.rent and not request.GET.combo and not request.GET.offer %}is-active{% endif %}">Shop all</a>
-            <a href="{% url 'store:product_list' %}?rent=1" class="site-nav-link {% if request.GET.rent == '1' %}is-active{% endif %}">Rental</a>
+            {% comment %} <a href="{% url 'store:product_list' %}?rent=1" class="site-nav-link {% if request.GET.rent == '1' %}is-active{% endif %}">Rental</a> {% endcomment %}
             {% comment %} <a href="{% url 'store:product_list' %}?plant_type=outdoor" class="site-nav-link">Outdoor</a> {% endcomment %}
             {% comment %} <a href="{% url 'store:product_list' %}?combo=1" class="site-nav-link {% if request.GET.combo == '1' %}is-active{% endif %}">Combos</a> {% endcomment %}
             <a href="{% url 'store:product_list' %}?offer=discount" class="site-nav-link {% if request.GET.offer == 'discount' %}is-active{% endif %}">Offers</a>
@@ -116,7 +116,7 @@
         {% endwith %}
         {% endfor %}
         {% comment %} <a href="{% url 'store:product_list' %}?combo=1">Combos</a> {% endcomment %}
-        <a href="{% url 'store:product_list' %}?rent=1">Rental</a>
+        {% comment %} <a href="{% url 'store:product_list' %}?rent=1">Rental</a> {% endcomment %}
         <a href="#" class="js-open-cart-drawer">Cart</a>
         {% if WISHLIST_ENABLED %}<a href="{% url 'store:wishlist' %}">Wishlist</a>{% endif %}
         <a href="{% url 'store:contact' %}">Contact</a>

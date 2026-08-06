@@ -6,6 +6,7 @@ import json
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
+from django.conf import settings
 from django.db.models import Count, Prefetch
 from django.urls import reverse
 
@@ -404,8 +405,11 @@ class ProductDetailService:
                 })
         context['combo_lines'] = combo_lines
 
-        from app.services.rental_pricing import product_is_rent_ready
-        rent_ready = product_is_rent_ready(product)
+        if getattr(settings, 'RENTAL_ENABLED', True):
+            from app.services.rental_pricing import product_is_rent_ready
+            rent_ready = product_is_rent_ready(product)
+        else:
+            rent_ready = False
         context['pdp_rent_ready'] = rent_ready
 
         if rent_ready:

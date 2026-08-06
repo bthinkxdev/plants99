@@ -91,7 +91,7 @@ canvas {
 body.storefront {
   --store-pc-img-ratio: 1 / 1;
   --store-pc-title-minh: 2.75em;
-  --store-pc-tag-band-h: 2.625rem;
+  --store-pc-tag-band-h: 1.6rem;
 }
 
 .storefront .container {
@@ -1621,7 +1621,6 @@ body.storefront .p99-product-card .tpc-body {
   justify-content: flex-start;
   align-content: flex-start;
   flex-shrink: 0;
-  min-height: var(--store-pc-tag-band-h);
   max-height: var(--store-pc-tag-band-h);
   overflow: hidden;
   margin: 0;
@@ -1649,12 +1648,11 @@ body.storefront .p99-product-card .tpc-body {
   /* Professional alignment: stable vertical rhythm + consistent CTA placement */
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   text-align: left;
   padding: 14px 14px 14px !important;
 }
 .p99-product-card .tpc-name {
-  min-height: var(--store-pc-title-minh) !important;
   color: var(--text-color) !important;
   font-weight: 700 !important;
   font-size: 0.92rem !important;
