@@ -62,7 +62,7 @@ class ProductEditView(DetailView):
         context['active_menu'] = 'products'
         context['form_title'] = 'Edit Product'
         context['basic_form'] = ProductBasicEditForm(instance=self.object)
-        context['base_images'] = list(ProductImage.objects.filter(product=self.object).order_by('display_order', '-is_primary', 'id')[:3])
+        context['base_images'] = list(ProductImage.objects.filter(product=self.object).order_by('display_order', '-is_primary', 'id')[:8])
         cfg, _ = RentalConfig.objects.get_or_create(product=self.object)
         context['rental_form'] = RentalConfigForm(instance=cfg)
         context['delivery_form'] = ProductDeliveryStateForm(product=self.object)
@@ -463,8 +463,8 @@ class ProductImageUploadView(View):
         product = get_object_or_404(Product, pk=product_id)
         if product.variants.exists():
             return JsonResponse({'success': False, 'errors': {'__all__': ['Base images are ignored when variants exist.']}}, status=400)
-        if product.images.count() >= 3:
-            return JsonResponse({'success': False, 'errors': {'image': ['You can upload a maximum of 3 images for a simple product.']}}, status=400)
+        if product.images.count() >= 8:
+            return JsonResponse({'success': False, 'errors': {'image': ['You can upload a maximum of 8 images for a simple product.']}}, status=400)
         image_file = request.FILES.get('image')
         if not image_file:
             return JsonResponse({'success': False, 'errors': {'image': ['No file provided.']}}, status=400)

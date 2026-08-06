@@ -32,7 +32,7 @@
         {% include "sections/featured_pick_rail.html" with products=featured_products banner_link=shop_url view_all_url=shop_url %}
     {% endif %}
 
-    <div id="home-combos-container"></div>
+    {% comment %} <div id="home-combos-container"></div> {% endcomment %}
 
     {% if HOME_DEAL_OF_DAY_ENABLED and deal_of_day_products %}
         {% include "sections/deal_of_the_day.html" with products=deal_of_day_products banner_link=shop_url view_all_url=shop_url %}
@@ -45,7 +45,7 @@
     {% endif %} {% endcomment %}
 
     {% if new_arrival_products %}
-    {% include "sections/product_scroller_row.html" with products=new_arrival_products|slice:":12" section_banner_image="img/new_arriwals.png" section_banner_link=shop_url section_banner_aria="New arrivals — see what's new" section_badge_text="New arrivals" view_all_url=shop_url aria_label="New arrivals" section_modifier="p99-rich-band--soft" section_id="rich-new" %}
+    {% include "sections/product_scroller_row.html" with products=new_arrival_products|slice:":12" row_title="New arrivals" view_all_url=shop_url aria_label="New arrivals" section_modifier="p99-rich-band--soft" section_id="rich-new" %}
     {% endif %}
 
     {# Store Locator #}
@@ -66,7 +66,7 @@
 
 
     {% if HOME_BESTSELLER_ENABLED and bestseller_products %}
-        {% include "sections/product_grid.html" with section_banner_image="img/popular_plants.png" section_banner_link=shop_url section_banner_aria="Shop popular plants" products=bestseller_products view_all_url=shop_url %}
+        {% include "sections/product_grid.html" with section_title="Popular plants" products=bestseller_products view_all_url=shop_url %}
     {% endif %}
     {% comment %} {% if HOME_DEAL_OF_DAY_ENABLED and deal_of_day_products %}
         {% include "sections/product_grid.html" with section_kicker="Limited time" section_title="Deal of the day" products=deal_of_day_products view_all_url=shop_url section_modifier="product-section--muted" %}
@@ -102,7 +102,7 @@
   const LAZY_SECTIONS = {
     'home-reels-container':        '{% url "store:home_reels" %}',
     'home-testimonials-container': '{% url "store:home_testimonials" %}',
-    'home-combos-container':       '{% url "store:home_combos" %}',
+    // 'home-combos-container':       '{% url "store:home_combos" %}', // combo storefront section disabled for now
   };
   function observeSection(containerId, url) {
     const el = document.getElementById(containerId);

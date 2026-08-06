@@ -71,3 +71,13 @@
     </div>
     {% endif %}
 </div>
+
+<div id="pdpLightbox" class="pdp-lightbox-overlay" role="dialog" aria-modal="true" aria-label="Product image viewer">
+    <div class="pdp-lightbox-stage">
+        <button type="button" class="pdp-lightbox-close" id="pdpLightboxClose" aria-label="Close">&times;</button>
+        <button type="button" class="pdp-lightbox-nav pdp-lightbox-prev" id="pdpLightboxPrev" aria-label="Previous image">&#8249;</button>
+        <img id="pdpLightboxImg" class="pdp-lightbox-img" src="" alt="{{ product.name }}">
+        <button type="button" class="pdp-lightbox-nav pdp-lightbox-next" id="pdpLightboxNext" aria-label="Next image">&#8250;</button>
+        <span class="pdp-lightbox-counter" id="pdpLightboxCounter"></span>
+    </div>
+</div>

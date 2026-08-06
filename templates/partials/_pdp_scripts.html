@@ -1579,4 +1579,107 @@
         }).observe(priceEl, { childList: true, subtree: true, characterData: true });
     }
 })();
+
+/* ── PDP Image Lightbox: click to view, arrow/swipe to navigate ─── */
+(function () {
+    var mainImg = document.getElementById('mainProductImg');
+    var overlay = document.getElementById('pdpLightbox');
+    var stageImg = document.getElementById('pdpLightboxImg');
+    var closeBtn = document.getElementById('pdpLightboxClose');
+    var prevBtn = document.getElementById('pdpLightboxPrev');
+    var nextBtn = document.getElementById('pdpLightboxNext');
+    var counterEl = document.getElementById('pdpLightboxCounter');
+    if (!mainImg || !overlay || !stageImg) return;
+
+    var images = [];
+    var index = 0;
+
+    function collectImages() {
+        var urls = [];
+        document.querySelectorAll('.gallery-thumbs .gallery-thumb').forEach(function (thumb) {
+            var url = thumb.getAttribute('data-full');
+            if (!url) {
+                var img = thumb.querySelector('img');
+                url = img && (img.getAttribute('data-full') || img.src);
+            }
+            if (url && urls.indexOf(url) === -1) urls.push(url);
+        });
+        if (!urls.length && mainImg.src) urls.push(mainImg.src);
+        return urls;
+    }
+
+    function render() {
+        if (!images.length) return;
+        stageImg.src = images[index];
+        if (counterEl) {
+            counterEl.textContent = images.length > 1 ? (index + 1) + ' / ' + images.length : '';
+        }
+        if (prevBtn) prevBtn.disabled = images.length <= 1;
+        if (nextBtn) nextBtn.disabled = images.length <= 1;
+    }
+
+    function open(fromUrl) {
+        images = collectImages();
+        if (!images.length) return;
+        var found = images.indexOf(fromUrl);
+        index = found >= 0 ? found : 0;
+        render();
+        overlay.classList.add('is-open');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function close() {
+        overlay.classList.remove('is-open');
+        document.body.style.overflow = '';
+    }
+
+    function showPrev() {
+        if (images.length <= 1) return;
+        index = (index - 1 + images.length) % images.length;
+        render();
+    }
+
+    function showNext() {
+        if (images.length <= 1) return;
+        index = (index + 1) % images.length;
+        render();
+    }
+
+    mainImg.addEventListener('click', function () {
+        open(mainImg.src);
+    });
+    if (closeBtn) closeBtn.addEventListener('click', close);
+    if (prevBtn) prevBtn.addEventListener('click', showPrev);
+    if (nextBtn) nextBtn.addEventListener('click', showNext);
+    overlay.addEventListener('click', function (e) {
+        if (e.target === overlay || e.target.classList.contains('pdp-lightbox-stage')) close();
+    });
+    document.addEventListener('keydown', function (e) {
+        if (!overlay.classList.contains('is-open')) return;
+        if (e.key === 'Escape') close();
+        else if (e.key === 'ArrowLeft') showPrev();
+        else if (e.key === 'ArrowRight') showNext();
+    });
+
+    // Manual left/right swipe navigation on touch devices
+    var touchStartX = null;
+    var touchStartY = null;
+    overlay.addEventListener('touchstart', function (e) {
+        if (!e.touches || !e.touches.length) return;
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+    overlay.addEventListener('touchend', function (e) {
+        if (touchStartX == null) return;
+        var touch = e.changedTouches && e.changedTouches[0];
+        if (!touch) return;
+        var dx = touch.clientX - touchStartX;
+        var dy = touch.clientY - touchStartY;
+        touchStartX = null;
+        touchStartY = null;
+        if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
+        if (dx > 0) showPrev();
+        else showNext();
+    }, { passive: true });
+})();
 </script>

@@ -176,6 +176,13 @@ function openRazorpayPopup(data) {
                 reenablePlaceOrderButton();
             },
         },
+        config: {
+            display: {
+                preferences: {
+                    show: false,
+                },
+            },
+        },
     };
 
     var rzp = new Razorpay(options);

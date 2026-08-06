@@ -1,24 +1,16 @@
-{% load static %}
 {% if products %}
 <section class="deal-of-the-day" aria-label="Deal of the day">
     <div class="deal-of-the-day__shell">
-        {% with va=view_all_url|default:banner_link %}
-        {% if va %}
-        <div class="storefront-section-actions">
+        <div class="product-section-head">
+            <div>
+                <h2 class="product-section-title">{{ section_title|default:"Deal of the day" }}</h2>
+            </div>
+            {% with va=view_all_url|default:banner_link %}
+            {% if va %}
             <a href="{{ va }}" class="link-view-all">View all</a>
+            {% endif %}
+            {% endwith %}
         </div>
-        {% endif %}
-        {% endwith %}
-        <a href="{{ banner_link|default:shop_url }}" class="deal-of-the-day__banner-link" aria-label="Shop deal of the day">
-            <img
-                src="{% if banner_image %}{{ banner_image }}{% else %}{% static 'img/deal_of_the_day.png' %}{% endif %}"
-                alt=""
-                class="deal-of-the-day__banner-img"
-                width="1200"
-                height="320"
-                loading="lazy"
-                decoding="async">
-        </a>
         <div class="deal-of-the-day__rail">
             <div
                 class="owl-carousel deal-of-the-day__carousel"

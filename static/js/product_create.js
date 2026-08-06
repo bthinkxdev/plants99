@@ -14,10 +14,10 @@
         "";
 
     var pendingFiles = [];
-    var maxImages = 3;
+    var maxImages = 8;
     var imagesBlock = document.getElementById("create-images-block");
     if (imagesBlock) {
-        maxImages = parseInt(imagesBlock.getAttribute("data-max-images") || "3", 10) || 3;
+        maxImages = parseInt(imagesBlock.getAttribute("data-max-images") || "8", 10) || 8;
     }
     var imagesInput = document.getElementById("create-images-input");
     var imagesPreview = document.getElementById("create-images-preview");

@@ -6,9 +6,9 @@
                 <div class="category-strip-scroll__segment">
                     <a href="{% url 'store:product_list' %}" class="category-strip-item">
                         <div class="category-strip-img-wrap">
-                            <img src="{% static 'images/allplants.jpeg' %}" alt="All plants" loading="lazy" class="category-strip-img" width="180" height="200">
+                            <img src="{% static 'images/allplants.jpeg' %}" alt="All products" loading="lazy" class="category-strip-img" width="180" height="200">
                         </div>
-                        <span class="category-strip-label">All plants</span>
+                        <span class="category-strip-label">All Products</span>
                     </a>
                     {% for c in shop_categories|slice:":6" %}
                     <a href="{% url 'store:product_list' %}?category={{ c.slug }}" class="category-strip-item">

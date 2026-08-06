@@ -289,7 +289,7 @@ class ProductDetailService:
         }
 
         if product.is_simple_product():
-            context['product_display_image_urls'] = product.get_card_image_urls(limit=3)
+            context['product_display_image_urls'] = product.get_card_image_urls()
         else:
             context['product_display_image_urls'] = []
 
