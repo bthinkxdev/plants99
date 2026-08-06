@@ -9,9 +9,10 @@ DEBUG_TRACE = config('DEBUG_TRACE', default=False, cast=bool)
 _PRODUCTION_HOSTS = (
     'plants99.bthinkx.com',
     'plants99.com',
+    'www.plants99.com',
 )
 
-ALLOWED_HOSTS = list(_PRODUCTION_HOSTS)
+ALLOWED_HOSTS = list(_PRODUCTION_HOSTS) + ['.plants99.com']
 if DEBUG:
     ALLOWED_HOSTS = ['*']
 else:
@@ -19,7 +20,9 @@ else:
         if h not in ALLOWED_HOSTS:
             ALLOWED_HOSTS.append(h)
 
-CSRF_TRUSTED_ORIGINS = [f'https://{host}' for host in _PRODUCTION_HOSTS]
+CSRF_TRUSTED_ORIGINS = [f'https://{host}' for host in _PRODUCTION_HOSTS] + [
+    'https://*.plants99.com',
+]
 if DEBUG:
     CSRF_TRUSTED_ORIGINS.extend([
         'http://localhost:8000',
