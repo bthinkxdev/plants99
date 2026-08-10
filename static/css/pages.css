@@ -15,12 +15,16 @@
   --ug-text-muted: var(--text-muted);
   --ug-radius: var(--radius-lg);
   --ug-radius-lg: 16px;
+  /* Shared card system: every product-card variant (grid, compact/rail, hero-carousel)
+     points its outer/inner radius and shadow at these instead of its own literal values. */
+  --card-radius-sm: 12px;
   --ug-shadow: var(--shadow-soft);
   --ug-shadow-hover: var(--shadow-medium);
   --ug-font: var(--font-sans);
   
-  --ug-max-w: 1280px;
-  --ug-gutter: 20px;
+  /* Same tokens the header (base.css) uses — one source of truth for width + gutter. */
+  --ug-max-w: var(--container-max, 1280px);
+  --ug-gutter: var(--site-gutter, 20px);
   /* Horizontal inset from viewport (gutter + safe area) — use for full-width bands */
   --store-pad-left: max(var(--ug-gutter, 20px), env(safe-area-inset-left, 0px));
   --store-pad-right: max(var(--ug-gutter, 20px), env(safe-area-inset-right, 0px));
@@ -36,47 +40,15 @@
   padding-right: var(--store-pad-right);
 }
 
-/* Much tighter side margins on tablet / laptop / desktop (mobile keeps 20px gutter) */
+/* Header + promo strip + desktop nav row: match storefront gutters. --site-gutter itself
+   steps down at 768px/992px (see :root in base.css), so one rule covers both breakpoints —
+   header and page content edges can never drift apart again. */
 @media (min-width: 768px) {
-  .storefront {
-    --ug-gutter: 12px;
-  }
-}
-
-@media (min-width: 992px) {
-  .storefront {
-    --ug-gutter: 6px;
-  }
-}
-
-/* Header + promo strip + desktop nav row: match storefront gutters */
-@media (min-width: 768px) {
-  body.storefront .site-header__inner {
-    padding-left: max(12px, env(safe-area-inset-left, 0px));
-    padding-right: max(12px, env(safe-area-inset-right, 0px));
-  }
-  body.storefront .site-top-strip {
-    padding-left: max(12px, env(safe-area-inset-left, 0px));
-    padding-right: max(12px, env(safe-area-inset-right, 0px));
-  }
+  body.storefront .site-header__inner,
+  body.storefront .site-top-strip,
   body.storefront .site-nav-row {
-    padding-left: max(12px, env(safe-area-inset-left, 0px));
-    padding-right: max(12px, env(safe-area-inset-right, 0px));
-  }
-}
-
-@media (min-width: 992px) {
-  body.storefront .site-header__inner {
-    padding-left: max(6px, env(safe-area-inset-left, 0px));
-    padding-right: max(6px, env(safe-area-inset-right, 0px));
-  }
-  body.storefront .site-top-strip {
-    padding-left: max(6px, env(safe-area-inset-left, 0px));
-    padding-right: max(6px, env(safe-area-inset-right, 0px));
-  }
-  body.storefront .site-nav-row {
-    padding-left: max(6px, env(safe-area-inset-left, 0px));
-    padding-right: max(6px, env(safe-area-inset-right, 0px));
+    padding-left: max(var(--site-gutter), env(safe-area-inset-left, 0px));
+    padding-right: max(var(--site-gutter), env(safe-area-inset-right, 0px));
   }
 }
 
@@ -522,13 +494,17 @@ body.storefront .shop-breadcrumb {
   margin: 0 0 0.4rem;
 }
 
-.product-section-title {
-  font-family: 'Fredoka', 'Montserrat', sans-serif;
-  font-size: clamp(1.4rem, 2.5vw, 1.875rem);
+.product-section-title,
+.p99-reels-title {
+  /* ~26px mobile -> ~36px desktop (900px+): section titles must read as a clear notch
+     above product-card titles (0.92rem/~15px) at every breakpoint. */
+  font-family: var(--font-display, 'DM Serif Display', Georgia, serif);
+  font-style: normal;
+  font-size: clamp(1.625rem, 4vw, 2.25rem);
   font-weight: 700;
   color: var(--ug-text);
   margin: 0;
-  line-height: 1.15;
+  line-height: 1.2;
   letter-spacing: -0.01em;
 }
 
@@ -2098,80 +2074,10 @@ body.storefront .product-grid-layout > .p99-product-card {
   height: 100%;
 }
 
-.hc-pcard {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  text-align: left;
-  background: #f7f3ec;
-  border-radius: 16px;
-  padding: 12px 12px 14px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
-  text-decoration: none;
-  color: inherit;
-  height: 100%;
-  min-height: 260px;
-  position: relative;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.hc-pcard:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.22);
-  color: inherit;
-}
-
-.hc-pcard__badge {
-  align-self: flex-start;
-  margin-bottom: 8px;
-  padding: 5px 11px;
-  border-radius: 999px;
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  background: #1b4332;
-  color: #fff;
-}
-
-.hc-pcard__img-wrap {
-  display: block;
-  border-radius: 12px;
-  overflow: hidden;
-  aspect-ratio: 1;
-  background: #fff;
-  margin-bottom: 10px;
-}
-
-.hc-pcard__img-wrap img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.hc-pcard__title {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #1b4332;
-  line-height: 1.3;
-  margin-bottom: 6px;
-  min-height: var(--store-pc-title-minh, 2.75em);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.hc-pcard__rating-slot {
-  min-height: 26px;
-  margin: -2px 0 8px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  flex-shrink: 0;
-}
-
+/* .hc-pcard card shell, badge, img-wrap, title, rating-slot sizing, meta and cta are all
+   defined once, below, in the "Card shell" block — this used to be a duplicate legacy
+   rule set that only worked by accident (later !important block silently won). The rating
+   pill's own color/type styling stays here since the newer block doesn't redeclare it. */
 .hc-pcard .p99-rating-pill,
 .hc-pcard__rating-slot .p99-rating-pill {
   position: static;
@@ -2187,15 +2093,6 @@ body.storefront .product-grid-layout > .p99-product-card {
   color: #333;
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
 }
-.p99-rating-pill--empty {
-  background: rgba(0, 0, 0, 0.035);
-  border-color: rgba(0, 0, 0, 0.05);
-  box-shadow: none;
-}
-.p99-rating-pill--empty .p99-rating-count {
-  color: #a3a3a3;
-  font-weight: 600;
-}
 .hc-pcard__rating-slot .p99-rating-pill .p99-star,
 .hc-pcard .p99-rating-pill .p99-star {
   color: #f5b301;
@@ -2210,30 +2107,6 @@ body.storefront .product-grid-layout > .p99-product-card {
 .hc-pcard .p99-rating-pill .p99-rating-count {
   font-weight: 600;
   color: #666;
-}
-
-.hc-pcard__meta {
-  font-size: 0.72rem;
-  color: #6b7a72;
-  margin-bottom: 12px;
-  min-height: 1.35em;
-  flex-shrink: 0;
-}
-
-.hc-pcard__cta {
-  margin-top: auto;
-  display: block;
-  text-align: center;
-  padding: 11px 16px;
-  border-radius: 10px;
-  font-size: 0.82rem;
-  font-weight: 700;
-  background: #2d6a4f;
-  color: #fff !important;
-}
-
-.hc-pcard:hover .hc-pcard__cta {
-  background: #1b5e40;
 }
 
 /* Tablet/desktop: headline 30% + product rail 70%. Column *order* matches placement for each variant. */
@@ -2402,25 +2275,9 @@ body.storefront .product-grid-layout > .p99-product-card {
     font-size: clamp(1.4rem, 5.5vw, 1.85rem);
   }
 
-  .hc-pcard {
-    min-height: 230px;
-    padding: 10px 10px 12px;
-    border-radius: 14px;
-  }
-
-  .hc-pcard__badge {
-    font-size: 0.58rem;
-    padding: 4px 8px;
-  }
-
-  .hc-pcard__title {
-    font-size: 0.85rem;
-  }
-
-  .hc-pcard__cta {
-    padding: 9px 12px;
-    font-size: 0.78rem;
-  }
+  /* .hc-pcard mobile sizing lived here under the old (v1) card design and is now fully
+     superseded by the "Card shell" block's !important rules — removed rather than left
+     as unreachable dead code. */
 
   .hc-hero-carousel.owl-carousel .owl-nav .owl-prev,
   .hc-hero-carousel.owl-carousel .owl-nav .owl-next {
@@ -2692,9 +2549,9 @@ body.storefront .hc-hero__slide > .hc-pcard {
 
 .p99-compact-card {
   background: #fff;
-  border-radius: 14px;
+  border-radius: var(--ug-radius-lg, 16px);
   padding: 10px 10px 12px;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.07);
+  box-shadow: var(--ug-shadow);
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -2705,15 +2562,15 @@ body.storefront .hc-hero__slide > .hc-pcard {
 
 .p99-compact-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--ug-shadow-hover);
 }
 
 .p99-compact-card__img-wrap {
   display: block;
-  border-radius: 10px;
+  border-radius: var(--card-radius-sm, 12px);
   overflow: hidden;
   aspect-ratio: 1;
-  background: #f3f7f4;
+  background: linear-gradient(160deg, #d4eedd 0%, #f0f9f3 100%);
   margin-bottom: 8px;
 }
 
@@ -2739,7 +2596,6 @@ body.storefront .hc-hero__slide > .hc-pcard {
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  min-height: var(--store-pc-title-minh, 2.75em);
   margin-bottom: 4px;
   flex: 0 0 auto;
 }
@@ -2901,14 +2757,29 @@ body.storefront .hc-hero__slide > .hc-pcard {
   box-shadow: none;
 }
 
+/* Best Sellers / Our picks for you have no .section-container wrapper of their own — the
+   heading and the card rail must share the same left/right inset as every other section,
+   not the rail's own small shadow-clearance padding. */
+.best-sellers__shell > .product-section-head,
+.featured-pick-rail__shell > .product-section-head {
+  padding-left: var(--store-pad-left);
+  padding-right: var(--store-pad-right);
+}
+
+.best-sellers__rail,
+.featured-pick-rail__rail {
+  padding-left: var(--store-pad-left);
+  padding-right: var(--store-pad-right);
+}
+
 /* Deal of the day — countdown to local midnight (deal-day-countdown.js); plain bar, no border fill */
 .deal-of-the-day__timer {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 0.35rem 0.75rem;
-  padding: 0.35rem 0.65rem 0.55rem;
+  padding: 0.35rem 0 0.55rem;
   margin: 0;
   border: none;
   background: transparent;
@@ -2961,6 +2832,63 @@ body.storefront .hc-hero__slide > .hc-pcard {
   margin: 0 0.04rem;
   user-select: none;
   line-height: 1;
+}
+
+/* Deal of the day — editorial split: messaging/countdown/CTA (.intro) beside the product
+   rail, instead of a full-width carousel with a bare heading. Mobile stacks, intro first. */
+.deal-of-the-day__layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding: 1.5rem var(--store-pad-left, 1.25rem) 0.25rem;
+}
+
+.deal-of-the-day__intro {
+  text-align: left;
+}
+
+.deal-of-the-day__kicker {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ug-primary-mid, #00875a);
+  margin-bottom: 0.3rem;
+}
+
+.deal-of-the-day__title {
+  margin: 0 0 0.4rem;
+}
+
+.deal-of-the-day__copy {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--ug-text-muted);
+  max-width: 34ch;
+}
+
+.deal-of-the-day__cta {
+  margin-top: 0.5rem;
+}
+
+@media (min-width: 768px) {
+  .deal-of-the-day__layout {
+    flex-direction: row;
+    align-items: center;
+    gap: clamp(1.5rem, 4vw, 3rem);
+    padding: clamp(1.75rem, 3vw, 2.5rem);
+  }
+
+  .deal-of-the-day__intro {
+    flex: 0 0 clamp(220px, 28vw, 320px);
+  }
+
+  .deal-of-the-day__rail {
+    flex: 1;
+    min-width: 0;
+  }
 }
 
 /* Best sellers mobile: first half / second half in two separate horizontal scroll rows */
@@ -3053,21 +2981,21 @@ body.storefront .hc-hero__slide > .hc-pcard {
 .best-sellers .p99-compact-card,
 .featured-pick-rail .p99-compact-card {
   padding: 5px 5px 7px;
-  border-radius: 11px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+  border-radius: var(--card-radius-sm, 12px);
+  box-shadow: var(--ug-shadow);
 }
 
 .deal-of-the-day .p99-compact-card:hover,
 .best-sellers .p99-compact-card:hover,
 .featured-pick-rail .p99-compact-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.09);
+  box-shadow: var(--ug-shadow-hover);
 }
 
 .deal-of-the-day .p99-compact-card__img-wrap,
 .best-sellers .p99-compact-card__img-wrap,
 .featured-pick-rail .p99-compact-card__img-wrap {
-  border-radius: 8px;
+  border-radius: var(--card-radius-sm, 12px);
   margin-bottom: 4px;
 }
 
@@ -3076,7 +3004,6 @@ body.storefront .hc-hero__slide > .hc-pcard {
 .featured-pick-rail .p99-compact-card__name {
   font-size: 0.68rem;
   line-height: 1.28;
-  min-height: 2.35em;
   margin-bottom: 2px;
 }
 
@@ -3275,10 +3202,6 @@ body.storefront .featured-pick-rail__slide > .p99-compact-card {
   background: #fff;
 }
 
-.p99-reels-section .section-container {
-  max-width: none;
-}
-
 .p99-reels-head {
   display: flex;
   align-items: center;
@@ -3407,13 +3330,6 @@ body.storefront .featured-pick-rail__slide > .p99-compact-card {
   gap: 0.75rem 1.25rem;
 }
 
-.p99-reels-title {
-  font-family: 'Fredoka', 'Montserrat', sans-serif;
-  margin: 0;
-  font-size: clamp(1.2rem, 2.2vw, 1.5rem);
-  font-weight: 700;
-  color: var(--ug-text);
-}
 
 .p99-reels-scroll {
   display: flex;
@@ -4085,10 +4001,6 @@ body.storefront .p99-reels-card > .p99-compact-card {
 }
 
 
-.storefront .product-section {
-  padding: 3rem 0;
-}
-
 .storefront .product-section--tight {
   padding: 2rem 0;
 }
@@ -4117,24 +4029,9 @@ body.storefront .p99-reels-card > .p99-compact-card {
 }
 
 
-.storefront .product-grid-layout {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1.125rem;
-}
-
-@media (max-width: 1199px) {
-  .storefront .product-grid-layout {
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  }
-}
-
-@media (max-width: 767px) {
-  .storefront .product-grid-layout {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.75rem;
-  }
-}
+/* .product-grid-layout's grid columns/gap are defined once, at the top of this file —
+   this used to be a near-duplicate definition that only ever lost to the ios-home flex
+   version (below) on the live homepage. */
 
 
 @media (prefers-reduced-motion: reduce) {
@@ -4247,7 +4144,6 @@ body.storefront .shop-page #shopProductGrid .product-card .product-name {
   color: var(--text-color) !important;
   font-weight: 600 !important;
   font-family: var(--font-sans) !important;
-  min-height: var(--store-pc-title-minh, 2.75em) !important;
 }
 
 body.storefront .shop-page #shopProductGrid .product-card .price-current {
@@ -6677,7 +6573,6 @@ body.storefront .shop-page .toolbar-right .results-count {
     color: var(--clr-navy);
     margin: 0;
     line-height: 1.4;
-    min-height: var(--store-pc-title-minh, 2.75em);
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -6909,31 +6804,12 @@ body.storefront .shop-page .toolbar-right .results-count {
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.13);
 }
 
-/* --- Compact card image ratio consistent --- */
-.p99-compact-card__img-wrap {
-  border-radius: 12px;
-  background: linear-gradient(160deg, #d4eedd 0%, #f0f9f3 100%);
-}
-
 /* --- Banner Section smooth image --- */
 .p99-jsbanner__bgimg {
   transition: transform 0.4s ease;
 }
 .p99-jsbanner:hover .p99-jsbanner__bgimg {
   transform: scale(1.02);
-}
-
-/* --- Storefront product grid improved --- */
-.storefront .product-grid-layout {
-  gap: 1.375rem;
-}
-@media (max-width: 767px) {
-  .storefront .product-grid-layout {
-    gap: 0.875rem;
-  }
-  .storefront .product-section {
-    padding: 2.5rem 0;
-  }
 }
 
 /* --- Active tab in store locator --- */
@@ -6992,7 +6868,6 @@ body.storefront:has(.storefront--ios-home) {
 }
 
 /* Full width between viewport pads like .hc-hero (beats rule above — higher specificity) */
-.storefront.storefront--ios-home .p99-reels-section .section-container,
 .storefront.storefront--ios-home .combo-hub-section .section-container,
 .storefront.storefront--ios-home .combo-hub-section .container,
 .storefront.storefront--ios-home .product-section--banner-top .section-container,
@@ -7000,13 +6875,27 @@ body.storefront:has(.storefront--ios-home) {
   max-width: none;
 }
 
-/* One spacing system: vertical gap between sections = horizontal inset from screen edges */
+/* Vertical rhythm between sections. Horizontal inset (--store-pad-left/right) is intentionally
+   NOT redefined here — it stays inherited from .storefront's --ug-gutter (base.css's shared
+   --site-gutter token), so header and section edges stay aligned in the ios-home theme too. */
 .storefront.storefront--ios-home {
-  --ios-gutter: max(var(--ug-gutter, 20px), env(safe-area-inset-left, 0px));
   --ios-row-gap: clamp(12px, 2.4vw, 18px);
-  --ios-section-gap: clamp(1.75rem, 4.6vw, 3.25rem);
-  --store-pad-left: max(var(--ios-section-gap), env(safe-area-inset-left, 0px));
-  --store-pad-right: max(var(--ios-section-gap), env(safe-area-inset-right, 0px));
+  --home-section-y: clamp(2.5rem, 5vw, 4rem);
+}
+
+/* Smooth scroll-reveal: sections ease up + fade in as they enter view. JS toggles .is-visible;
+   wrapped in prefers-reduced-motion so nothing hides if JS never runs or motion is disabled. */
+@media (prefers-reduced-motion: no-preference) {
+  .storefront.storefront--ios-home .ios-reveal {
+    opacity: 0;
+    transform: translateY(18px);
+    transition: opacity 0.6s var(--ios-tap, ease), transform 0.6s var(--ios-spring, ease);
+    will-change: opacity, transform;
+  }
+  .storefront.storefront--ios-home .ios-reveal.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Phone: tight edge inset — a few px plus safe-area on notched devices */
@@ -7074,8 +6963,10 @@ body.storefront:has(.storefront--ios-home) {
   scroll-margin-top: 96px;
 }
 
-.storefront.storefront--ios-home > :where(section, .hero-wrap, .hc-hero, .p99-jsbanner, .p99-rich-band, .p99-dual-promo, .p99-reels-section, .product-section, .p99-store-locator, .p99-newsletter, .p99-about, .p99-subscribe, .p99-rewards) {
-  margin-bottom: var(--ios-section-gap);
+/* .hero-wrap is deliberately excluded — it sits flush under the header with its own
+   near-zero spacing, not the standard section rhythm. */
+.storefront.storefront--ios-home > :where(section, .hc-hero, .p99-jsbanner, .p99-rich-band, .p99-dual-promo, .p99-reels-section, .product-section, .p99-store-locator, .p99-newsletter, .p99-about, .p99-subscribe, .p99-rewards) {
+  padding-block: var(--home-section-y);
 }
 
 .storefront.storefront--ios-home > :where(section, .hero-wrap, .hc-hero):last-child {
@@ -7127,14 +7018,9 @@ body.storefront:has(.storefront--ios-home) {
   box-shadow: var(--ios-shadow-md);
 }
 
-/* Vertical rhythm between major bands */
-.storefront.storefront--ios-home .hc-hero {
-  margin-bottom: var(--ios-section-gap);
-}
-
+/* Vertical rhythm between major bands — .hc-hero relies on the generic padding-block rule above.
+   .category-strip-section keeps its own distinct (tighter, banded) padding intentionally. */
 .storefront.storefront--ios-home .category-strip-section {
-  margin-top: 0;
-  margin-bottom: var(--ios-section-gap);
   padding: clamp(1.25rem, 3vw, 1.75rem) 0 clamp(1.35rem, 3vw, 1.85rem);
   background: var(--ios-bg-elevated);
   border: none;
@@ -7189,7 +7075,7 @@ body.storefront:has(.storefront--ios-home) {
 }
 
 .storefront.storefront--ios-home .p99-jsbanner {
-  margin-bottom: var(--ios-section-gap);
+  margin-bottom: var(--home-section-y);
 }
 
 .storefront.storefront--ios-home .deal-of-the-day__shell,
@@ -7208,10 +7094,16 @@ body.storefront:has(.storefront--ios-home) {
   box-shadow: none;
 }
 
-.storefront.storefront--ios-home .deal-of-the-day__rail,
+.storefront.storefront--ios-home .deal-of-the-day__rail {
+  padding: 0.35rem 0.45rem 0.5rem;
+}
+
 .storefront.storefront--ios-home .best-sellers__rail,
 .storefront.storefront--ios-home .featured-pick-rail__rail {
-  padding: 0.35rem 0.45rem 0.5rem;
+  padding-top: 0.35rem;
+  padding-bottom: 0.5rem;
+  padding-left: var(--store-pad-left);
+  padding-right: var(--store-pad-right);
 }
 
 .storefront.storefront--ios-home .featured-pick-rail--hub .featured-pick-rail__rail {
@@ -7227,12 +7119,12 @@ body.storefront:has(.storefront--ios-home) {
 .storefront.storefront--ios-home .deal-of-the-day__timer {
   border: none;
   background: transparent;
-  padding: 0.35rem 0.55rem 0.5rem;
+  padding: 0.35rem 0 0.5rem;
 }
 
 .storefront.storefront--ios-home .p99-rent-focus {
   margin-top: 0;
-  margin-bottom: var(--ios-section-gap);
+  margin-bottom: var(--home-section-y);
 }
 
 .storefront.storefront--ios-home .p99-rent-focus__wrap {
@@ -7288,7 +7180,6 @@ body.storefront:has(.storefront--ios-home) {
 }
 
 .storefront.storefront--ios-home .p99-rich-band {
-  margin: var(--ios-section-gap) 0;
   padding-top: clamp(2.75rem, 7vw, 4.25rem);
   padding-bottom: clamp(2.75rem, 7vw, 4.25rem);
   padding-left: var(--store-pad-left);
@@ -7308,7 +7199,6 @@ body.storefront:has(.storefront--ios-home) {
 }
 
 .storefront.storefront--ios-home .p99-reels-section {
-  margin-bottom: var(--ios-section-gap);
   padding-top: clamp(2.25rem, 5vw, 3rem);
   padding-bottom: clamp(2.25rem, 5vw, 3rem);
   padding-left: 0;
@@ -7368,17 +7258,15 @@ body.storefront:has(.storefront--ios-home) {
   box-shadow: var(--ios-shadow-md);
 }
 
-.storefront.storefront--ios-home .product-section {
-  padding: clamp(2.75rem, 6vw, 4rem) 0;
-}
-
+/* .product-section spacing comes from the generic padding-block rule above (it's in the
+   :where() list) — no dedicated override needed here anymore. */
 .storefront.storefront--ios-home .product-section--muted {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
 
 .storefront.storefront--ios-home .product-section-head {
-  margin-bottom: clamp(1.25rem, 3vw, 1.75rem);
+  margin-bottom: clamp(1rem, 3vw, 2rem);
 }
 
 .storefront.storefront--ios-home .product-section-banner-link {
@@ -7399,29 +7287,34 @@ body.storefront:has(.storefront--ios-home) {
   min-width: 0;
 }
 
+/* flex-basis targets the normal column count for a full row; max-width is deliberately
+   looser than the basis (one column-count "wider") so a PARTIAL row (e.g. 3 cards in a
+   4-column section) grows via flex-grow to actually fill the row instead of sitting
+   centered with empty space on both sides — while still capped well short of 100%, so a
+   single lonely product on the row doesn't balloon into one oversized card. */
 @media (max-width: 767px) {
   .storefront.storefront--ios-home .product-grid-layout > * {
     flex: 1 1 calc((100% - var(--pg-gap)) / 2);
-    max-width: calc((100% - var(--pg-gap)) / 2);
+    max-width: calc(100% - var(--pg-gap));
   }
 }
 
 @media (min-width: 768px) and (max-width: 991px) {
   .storefront.storefront--ios-home .product-grid-layout > * {
     flex: 1 1 calc((100% - 2 * var(--pg-gap)) / 3);
-    max-width: calc((100% - 2 * var(--pg-gap)) / 3);
+    max-width: calc((100% - var(--pg-gap)) / 2);
   }
 }
 
 @media (min-width: 992px) {
   .storefront.storefront--ios-home .product-section--banner-top .product-grid-layout > * {
     flex: 1 1 calc((100% - 4 * var(--pg-gap)) / 5);
-    max-width: calc((100% - 4 * var(--pg-gap)) / 5);
+    max-width: calc((100% - 3 * var(--pg-gap)) / 4);
   }
 
   .storefront.storefront--ios-home .product-section:not(.product-section--banner-top) .product-grid-layout > * {
     flex: 1 1 calc((100% - 3 * var(--pg-gap)) / 4);
-    max-width: calc((100% - 3 * var(--pg-gap)) / 4);
+    max-width: calc((100% - 2 * var(--pg-gap)) / 3);
   }
 }
 
@@ -7488,11 +7381,11 @@ body.storefront:has(.storefront--ios-home) {
 }
 
 .storefront.storefront--ios-home .p99-dual-promo {
-  margin: var(--ios-section-gap) 0;
+  margin: var(--home-section-y) 0;
 }
 
 .storefront.storefront--ios-home .p99-newsletter {
-  margin: var(--ios-section-gap) 0;
+  margin: var(--home-section-y) 0;
   background: transparent;
 }
 
@@ -7506,8 +7399,8 @@ body.storefront:has(.storefront--ios-home) {
 .storefront.storefront--ios-home .p99-subscribe,
 .storefront.storefront--ios-home .p99-rewards,
 .storefront.storefront--ios-home .p99-store-locator {
-  margin-top: var(--ios-section-gap);
-  margin-bottom: var(--ios-section-gap);
+  margin-top: var(--home-section-y);
+  margin-bottom: var(--home-section-y);
 }
 
 .storefront.storefront--ios-home .p99-subscribe-card,
@@ -7680,16 +7573,10 @@ body.storefront .order-line .line-info {
   line-height: 1.15;
 }
 
-.pdp-state-tip__name {
+.pdp-state-tip__code {
   font-size: 0.7rem;
   font-weight: 650;
-  white-space: nowrap;
-}
-
-.pdp-state-tip__charge {
-  font-size: 0.62rem;
-  font-weight: 600;
-  opacity: 0.8;
+  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
@@ -7734,13 +7621,9 @@ body.storefront .order-line .line-info {
     box-sizing: border-box;
   }
 
-  .pdp-state-tip__name {
+  .pdp-state-tip__code {
     font-size: 0.58rem;
     font-weight: 600;
-  }
-
-  .pdp-state-tip__charge {
-    font-size: 0.52rem;
   }
 
   .pdp-state-hint {
@@ -8319,28 +8202,31 @@ body.storefront .order-line .line-info {
   .p99-rent-focus__rail { grid-auto-columns: minmax(220px, 1fr); }
 }
 
-/* ── Card shell ── */
+/* ── Card shell ──
+   border-radius/box-shadow/transition are intentionally NOT !important: the ios-home theme
+   layer (.storefront.storefront--ios-home .hc-pcard) refines them for the live homepage,
+   the same pattern used for .p99-compact-card. */
 .hc-pcard {
   background: #f7f3ec !important;
-  border-radius: 20px !important;
+  border-radius: 20px;
   padding: 0 !important;
   box-shadow:
     0 2px 8px rgba(0,0,0,0.07),
-    0 14px 36px rgba(0,0,0,0.13) !important;
+    0 14px 36px rgba(0,0,0,0.13);
   display: flex !important;
   flex-direction: column !important;
   min-height: 260px !important;
   height: 100%;
   overflow: hidden;
-  transition: transform 0.28s ease, box-shadow 0.28s ease !important;
+  transition: transform 0.28s ease, box-shadow 0.28s ease;
   text-decoration: none !important;
   color: inherit !important;
 }
 .hc-pcard:hover {
-  transform: translateY(-4px) !important;
+  transform: translateY(-4px);
   box-shadow:
     0 6px 20px rgba(0,0,0,0.11),
-    0 24px 56px rgba(0,0,0,0.17) !important;
+    0 24px 56px rgba(0,0,0,0.17);
   color: inherit !important;
 }
  
@@ -8563,7 +8449,7 @@ body.storefront .order-line .line-info {
   position: relative;
   overflow: hidden;
   border-radius: 0;
-  margin-bottom: var(--ios-section-gap, 2.5rem);
+  margin-bottom: var(--home-section-y, 2.5rem);
 }
 
 /* --- Background panel: taller, cinematic --- */

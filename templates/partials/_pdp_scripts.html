@@ -1448,30 +1448,18 @@
 
     if (!tipsEl || !pid) return;
 
-    function formatCharge(raw) {
-        var n = parseFloat(raw);
-        if (isNaN(n) || n <= 0) return '';
-        return '₹' + (Number.isInteger(n) ? String(n) : n.toFixed(0));
-    }
-
     function createStateTip(s) {
         var card = document.createElement('div');
         card.className = 'pdp-state-tip';
         card.setAttribute('role', 'listitem');
         card.setAttribute('data-state-id', String(s.id));
+        card.title = s.name;
 
-        var nameEl = document.createElement('span');
-        nameEl.className = 'pdp-state-tip__name';
-        nameEl.textContent = s.name;
-        card.appendChild(nameEl);
+        var codeEl = document.createElement('span');
+        codeEl.className = 'pdp-state-tip__code';
+        codeEl.textContent = s.code;
+        card.appendChild(codeEl);
 
-        var chargeText = formatCharge(s.delivery_charge);
-        if (chargeText) {
-            var chargeEl = document.createElement('span');
-            chargeEl.className = 'pdp-state-tip__charge';
-            chargeEl.textContent = chargeText;
-            card.appendChild(chargeEl);
-        }
         return card;
     }
 

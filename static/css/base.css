@@ -56,9 +56,24 @@
   --spacing-lg: 32px;
   --spacing-xl: 60px;
   --container-max: 1280px;
+  /* Single horizontal-inset source of truth — header and homepage sections both key off this
+     so their content edges can never drift apart at a breakpoint again. */
+  --site-gutter: 20px;
   --font-sans: "Montserrat", system-ui, -apple-system, sans-serif;
   --font-display: "DM Serif Display", Georgia, serif;
   --ease-out: 0.3s ease;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --site-gutter: 24px;
+  }
+}
+
+@media (min-width: 992px) {
+  :root {
+    --site-gutter: 28px;
+  }
 }
 
 .storefront,
@@ -106,7 +121,7 @@ body.storefront {
   font-weight: 600;
   letter-spacing: 0.04em;
   text-align: center;
-  padding: 8px 16px;
+  padding: 8px var(--site-gutter);
 }
 .site-top-strip a {
   color: #fff;
@@ -156,12 +171,12 @@ body.storefront {
 .site-header__inner {
   max-width: var(--container-max);
   margin: 0 auto;
-  padding: 12px var(--spacing-md) 10px;
+  padding: 12px var(--site-gutter) 10px;
 }
 
 @media (min-width: 992px) {
   .site-header__inner {
-    padding: 10px var(--spacing-md) 8px;
+    padding: 10px var(--site-gutter) 8px;
   }
 }
 
@@ -590,7 +605,7 @@ body.storefront {
 .site-nav-row {
   max-width: var(--container-max);
   margin: 0 auto;
-  padding: 8px var(--spacing-md) 10px;
+  padding: 8px var(--site-gutter) 10px;
   display: flex;
   align-items: stretch;
   justify-content: center;
@@ -1515,7 +1530,6 @@ body.storefront .product-detail-store .products-grid .product-name {
   font-size: 0.9rem;
   font-weight: 600;
   line-height: 1.35;
-  min-height: var(--store-pc-title-minh, 2.75em);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -1615,12 +1629,16 @@ body.storefront .p99-product-card .tpc-body {
   letter-spacing: 0;
 }
 .p99-product-card .p99-tag-row {
+  /* Always occupies this band, tag or not — keeps every card's price/CTA at the same
+     height regardless of which (if any) care-tag a product has. */
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
   justify-content: flex-start;
   align-content: flex-start;
   flex-shrink: 0;
+  min-height: var(--store-pc-tag-band-h);
   max-height: var(--store-pc-tag-band-h);
   overflow: hidden;
   margin: 0;
@@ -1648,11 +1666,14 @@ body.storefront .p99-product-card .tpc-body {
   /* Professional alignment: stable vertical rhythm + consistent CTA placement */
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   text-align: left;
   padding: 14px 14px 14px !important;
 }
 .p99-product-card .tpc-name {
+  /* Fixed 2-line band (line-height 1.4 x font-size 0.92rem x 2 lines) so a one-word title
+     and a two-line title leave the price/CTA in exactly the same place. */
+  min-height: 2.6rem;
   color: var(--text-color) !important;
   font-weight: 700 !important;
   font-size: 0.92rem !important;
@@ -1983,14 +2004,16 @@ img.img-loaded {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
-/* --- Compact card upgrade --- */
+/* --- Compact card upgrade ---
+   No !important here on purpose: section-specific and ios-home theme overrides (pages.css)
+   need to be able to win over this default without a specificity fight. */
 .p99-compact-card {
-  border-radius: 14px !important;
-  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  border-radius: var(--ug-radius-lg, 16px);
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .p99-compact-card:hover {
-  transform: translateY(-5px) !important;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.12) !important;
+  transform: translateY(-5px);
+  box-shadow: var(--ug-shadow-hover, 0 8px 28px rgba(0, 106, 77, 0.1));
 }
 
 /* --- Footer premium divider --- */

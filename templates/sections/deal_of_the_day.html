@@ -1,43 +1,45 @@
 {% if products %}
 <section class="deal-of-the-day" aria-label="Deal of the day">
     <div class="deal-of-the-day__shell">
-        <div class="product-section-head">
-            <div>
-                <h2 class="product-section-title">{{ section_title|default:"Deal of the day" }}</h2>
+        <div class="deal-of-the-day__layout">
+            <div class="deal-of-the-day__intro">
+                <span class="deal-of-the-day__kicker">Today only</span>
+                <h2 class="product-section-title deal-of-the-day__title">{{ section_title|default:"Deal of the day" }}</h2>
+                <p class="deal-of-the-day__copy">Handpicked at today's best price — while it lasts.</p>
+                <div class="deal-of-the-day__timer" aria-label="Time remaining until midnight">
+                    <span class="deal-of-the-day__timer-label">Ends today in</span>
+                    <div class="deal-of-the-day__timer-clock" aria-hidden="true">
+                        <div class="deal-of-the-day__timer-seg">
+                            <span class="deal-of-the-day__timer-num" data-ddh>00</span>
+                            <span class="deal-of-the-day__timer-unit">h</span>
+                        </div>
+                        <span class="deal-of-the-day__timer-sep">:</span>
+                        <div class="deal-of-the-day__timer-seg">
+                            <span class="deal-of-the-day__timer-num" data-ddm>00</span>
+                            <span class="deal-of-the-day__timer-unit">m</span>
+                        </div>
+                        <span class="deal-of-the-day__timer-sep">:</span>
+                        <div class="deal-of-the-day__timer-seg">
+                            <span class="deal-of-the-day__timer-num" data-dds>00</span>
+                            <span class="deal-of-the-day__timer-unit">s</span>
+                        </div>
+                    </div>
+                </div>
+                {% with va=view_all_url|default:banner_link %}
+                {% if va %}
+                <a href="{{ va }}" class="btn-store deal-of-the-day__cta">Shop the deal</a>
+                {% endif %}
+                {% endwith %}
             </div>
-            {% with va=view_all_url|default:banner_link %}
-            {% if va %}
-            <a href="{{ va }}" class="link-view-all">View all</a>
-            {% endif %}
-            {% endwith %}
-        </div>
-        <div class="deal-of-the-day__rail">
-            <div
-                class="owl-carousel deal-of-the-day__carousel"
-                data-rail-count="{{ products|length }}">
-                {% for product in products %}
-                <div class="deal-of-the-day__slide">
-                    {% include "partials/_storefront_rail_product_card.html" with product=product %}
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        <div class="deal-of-the-day__timer" aria-label="Time remaining until midnight">
-            <span class="deal-of-the-day__timer-label">Ends today in</span>
-            <div class="deal-of-the-day__timer-clock" aria-hidden="true">
-                <div class="deal-of-the-day__timer-seg">
-                    <span class="deal-of-the-day__timer-num" data-ddh>00</span>
-                    <span class="deal-of-the-day__timer-unit">h</span>
-                </div>
-                <span class="deal-of-the-day__timer-sep">:</span>
-                <div class="deal-of-the-day__timer-seg">
-                    <span class="deal-of-the-day__timer-num" data-ddm>00</span>
-                    <span class="deal-of-the-day__timer-unit">m</span>
-                </div>
-                <span class="deal-of-the-day__timer-sep">:</span>
-                <div class="deal-of-the-day__timer-seg">
-                    <span class="deal-of-the-day__timer-num" data-dds>00</span>
-                    <span class="deal-of-the-day__timer-unit">s</span>
+            <div class="deal-of-the-day__rail">
+                <div
+                    class="owl-carousel deal-of-the-day__carousel"
+                    data-rail-count="{{ products|length }}">
+                    {% for product in products %}
+                    <div class="deal-of-the-day__slide">
+                        {% include "partials/_storefront_rail_product_card.html" with product=product %}
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
         </div>

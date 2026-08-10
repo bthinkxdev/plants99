@@ -125,5 +125,32 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })();
+
+(function () {
+  'use strict';
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (!('IntersectionObserver' in window)) return;
+  var root = document.querySelector('.storefront.storefront--ios-home');
+  if (!root) return;
+  var sections = Array.prototype.filter.call(root.children, function (el) {
+    return el.nodeType === 1;
+  });
+  if (!sections.length) return;
+  var observer = new IntersectionObserver(function (entries, obs) {
+    entries.forEach(function (entry) {
+      if (!entry.isIntersecting) return;
+      entry.target.classList.add('is-visible');
+      obs.unobserve(entry.target);
+    });
+  }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+  sections.forEach(function (el, i) {
+    el.classList.add('ios-reveal');
+    if (i === 0) {
+      el.classList.add('is-visible');
+      return;
+    }
+    observer.observe(el);
+  });
+})();
 </script>
 {% endblock %}

@@ -122,9 +122,13 @@
         var m = comboHub ? [6, 6, 8, 10, 12] : [10, 10, 12, 14, 16];
         try {
             $c.owlCarousel({
-                items: 1,
+                // No `center: true` here — every breakpoint below shows >=2 items (the "0"
+                // breakpoint always wins over this base `items`), and centering math only
+                // works cleanly for a single centered item. Combining the two caused a
+                // visible gap when a rail had just 1-2 products.
+                items: Math.min(2, count),
                 margin: m[0],
-                center: true,
+                center: false,
                 autoplay: count > 1,
                 autoplayTimeout: 4200,
                 smartSpeed: 650,
