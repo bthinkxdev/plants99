@@ -3478,21 +3478,25 @@ body.storefront .p99-reels-card > .p99-compact-card {
 }
 
 .p99-reel-btn {
+  /* Short label ("View", not "View product") on purpose — these cards are only
+     148-180px wide, so anything longer needs more room than the row actually has,
+     which either wraps to two lines or overflows the tile's rounded corners. */
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: none;
   cursor: pointer;
   text-decoration: none;
+  white-space: nowrap;
   background: var(--ug-primary-mid);
   color: #fff;
-  font-weight: 800;
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
+  font-weight: 700;
+  font-size: 0.62rem;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
-  padding: 9px 12px;
+  padding: 6px 14px;
   border-radius: 999px;
-  min-width: 64px;
+  min-width: 0;
 }
 
 .p99-reel-btn:hover {

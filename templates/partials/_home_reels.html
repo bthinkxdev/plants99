@@ -23,7 +23,7 @@
                 {% include "partials/_rating_pill.html" with product=product %}
                 <div class="p99-reel-row">
                   <span class="p99-reel-price">₹{{ product.lowest_price|default:product.base_price|floatformat:0 }}</span>
-                  <a class="p99-reel-btn" href="{% url 'store:product_detail' product.slug %}{% if v %}?variant={{ v.id }}{% endif %}">View product</a>
+                  <a class="p99-reel-btn" href="{% url 'store:product_detail' product.slug %}{% if v %}?variant={{ v.id }}{% endif %}">View</a>
                 </div>
               </div>
             </div>
