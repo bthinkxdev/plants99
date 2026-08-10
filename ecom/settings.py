@@ -106,7 +106,7 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = config('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
-ADMIN_NOTIFICATION_EMAILS = ['adithyamc@bthinkx.com']
+ADMIN_NOTIFICATION_EMAILS = ['plants99official@gmail.com']
 SITE_PHONE = config('SITE_PHONE', default='+91 7559947750')
 SITE_WHATSAPP = config('SITE_WHATSAPP', default='917559947750')
 SITE_EMAIL = config('SITE_EMAIL', default='plants99official@gmail.com')
