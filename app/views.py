@@ -1650,8 +1650,6 @@ def _checkout_form_kwargs(request, cart, user, initial=None):
 
 
 def _checkout_lines(cart, items, delivery_issues=None):
-    from app.services.state_delivery_service import delivery_pack_upsell_message
-
     issue_map = _cart_stock_context(cart)['cart_stock_issue_map']
     delivery_map = {issue.item_id: issue for issue in (delivery_issues or [])}
     return [
@@ -1660,10 +1658,16 @@ def _checkout_lines(cart, items, delivery_issues=None):
             'stock_issue': issue_map.get(item.id),
             'delivery_issue': delivery_map.get(item.id),
             'max_quantity': cart_item_max_quantity(item, issue_map.get(item.id)),
-            'pack_upsell_message': delivery_pack_upsell_message(item.quantity),
         }
         for item in items
     ]
+
+
+def _cart_pack_upsell_message(items):
+    from app.services.state_delivery_service import delivery_pack_upsell_message
+
+    total_qty = sum(item.quantity for item in items)
+    return delivery_pack_upsell_message(total_qty)
 
 
 class CartPageGoneRedirect(View):
@@ -1882,14 +1886,13 @@ class UpdateCartItemView(View):
             )
             issue_map = {i.item_id: i for i in get_cart_stock_issues(items)}
             totals = CartService.compute_totals(cart)
-            from app.services.state_delivery_service import delivery_pack_upsell_message
             return JsonResponse({
                 'success': True,
                 'item_id': item_id,
                 'quantity': item.quantity,
                 'line_total': str(item.line_total),
                 'max_quantity': cart_item_max_quantity(item, issue_map.get(item.id)),
-                'pack_upsell_message': delivery_pack_upsell_message(item.quantity),
+                'pack_upsell_message': _cart_pack_upsell_message(items),
                 'item_removed': False,
                 'cart_count': item_count,
                 'cart_empty': False,
@@ -1983,6 +1986,7 @@ class CheckoutView(TemplateView):
                     items,
                     delivery_issues=checkout_totals.delivery_issues,
                 ),
+                'pack_upsell_message': _cart_pack_upsell_message(items),
                 'totals': checkout_totals.as_cart_totals(),
                 'form': CheckoutForm(**_checkout_form_kwargs(self.request, cart, user, initial=initial)),
                 'addresses': addresses,
@@ -2046,6 +2050,7 @@ class OrderCreateView(FormView):
                 items,
                 delivery_issues=checkout_totals.delivery_issues,
             ),
+            'pack_upsell_message': _cart_pack_upsell_message(items),
             'totals': checkout_totals.as_cart_totals(),
             'addresses': addresses,
             'default_address': default_address,

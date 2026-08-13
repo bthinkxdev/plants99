@@ -1840,33 +1840,71 @@ class ShipmentCancelView(StaffRequiredMixin, View):
             messages.error(request, 'Unexpected error while cancelling shipment.')
         return redirect('admin_panel:order_detail', order_number=order_number)
 
-class ProductDeliveryStatesUpdateView(View):
+class ProductDeliveryStatesUpdateView(StaffRequiredMixin, View):
     """
     POST endpoint called from the product edit page delivery-states section.
-    Atomically replaces the product's delivery state list.
- 
+    Atomically replaces the product's deliverable-state list (serviceability
+    only — pricing is centralized on the Delivery Charges admin page).
+
     POST /admin/products/<pk>/delivery-states/
     """
- 
+
     def post(self, request, pk):
         from app.models import Product
         from app.admin_forms import ProductDeliveryStateForm
- 
+
         product = get_object_or_404(Product, pk=pk)
         form = ProductDeliveryStateForm(request.POST, product=product)
- 
+
         if form.is_valid():
             form.save()
-            messages.success(request, "Delivery states and charges updated successfully.")
+            messages.success(request, "Delivery states updated successfully.")
         else:
             for field, errs in form.errors.items():
                 for err in errs:
                     messages.error(request, f"{field}: {err}")
             for err in form.non_field_errors():
                 messages.error(request, str(err))
- 
+
         return redirect("admin_panel:product_edit", pk=product.pk)
-    
+
+
+class DeliveryChargesView(StaffRequiredMixin, View):
+    """
+    Centralized state delivery charges — one fixed charge per state,
+    applied to every product that ships there.
+
+    GET  /dashboard/delivery-charges/
+    POST /dashboard/delivery-charges/
+    """
+    template_name = 'admin/delivery_charges.html'
+
+    def get(self, request):
+        from app.admin_forms import StateDeliveryChargeForm
+
+        form = StateDeliveryChargeForm()
+        return render(request, self.template_name, {
+            'active_menu': 'delivery_charges',
+            'form_title': 'Delivery Charges',
+            'charge_form': form,
+        })
+
+    def post(self, request):
+        from app.admin_forms import StateDeliveryChargeForm
+
+        form = StateDeliveryChargeForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Delivery charges saved.')
+            return redirect('admin_panel:delivery_charges')
+        messages.error(request, 'Please fix the errors below.')
+        return render(request, self.template_name, {
+            'active_menu': 'delivery_charges',
+            'form_title': 'Delivery Charges',
+            'charge_form': form,
+        })
+
+
 class TestimonialListView(StaffRequiredMixin, ListView):
     model = Testimonial
     template_name = 'dashboard/testimonials/list.html'

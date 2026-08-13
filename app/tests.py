@@ -1,5 +1,5 @@
 """
-Tests for state-based delivery charges.
+Tests for centralized state-based delivery charges.
 """
 from decimal import Decimal
 
@@ -7,29 +7,30 @@ from django.contrib.auth import get_user_model
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
-from app.admin_forms import ProductDeliveryStateForm
+from app.admin_forms import ProductDeliveryStateForm, StateDeliveryChargeForm
 from app.models import (
     Cart,
     CartItem,
     Category,
     DeliveryState,
-    Order,
-    OrderItem,
     Product,
-    ProductDeliveryState,
 )
 from app.services.cart_order import CartService
 from app.services.state_delivery_service import (
     compute_cart_delivery_charges,
+    delivery_pack_free_slots,
+    delivery_pack_upsell_message,
     get_product_delivery_charge,
+    get_state_delivery_charge,
     set_product_delivery_states,
+    set_state_delivery_charges,
 )
 
 
 User = get_user_model()
 
 
-@override_settings(FLAT_DELIVERY_CHARGE=60)
+@override_settings(FLAT_DELIVERY_CHARGE=60, DELIVERY_PACK_SIZE=2)
 class StateDeliveryChargeTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -52,54 +53,51 @@ class StateDeliveryChargeTests(TestCase):
             is_active=True,
         )
 
-    def test_set_product_delivery_states_persists_charges(self):
-        set_product_delivery_states(
-            self.product.pk,
-            [self.kerala.pk, self.tn.pk],
-            charges={self.kerala.pk: Decimal('50'), self.tn.pk: Decimal('80')},
-        )
+    def test_set_state_delivery_charges_is_centralized(self):
+        """Charge is per state, applies to every product that ships there."""
+        set_state_delivery_charges({self.kerala.pk: Decimal('50'), self.tn.pk: Decimal('80')})
+        set_product_delivery_states(self.product.pk, [self.kerala.pk, self.tn.pk])
+
+        self.assertEqual(get_state_delivery_charge(self.kerala.pk), Decimal('50'))
         self.assertEqual(get_product_delivery_charge(self.product.pk, self.kerala.pk), Decimal('50'))
         self.assertEqual(get_product_delivery_charge(self.product.pk, self.tn.pk), Decimal('80'))
+        # Product doesn't ship to Karnataka.
         self.assertIsNone(get_product_delivery_charge(self.product.pk, self.ka.pk))
 
-    def test_admin_form_requires_charge_for_each_selected_state(self):
+    def test_product_delivery_state_form_only_selects_states(self):
         form = ProductDeliveryStateForm(
-            data={'states': [str(self.kerala.pk), str(self.tn.pk)], f'charge_{self.kerala.pk}': '50'},
-            product=self.product,
-        )
-        self.assertFalse(form.is_valid())
-
-    def test_admin_form_rejects_negative_charge(self):
-        form = ProductDeliveryStateForm(
-            data={
-                'states': [str(self.kerala.pk)],
-                f'charge_{self.kerala.pk}': '-10',
-            },
-            product=self.product,
-        )
-        self.assertFalse(form.is_valid())
-
-    def test_admin_form_saves_charges(self):
-        form = ProductDeliveryStateForm(
-            data={
-                'states': [str(self.kerala.pk), str(self.tn.pk)],
-                f'charge_{self.kerala.pk}': '50',
-                f'charge_{self.tn.pk}': '80',
-            },
+            data={'states': [str(self.kerala.pk), str(self.tn.pk)]},
             product=self.product,
         )
         self.assertTrue(form.is_valid(), form.errors)
         form.save()
-        row = ProductDeliveryState.objects.get(product=self.product, state=self.kerala)
-        self.assertEqual(row.delivery_charge, Decimal('50'))
-
-    def test_compute_totals_uses_pack_billing(self):
-        """Qty 3 with pack size 2 → 2 packs (ceil(3/2)), not 3× charge."""
-        set_product_delivery_states(
-            self.product.pk,
-            [self.kerala.pk],
-            charges={self.kerala.pk: Decimal('50')},
+        self.assertEqual(
+            set(self.product.delivery_states.values_list('state_id', flat=True)),
+            {self.kerala.pk, self.tn.pk},
         )
+
+    def test_state_charge_form_rejects_negative_charge(self):
+        form = StateDeliveryChargeForm(data={f'charge_{self.kerala.pk}': '-10'})
+        self.assertFalse(form.is_valid())
+
+    def test_state_charge_form_saves_charges(self):
+        form = StateDeliveryChargeForm(data={
+            f'charge_{self.kerala.pk}': '50',
+            f'charge_{self.tn.pk}': '80',
+            f'charge_{self.ka.pk}': '',
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+        self.kerala.refresh_from_db()
+        self.tn.refresh_from_db()
+        self.ka.refresh_from_db()
+        self.assertEqual(self.kerala.delivery_charge, Decimal('50'))
+        self.assertEqual(self.tn.delivery_charge, Decimal('80'))
+        self.assertIsNone(self.ka.delivery_charge)
+
+    def test_compute_totals_multiplies_charge_by_packs(self):
+        set_state_delivery_charges({self.kerala.pk: Decimal('50')})
+        set_product_delivery_states(self.product.pk, [self.kerala.pk])
         cart = Cart.objects.create(status=Cart.Status.ACTIVE)
         CartItem.objects.create(
             cart=cart,
@@ -108,30 +106,35 @@ class StateDeliveryChargeTests(TestCase):
             quantity=3,
         )
         totals = CartService.compute_totals(cart, state_id=self.kerala.pk)
+        # ceil(3/2)=2 packs × ₹50
         self.assertEqual(totals.shipping, Decimal('100'))
         self.assertFalse(totals.used_flat_fallback)
         self.assertEqual(totals.total, Decimal('200') * 3 + Decimal('100'))
 
     def test_qty_one_and_two_share_same_pack_charge(self):
-        set_product_delivery_states(
-            self.product.pk,
-            [self.kerala.pk],
-            charges={self.kerala.pk: Decimal('80')},
+        set_state_delivery_charges({self.kerala.pk: Decimal('80')})
+        set_product_delivery_states(self.product.pk, [self.kerala.pk])
+        cart1 = Cart.objects.create(status=Cart.Status.ACTIVE)
+        CartItem.objects.create(
+            cart=cart1,
+            product=self.product,
+            unit_price=self.product.base_price,
+            quantity=1,
         )
-        for qty in (1, 2):
-            cart = Cart.objects.create(status=Cart.Status.ACTIVE)
-            CartItem.objects.create(
-                cart=cart,
-                product=self.product,
-                unit_price=self.product.base_price,
-                quantity=qty,
-            )
-            totals = CartService.compute_totals(cart, state_id=self.kerala.pk)
-            self.assertEqual(totals.shipping, Decimal('80'), msg=f'qty={qty}')
-            cart.delete()
+        cart2 = Cart.objects.create(status=Cart.Status.ACTIVE)
+        CartItem.objects.create(
+            cart=cart2,
+            product=self.product,
+            unit_price=self.product.base_price,
+            quantity=2,
+        )
+        t1 = CartService.compute_totals(cart1, state_id=self.kerala.pk)
+        t2 = CartService.compute_totals(cart2, state_id=self.kerala.pk)
+        self.assertEqual(t1.shipping, Decimal('80'))
+        self.assertEqual(t2.shipping, Decimal('80'))
+        self.assertEqual(t1.shipping, t2.shipping)
 
-    def test_flat_fallback_when_no_state_charges_configured(self):
-        """Flat fallback also uses pack billing: qty 2 → 1 pack × ₹60."""
+    def test_flat_fallback_when_no_state_charge_configured(self):
         cart = Cart.objects.create(status=Cart.Status.ACTIVE)
         CartItem.objects.create(
             cart=cart,
@@ -141,19 +144,6 @@ class StateDeliveryChargeTests(TestCase):
         )
         totals = CartService.compute_totals(cart, state_id=self.kerala.pk)
         self.assertEqual(totals.shipping, Decimal('60'))
-        self.assertTrue(totals.used_flat_fallback)
-
-    def test_flat_fallback_scales_with_packs(self):
-        """Qty 8 → ceil(8/2)=4 packs × ₹60 = ₹240."""
-        cart = Cart.objects.create(status=Cart.Status.ACTIVE)
-        CartItem.objects.create(
-            cart=cart,
-            product=self.product,
-            unit_price=self.product.base_price,
-            quantity=8,
-        )
-        totals = CartService.compute_totals(cart, state_id=self.kerala.pk)
-        self.assertEqual(totals.shipping, Decimal('240'))
         self.assertTrue(totals.used_flat_fallback)
 
     def test_no_shipping_without_state_id(self):
@@ -192,11 +182,8 @@ class StateDeliveryChargeTests(TestCase):
         self.assertTrue(payload['checkout_blocked'])
 
     def test_checkout_totals_api_unavailable_state(self):
-        set_product_delivery_states(
-            self.product.pk,
-            [self.kerala.pk],
-            charges={self.kerala.pk: Decimal('50')},
-        )
+        set_state_delivery_charges({self.kerala.pk: Decimal('50')})
+        set_product_delivery_states(self.product.pk, [self.kerala.pk])
         client = Client()
         session = client.session
         session.save()
@@ -221,11 +208,8 @@ class StateDeliveryChargeTests(TestCase):
         self.assertIn('Tamil Nadu', payload['delivery_message'])
 
     def test_checkout_totals_api_ok(self):
-        set_product_delivery_states(
-            self.product.pk,
-            [self.tn.pk],
-            charges={self.tn.pk: Decimal('80')},
-        )
+        set_state_delivery_charges({self.tn.pk: Decimal('80')})
+        set_product_delivery_states(self.product.pk, [self.tn.pk])
         client = Client()
         session = client.session
         session.save()
@@ -249,12 +233,69 @@ class StateDeliveryChargeTests(TestCase):
         self.assertEqual(Decimal(payload['shipping']), Decimal('80'))
         self.assertFalse(payload['checkout_blocked'])
 
-    def test_order_persists_delivery_snapshots(self):
-        set_product_delivery_states(
-            self.product.pk,
-            [self.kerala.pk],
-            charges={self.kerala.pk: Decimal('50')},
+    def test_checkout_totals_api_returns_cart_wide_pack_upsell(self):
+        set_state_delivery_charges({self.tn.pk: Decimal('80')})
+        set_product_delivery_states(self.product.pk, [self.tn.pk])
+        client = Client()
+        session = client.session
+        session.save()
+        cart = Cart.objects.create(
+            session_key=session.session_key,
+            status=Cart.Status.ACTIVE,
         )
+        CartItem.objects.create(
+            cart=cart,
+            product=self.product,
+            unit_price=self.product.base_price,
+            quantity=1,
+        )
+        url = reverse('store:checkout_totals')
+        response = client.get(url, {'state_id': self.tn.pk})
+        payload = response.json()
+        self.assertEqual(payload['pack_upsell_message'], 'Add 1 more - no extra delivery charge')
+
+    def test_delivery_charges_admin_page_renders_and_saves(self):
+        staff = User.objects.create_user(username='staff1', password='pass12345', is_staff=True)
+        client = Client()
+        client.login(username='staff1', password='pass12345')
+
+        resp = client.get(reverse('admin_panel:delivery_charges'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'ds-charge-row')
+
+        resp = client.post(reverse('admin_panel:delivery_charges'), {
+            f'charge_{self.kerala.pk}': '55',
+            f'charge_{self.tn.pk}': '',
+            f'charge_{self.ka.pk}': '',
+        }, follow=True)
+        self.assertEqual(resp.status_code, 200)
+        self.kerala.refresh_from_db()
+        self.assertEqual(self.kerala.delivery_charge, Decimal('55'))
+
+    def test_product_edit_page_has_no_charge_inputs(self):
+        staff = User.objects.create_user(username='staff2', password='pass12345', is_staff=True)
+        client = Client()
+        client.login(username='staff2', password='pass12345')
+
+        resp = client.get(reverse('admin_panel:product_edit', kwargs={'pk': self.product.pk}))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'ds-chip')
+        self.assertNotContains(resp, 'ds-charge-input')
+
+        resp = client.post(
+            reverse('admin_panel:product_delivery_states_update', kwargs={'pk': self.product.pk}),
+            {'states': [str(self.kerala.pk)]},
+            follow=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(
+            set(self.product.delivery_states.values_list('state_id', flat=True)),
+            {self.kerala.pk},
+        )
+
+    def test_order_persists_delivery_snapshot_at_order_level(self):
+        set_state_delivery_charges({self.kerala.pk: Decimal('50')})
+        set_product_delivery_states(self.product.pk, [self.kerala.pk])
         from app.models import Address
         from app.services.cart_order import OrderService
 
@@ -279,39 +320,83 @@ class StateDeliveryChargeTests(TestCase):
             'use_new_address': True,
         }
         order = OrderService.create_order(cart, form_data, user=user, clear_cart=True)
+        # ceil(3/2)=2 packs × ₹50, carried entirely at the order level.
         self.assertEqual(order.shipping, Decimal('100'))
         self.assertEqual(order.delivery_state_name, 'Kerala')
         self.assertEqual(order.total_delivery_charge, Decimal('100'))
         item = order.items.get()
-        self.assertEqual(item.delivery_charge_per_unit, Decimal('50'))
-        self.assertEqual(item.total_delivery_charge, Decimal('100'))
-        self.assertEqual(item.line_grand_total, item.line_total + Decimal('100'))
+        self.assertEqual(item.delivery_charge_per_unit, Decimal('0'))
+        self.assertEqual(item.total_delivery_charge, Decimal('0'))
+        self.assertEqual(item.line_grand_total, item.line_total)
 
-        # Later product charge change must not affect persisted order
-        set_product_delivery_states(
-            self.product.pk,
-            [self.kerala.pk],
-            charges={self.kerala.pk: Decimal('999')},
-        )
+        # Later central charge change must not affect the persisted order.
+        set_state_delivery_charges({self.kerala.pk: Decimal('999')})
         order.refresh_from_db()
-        item.refresh_from_db()
         self.assertEqual(order.shipping, Decimal('100'))
-        self.assertEqual(item.delivery_charge_per_unit, Decimal('50'))
 
 
 class CartDeliveryBreakdownUnitTests(TestCase):
-    def test_breakdown_sums_multiple_lines(self):
+    @override_settings(DELIVERY_PACK_SIZE=2)
+    def test_breakdown_pools_quantity_across_products(self):
+        """Two different products share one delivery pack, same as one product with combined qty."""
         cat = Category.objects.create(name='C', slug='c', is_active=True)
         kl = DeliveryState.objects.create(name='Kerala', code='KL2', region='south', display_order=0)
+        kl.delivery_charge = Decimal('50')
+        kl.save(update_fields=['delivery_charge'])
         p1 = Product.objects.create(name='P1', slug='p1', category=cat, base_price=100, base_stock=10, is_active=True)
         p2 = Product.objects.create(name='P2', slug='p2', category=cat, base_price=100, base_stock=10, is_active=True)
-        set_product_delivery_states(p1.pk, [kl.pk], charges={kl.pk: Decimal('50')})
-        set_product_delivery_states(p2.pk, [kl.pk], charges={kl.pk: Decimal('80')})
+        set_product_delivery_states(p1.pk, [kl.pk])
+        set_product_delivery_states(p2.pk, [kl.pk])
         cart = Cart.objects.create(status=Cart.Status.ACTIVE)
-        i1 = CartItem.objects.create(cart=cart, product=p1, unit_price=100, quantity=2)
+        i1 = CartItem.objects.create(cart=cart, product=p1, unit_price=100, quantity=1)
         i2 = CartItem.objects.create(cart=cart, product=p2, unit_price=100, quantity=1)
         breakdown = compute_cart_delivery_charges(list(cart.items.all()), kl.pk)
-        # A: each line packs independently — qty2→1 pack (₹50), qty1→1 pack (₹80)
-        self.assertEqual(breakdown.total, Decimal('130'))
-        self.assertEqual(breakdown.line_for(i1.id)['total_delivery_charge'], Decimal('50'))
-        self.assertEqual(breakdown.line_for(i2.id)['total_delivery_charge'], Decimal('80'))
+        # Pooled: qty 1 + qty 1 = 2 → ceil(2/2)=1 pack × ₹50, not two separate packs.
+        self.assertEqual(breakdown.total, Decimal('50'))
+        self.assertFalse(breakdown.used_flat_fallback)
+        # Per-line charges aren't attributable — the pooled total lives at the order level.
+        self.assertEqual(breakdown.line_for(i1.id)['total_delivery_charge'], Decimal('0'))
+        self.assertEqual(breakdown.line_for(i2.id)['total_delivery_charge'], Decimal('0'))
+
+    @override_settings(DELIVERY_PACK_SIZE=2)
+    def test_odd_pooled_quantity_bills_extra_pack(self):
+        cat = Category.objects.create(name='C2', slug='c2', is_active=True)
+        kl = DeliveryState.objects.create(name='Kerala', code='KL3', region='south', display_order=0)
+        kl.delivery_charge = Decimal('50')
+        kl.save(update_fields=['delivery_charge'])
+        p1 = Product.objects.create(name='P3', slug='p3', category=cat, base_price=100, base_stock=10, is_active=True)
+        p2 = Product.objects.create(name='P4', slug='p4', category=cat, base_price=100, base_stock=10, is_active=True)
+        p3 = Product.objects.create(name='P5', slug='p5', category=cat, base_price=100, base_stock=10, is_active=True)
+        set_product_delivery_states(p1.pk, [kl.pk])
+        set_product_delivery_states(p2.pk, [kl.pk])
+        set_product_delivery_states(p3.pk, [kl.pk])
+        cart = Cart.objects.create(status=Cart.Status.ACTIVE)
+        CartItem.objects.create(cart=cart, product=p1, unit_price=100, quantity=1)
+        CartItem.objects.create(cart=cart, product=p2, unit_price=100, quantity=1)
+        CartItem.objects.create(cart=cart, product=p3, unit_price=100, quantity=1)
+        breakdown = compute_cart_delivery_charges(list(cart.items.all()), kl.pk)
+        # 3 pooled pieces → ceil(3/2)=2 packs × ₹50
+        self.assertEqual(breakdown.total, Decimal('100'))
+
+
+@override_settings(DELIVERY_PACK_SIZE=2)
+class DeliveryPackUpsellMessageTests(TestCase):
+    def test_free_slots_and_copy(self):
+        self.assertEqual(delivery_pack_free_slots(1), 1)
+        self.assertEqual(delivery_pack_free_slots(2), 0)
+        self.assertEqual(delivery_pack_free_slots(3), 1)
+        self.assertEqual(delivery_pack_free_slots(4), 0)
+        self.assertEqual(delivery_pack_upsell_message(1), 'Add 1 more - no extra delivery charge')
+        self.assertEqual(delivery_pack_upsell_message(2), '')
+        self.assertEqual(delivery_pack_upsell_message(3), 'Add 1 more - no extra delivery charge')
+        self.assertEqual(delivery_pack_upsell_message(4), '')
+
+
+@override_settings(DELIVERY_PACK_SIZE=3)
+class DeliveryPackUpsellPackSizeThreeTests(TestCase):
+    def test_multi_slot_copy(self):
+        self.assertEqual(delivery_pack_free_slots(1), 2)
+        self.assertEqual(delivery_pack_upsell_message(1), 'Add 2 more - no extra delivery charge')
+        self.assertEqual(delivery_pack_free_slots(2), 1)
+        self.assertEqual(delivery_pack_upsell_message(2), 'Add 1 more - no extra delivery charge')
+        self.assertEqual(delivery_pack_upsell_message(3), '')

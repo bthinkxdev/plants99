@@ -61,7 +61,7 @@
                                        data-line-delivery-warn>
                                     {% if delivery_issue %}{{ delivery_issue.message }}{% endif %}
                                 </small>
-                                {% include "partials/_checkout_line_qty.html" with item=item max_quantity=row.max_quantity pack_upsell_message=row.pack_upsell_message only %}
+                                {% include "partials/_checkout_line_qty.html" with item=item max_quantity=row.max_quantity only %}
                             </div>
                             {% else %}
                             {% if item.get_display_image_url %}
@@ -79,7 +79,7 @@
                                        data-line-delivery-warn>
                                     {% if delivery_issue %}{{ delivery_issue.message }}{% endif %}
                                 </small>
-                                {% include "partials/_checkout_line_qty.html" with item=item max_quantity=row.max_quantity pack_upsell_message=row.pack_upsell_message only %}
+                                {% include "partials/_checkout_line_qty.html" with item=item max_quantity=row.max_quantity only %}
                             </div>
                             {% endif %}
                             <div class="line-actions">
@@ -144,6 +144,10 @@
                                 {{ checkout_shipping_label|default:"Please select the state" }}
                             </span>
                         </div>
+                        <p class="checkout-pack-tip"
+                           id="checkout-pack-tip"
+                           data-checkout-pack-tip
+                           {% if not pack_upsell_message %}hidden{% endif %}>{{ pack_upsell_message }}</p>
 
                         {% if DELIVERY_INTEGRATED %}
                         <div class="order-total-row" id="codChargeRow" style="display:none;">
@@ -355,7 +359,6 @@
     window.CHECKOUT_COUPON_REMOVE_URL = "{% url 'store:checkout_coupon_remove' %}";
     window.CHECKOUT_REMOVE_URL_TEMPLATE = "{% url 'store:cart_remove' item_id=0 %}";
     window.CHECKOUT_UPDATE_URL = "{% url 'store:cart_update' %}";
-    window.DELIVERY_PACK_SIZE = {{ DELIVERY_PACK_SIZE|default:2 }};
 })();
 </script>
 

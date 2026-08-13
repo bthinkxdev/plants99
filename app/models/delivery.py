@@ -1,9 +1,12 @@
 """
 Delivery state models.
 
-DeliveryState          — master list of all 28 Indian states + 8 UTs.
-ProductDeliveryState   — bridge: which states a product ships to,
-                         plus per-state delivery charge (per unit).
+DeliveryState          — master list of all 28 Indian states + 8 UTs, each
+                         carrying one centralized delivery_charge applied to
+                         every product that ships there.
+ProductDeliveryState   — bridge: which states a product ships to.
+                         Its delivery_charge column is historical only —
+                         pricing reads DeliveryState.delivery_charge instead.
 """
 
 from django.core.validators import MinValueValidator
@@ -51,6 +54,19 @@ class DeliveryState(models.Model):
         db_index=True,
         help_text="Inactive states are hidden from both seller UI and customer UI.",
     )
+    delivery_charge = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        default=None,
+        validators=[MinValueValidator(0)],
+        help_text=(
+            "Fixed delivery charge for this state, applied to every product "
+            "(per pack of up to DELIVERY_PACK_SIZE pieces, default 2). "
+            "Blank = not yet configured — flat-rate fallback applies."
+        ),
+    )
 
     class Meta:
         ordering = ["display_order", "name"]
@@ -67,10 +83,12 @@ class DeliveryState(models.Model):
 
 class ProductDeliveryState(models.Model):
     """
-    One row = this product can be delivered to this state at a given charge.
+    One row = this product can be delivered to this state.
 
-    delivery_charge is per delivery pack (up to DELIVERY_PACK_SIZE pieces,
-    default 2 ≈ 500g–1kg). Checkout bills ceil(qty / pack_size) packs.
+    Serviceability only — the delivery charge is centralized on
+    DeliveryState.delivery_charge and applies to every product that ships
+    to that state. This row's delivery_charge column is kept for historical
+    orders/records but is no longer read when pricing a cart.
     """
 
     product = models.ForeignKey(
@@ -89,8 +107,8 @@ class ProductDeliveryState(models.Model):
         default=0,
         validators=[MinValueValidator(0)],
         help_text=(
-            "Delivery charge for this product to this state per pack "
-            "(up to 2 pieces / ~1kg share one charge)."
+            "Historical only — no longer used for pricing. "
+            "See DeliveryState.delivery_charge for the active charge."
         ),
     )
     added_at = models.DateTimeField(auto_now_add=True)
@@ -102,4 +120,4 @@ class ProductDeliveryState(models.Model):
         verbose_name_plural = "Product Delivery States"
 
     def __str__(self) -> str:
-        return f"{self.product.name} → {self.state.name} (₹{self.delivery_charge})"
+        return f"{self.product.name} → {self.state.name}"

@@ -344,33 +344,10 @@ function syncCheckoutQtyButtons(wrap, quantity, maxQuantity) {
 }
 
 
-function checkoutPackUpsellMessage(quantity) {
-    var packSize = parseInt(window.DELIVERY_PACK_SIZE, 10);
-    if (isNaN(packSize) || packSize < 1) packSize = 2;
-    var qty = parseInt(quantity, 10) || 0;
-    if (qty <= 0 || packSize <= 1) return '';
-    var rem = qty % packSize;
-    if (rem === 0) return '';
-    var slots = packSize - rem;
-    if (slots === 1) return 'Add 1 more - no extra delivery charge';
-    return 'Add ' + slots + ' more - no extra delivery charge';
-}
-
-
-function syncCheckoutPackUpsell(lineOrWrap, message) {
-    var root = lineOrWrap && lineOrWrap.closest
-        ? (lineOrWrap.closest('[data-checkout-line]') || lineOrWrap)
-        : null;
-    if (!root) return;
-    var tip = root.querySelector('[data-checkout-pack-tip]');
+function syncCheckoutPackUpsell(message) {
+    var tip = document.querySelector('[data-checkout-pack-tip]');
     if (!tip) return;
-    var text = (message == null || message === '')
-        ? ''
-        : String(message).trim();
-    if (!text) {
-        var valEl = root.querySelector('[data-checkout-qty-val]');
-        text = checkoutPackUpsellMessage(valEl ? valEl.textContent : 0);
-    }
+    var text = (message == null) ? '' : String(message).trim();
     tip.textContent = text;
     if (text) tip.removeAttribute('hidden');
     else tip.setAttribute('hidden', '');
@@ -378,9 +355,8 @@ function syncCheckoutPackUpsell(lineOrWrap, message) {
 
 
 function initCheckoutPackTips() {
-    document.querySelectorAll('[data-checkout-line]').forEach(function(line) {
-        syncCheckoutPackUpsell(line, null);
-    });
+    // Cart-wide tip is rendered server-side on load and kept in sync by
+    // initCheckoutDeliveryTotals()'s totals refresh — nothing to do here.
 }
 
 
@@ -432,7 +408,7 @@ function updateCheckoutItemQuantity(itemId, nextQty, wrap) {
             priceEl.textContent = '\u20B9' + (isNaN(amount) ? result.data.line_total : amount.toFixed(0));
         }
         syncCheckoutQtyButtons(wrap, result.data.quantity, result.data.max_quantity);
-        syncCheckoutPackUpsell(wrap, result.data.pack_upsell_message);
+        syncCheckoutPackUpsell(result.data.pack_upsell_message);
         refreshCheckoutDeliveryTotals(resolveCheckoutStateId());
     })
     .catch(function() {
@@ -564,6 +540,7 @@ function applyCheckoutTotalsPayload(data) {
     }
 
     syncCheckoutLineDeliveryWarnings(data);
+    syncCheckoutPackUpsell(data.pack_upsell_message);
 
     // Delivery/state blocks disable the button without duplicating the message
     // into #checkoutErrorMessage (status already lives on Delivery Charge).

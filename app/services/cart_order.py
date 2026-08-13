@@ -478,8 +478,12 @@ class CheckoutTotalsResult:
         return lines
 
     def to_api_dict(self, items) -> dict:
+        from .state_delivery_service import delivery_pack_upsell_message
+
+        total_qty = sum(item.quantity for item in items)
         return {
             'success': True,
+            'pack_upsell_message': delivery_pack_upsell_message(total_qty),
             'state_id': self.state_id,
             'state_selected': bool(self.state_id),
             'state_missing': self.state_missing,
@@ -1193,7 +1197,6 @@ class OrderService:
             user=user if user is not None else cart.user,
             phone=address.phone or '',
         )
-        breakdown = getattr(totals, 'delivery_breakdown', None)
         order_number = cls._generate_order_number()
         gst_total = getattr(totals, 'gst_total', 0) or 0
         discount_amount = getattr(totals, 'discount', 0) or 0
@@ -1238,9 +1241,8 @@ class OrderService:
         from decimal import Decimal
 
         def _line_delivery(item):
-            if breakdown:
-                line = breakdown.line_for(item.id)
-                return line['delivery_charge_per_unit'], line['total_delivery_charge']
+            # Delivery pricing is cart-wide (pooled across all lines), so it
+            # is carried only at order.shipping — every line snapshot is 0.
             return Decimal('0'), Decimal('0')
 
         for item in items:

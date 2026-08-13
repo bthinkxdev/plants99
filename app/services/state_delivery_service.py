@@ -1,19 +1,24 @@
 """
 State-based delivery serviceability and charge service.
 
+Delivery charges are centralized on DeliveryState.delivery_charge — one
+fixed charge per state, applied to every product that ships there. Product
+management only selects *which* states a product ships to.
+
 Public API
 ----------
 resolve_delivery_state_id(...)  → int | None
 get_deliverable_states_for_product(product_id)  → QuerySet[DeliveryState]
 is_state_deliverable_for_product(product_id, state_id) → bool
 get_all_active_states()  → QuerySet[DeliveryState]
-set_product_delivery_states(product_id, state_ids, charges=None)  → None
+set_product_delivery_states(product_id, state_ids)  → None
+set_state_delivery_charges(charges)  → None
+get_state_delivery_charge(state_id) → Decimal | None
 get_product_delivery_charge(product_id, state_id) → Decimal | None
 get_combo_delivery_charge(combo_id, state_id) → Decimal | None
 delivery_packs_for_quantity(quantity) → int
 delivery_pack_free_slots(quantity) → int
 delivery_pack_upsell_message(quantity) → str
-resolve_item_delivery_charge(item, state_id) → (per_pack, line_total, has_row)
 compute_cart_delivery_charges(items, state_id) → CartDeliveryBreakdown
 serviceability_payload(*, product_id, state_id)  → dict
 get_deliverable_states_payload(product_id) → list[dict]
@@ -23,7 +28,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from django.conf import settings
 from django.db import transaction
@@ -104,18 +109,6 @@ def get_deliverable_state_ids_for_product(product_id: int) -> Optional[set]:
     if not ids:
         return None
     return ids
-
-
-def get_product_state_charges_map(product_id: int) -> Dict[int, Decimal]:
-    """Map state_id → delivery_charge for a product."""
-    from app.models import ProductDeliveryState
-
-    return {
-        int(state_id): _as_decimal(charge)
-        for state_id, charge in ProductDeliveryState.objects
-        .filter(product_id=product_id)
-        .values_list('state_id', 'delivery_charge')
-    }
 
 
 def resolve_delivery_state_id(*, delivery_state=None, state_text: str = '') -> Optional[int]:
@@ -205,79 +198,43 @@ def get_states_by_region() -> Dict[str, List]:
 
 # ── Delivery charges ───────────────────────────────────────────────────────────
 
-def get_product_delivery_charge(product_id: int, state_id: int) -> Optional[Decimal]:
+def get_state_delivery_charge(state_id: int) -> Optional[Decimal]:
     """
-    Per-unit delivery charge for product × state.
-
-    Returns Decimal when a ProductDeliveryState row exists.
-    Returns None when the product has no row for this state
-    (unrestricted, or not deliverable — caller must check serviceability).
+    Centralized delivery charge for a state, or None when not yet configured
+    (caller should apply the flat-rate fallback in that case).
     """
-    from app.models import ProductDeliveryState
+    from app.models import DeliveryState
 
-    row = (
-        ProductDeliveryState.objects
-        .filter(product_id=product_id, state_id=state_id)
-        .only('delivery_charge')
+    charge = (
+        DeliveryState.objects
+        .filter(pk=state_id)
+        .values_list('delivery_charge', flat=True)
         .first()
     )
-    if row is None:
+    return _as_decimal(charge) if charge is not None else None
+
+
+def get_product_delivery_charge(product_id: int, state_id: int) -> Optional[Decimal]:
+    """
+    Centralized per-pack delivery charge for a product × state.
+
+    Returns the state's centralized charge when the product ships to that
+    state. Returns None when the product doesn't ship there, or the state
+    has no charge configured yet (caller must check serviceability first).
+    """
+    if not is_state_deliverable_for_product(product_id, state_id):
         return None
-    return _as_decimal(row.delivery_charge)
+    return get_state_delivery_charge(state_id)
 
 
 def get_combo_delivery_charge(combo_id: int, state_id: int) -> Optional[Decimal]:
     """
-    Per-unit combo delivery charge = sum of component product charges for the state.
-
-    Returns None only when no component has a configured charge row for the state.
-    Component quantities in the combo multiply that component's per-unit charge.
+    Centralized per-pack delivery charge for a combo × state — same
+    centralized state charge, gated on every component shipping there.
     """
-    from app.models import ComboItem
-
-    components = list(
-        ComboItem.objects.filter(combo_id=combo_id).values_list('product_id', 'quantity')
-    )
-    if not components:
+    if not is_state_deliverable_for_combo(combo_id, state_id):
         return None
-
-    total = ZERO
-    any_row = False
-    for product_id, qty in components:
-        charge = get_product_delivery_charge(product_id, state_id)
-        if charge is None:
-            continue
-        any_row = True
-        total += charge * Decimal(int(qty or 1))
-    return total if any_row else None
-
-
-def resolve_item_delivery_charge(item, state_id: Optional[int]) -> Tuple[Decimal, Decimal, bool]:
-    """
-    Resolve (per_pack, line_total, has_configured_row) for a cart/order line.
-
-    has_configured_row is True when the product/combo has a ProductDeliveryState
-    row for the selected state (charge may still be zero).
-
-    Pack billing (Approach A): line_total = per_pack × ceil(qty / DELIVERY_PACK_SIZE).
-    Qty 1 and 2 share one pack charge when pack size is 2.
-    """
-    if not state_id:
-        return ZERO, ZERO, False
-
-    per_pack: Optional[Decimal]
-    if getattr(item, 'combo_id', None):
-        per_pack = get_combo_delivery_charge(item.combo_id, state_id)
-    elif getattr(item, 'product_id', None):
-        per_pack = get_product_delivery_charge(item.product_id, state_id)
-    else:
-        per_pack = None
-
-    if per_pack is None:
-        return ZERO, ZERO, False
-
-    packs = Decimal(delivery_packs_for_quantity(getattr(item, 'quantity', 1)))
-    return per_pack, per_pack * packs, True
+    return get_state_delivery_charge(state_id)
 
 
 @dataclass
@@ -296,72 +253,54 @@ class CartDeliveryBreakdown:
 
 def compute_cart_delivery_charges(items, state_id: Optional[int] = None) -> CartDeliveryBreakdown:
     """
-    Sum per-line state delivery charges for a cart.
+    Cart-wide pooled delivery charge: every line's quantity is pooled into
+    one pack count before pricing, so mixed-product carts bundle correctly
+    (e.g. Product A × 1 + Product B × 1 share one pack, not two).
 
     Rules:
     - No state selected → ₹0 (checkout must prompt to select a state).
-    - State selected + at least one line has a configured charge row →
-      sum(state_charge × ceil(qty / DELIVERY_PACK_SIZE)) across lines
-      (missing rows contribute 0; each line packs independently).
-    - State selected + no lines have a charge row → flat fallback with the
-      same pack rule: FLAT_DELIVERY_CHARGE × ceil(qty / pack_size) per line.
+    - State has a configured charge → charge × ceil(total_qty / DELIVERY_PACK_SIZE).
+    - State has no charge configured → flat fallback with the same pack rule.
+
+    Per-line delivery fields are always zeroed — the real total lives only
+    at the cart/order level, since the charge is no longer attributable to
+    an individual line.
     """
     if not state_id:
         return CartDeliveryBreakdown(total=ZERO, used_flat_fallback=False, state_missing=True)
 
-    flat = _flat_fallback()
-    lines: Dict[int, Dict[str, Decimal]] = {}
-    total = ZERO
-    any_configured = False
+    total_qty = sum(int(getattr(item, 'quantity', 0) or 0) for item in items)
+    packs = Decimal(delivery_packs_for_quantity(total_qty))
 
+    charge = get_state_delivery_charge(state_id)
+    used_flat_fallback = charge is None
+    if charge is None:
+        charge = _flat_fallback()
+
+    lines: Dict[int, Dict[str, Decimal]] = {}
     for item in items:
-        per_pack, line_total, has_row = resolve_item_delivery_charge(item, state_id)
         item_id = getattr(item, 'id', None)
         if item_id is not None:
             lines[item_id] = {
-                # Field name kept for API/order snapshot compatibility;
-                # value is the configured pack charge (not per piece).
-                'delivery_charge_per_unit': per_pack,
-                'total_delivery_charge': line_total,
+                'delivery_charge_per_unit': ZERO,
+                'total_delivery_charge': ZERO,
             }
-        if has_row:
-            any_configured = True
-            total += line_total
 
-    if not any_configured:
-        pack_lines: Dict[int, Dict[str, Decimal]] = {}
-        pack_total = ZERO
-        for item in items:
-            packs = Decimal(delivery_packs_for_quantity(getattr(item, 'quantity', 1)))
-            line_total = flat * packs
-            item_id = getattr(item, 'id', None)
-            if item_id is not None:
-                pack_lines[item_id] = {
-                    'delivery_charge_per_unit': flat,
-                    'total_delivery_charge': line_total,
-                }
-            pack_total += line_total
-        return CartDeliveryBreakdown(
-            total=pack_total,
-            used_flat_fallback=True,
-            lines=pack_lines,
-        )
-
-    return CartDeliveryBreakdown(total=total, used_flat_fallback=False, lines=lines)
+    return CartDeliveryBreakdown(
+        total=charge * packs,
+        used_flat_fallback=used_flat_fallback,
+        lines=lines,
+    )
 
 
 # ── Write helpers ──────────────────────────────────────────────────────────────
 
-def set_product_delivery_states(
-    product_id: int,
-    state_ids: List[int],
-    charges: Optional[Dict[int, Any]] = None,
-) -> None:
+def set_product_delivery_states(product_id: int, state_ids: List[int]) -> None:
     """
     Atomically replace the delivery-state list for a product.
 
-    charges: optional map of state_id → delivery_charge (Decimal/str/number).
-    Every selected state should have a non-negative charge; missing keys default to 0.
+    Serviceability only — delivery pricing is centralized on
+    DeliveryState.delivery_charge and is not set per product.
     """
     from app.models import DeliveryState, ProductDeliveryState
 
@@ -370,30 +309,39 @@ def set_product_delivery_states(
         .filter(pk__in=state_ids, is_active=True)
         .values_list('pk', flat=True)
     )
-    charge_map = charges or {}
 
     with transaction.atomic():
         ProductDeliveryState.objects.filter(product_id=product_id).delete()
         if valid_ids:
             ProductDeliveryState.objects.bulk_create([
-                ProductDeliveryState(
-                    product_id=product_id,
-                    state_id=sid,
-                    delivery_charge=_as_decimal(charge_map.get(sid, charge_map.get(str(sid), 0))),
-                )
+                ProductDeliveryState(product_id=product_id, state_id=sid)
                 for sid in valid_ids
             ])
 
 
+def set_state_delivery_charges(charges: Dict[int, Optional[Any]]) -> None:
+    """
+    Atomically update the centralized per-state delivery charges.
+
+    charges: map of state_id → charge (Decimal/str/number), or None/''
+    to clear a state back to "not configured" (flat-rate fallback applies).
+    """
+    from app.models import DeliveryState
+
+    with transaction.atomic():
+        for state_id, value in charges.items():
+            charge = None if value in (None, '') else _as_decimal(value)
+            DeliveryState.objects.filter(pk=state_id).update(delivery_charge=charge)
+
+
 def _state_list_with_charges(product_id: int, states) -> List[Dict[str, Any]]:
-    charge_map = get_product_state_charges_map(product_id)
     return [
         {
             'id': s.id,
             'name': s.name,
             'code': s.code,
             'region': s.region,
-            'delivery_charge': str(charge_map.get(s.id, ZERO)),
+            'delivery_charge': str(get_product_delivery_charge(product_id, s.id) or ZERO),
         }
         for s in states
     ]
