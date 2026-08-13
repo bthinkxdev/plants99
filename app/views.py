@@ -1663,11 +1663,14 @@ def _checkout_lines(cart, items, delivery_issues=None):
     ]
 
 
+def _cart_total_quantity(items):
+    return sum(item.quantity for item in items)
+
+
 def _cart_pack_upsell_message(items):
     from app.services.state_delivery_service import delivery_pack_upsell_message
 
-    total_qty = sum(item.quantity for item in items)
-    return delivery_pack_upsell_message(total_qty)
+    return delivery_pack_upsell_message(_cart_total_quantity(items))
 
 
 class CartPageGoneRedirect(View):
@@ -1675,6 +1678,21 @@ class CartPageGoneRedirect(View):
 
     def get(self, request, *args, **kwargs):
         return _redirect_open_cart()
+
+
+def _add_to_cart_pixel(content_id, content_name, unit_price, quantity):
+    """Meta Pixel AddToCart payload — value reflects only this request's added quantity."""
+    from decimal import Decimal
+
+    value = (unit_price or Decimal('0')) * Decimal(quantity)
+    return {
+        'event': 'AddToCart',
+        'content_ids': [str(content_id)],
+        'content_name': content_name,
+        'content_type': 'product',
+        'value': str(value),
+        'currency': 'INR',
+    }
 
 
 class AddToCartView(View):
@@ -1710,7 +1728,7 @@ class AddToCartView(View):
         if data.get('combo_id'):
             combo = get_object_or_404(Combo, pk=data['combo_id'], is_active=True)
             try:
-                CartService.add_combo_item(cart, combo, data['quantity'], line_type=line_type, is_gift=data.get('is_gift', False))
+                added_item = CartService.add_combo_item(cart, combo, data['quantity'], line_type=line_type, is_gift=data.get('is_gift', False))
             except StockError as exc:
                 messages.error(request, str(exc))
                 if is_ajax:
@@ -1722,7 +1740,8 @@ class AddToCartView(View):
             else:
                 if is_ajax:
                     cart_count = sum((item.quantity for item in cart.items.all()))
-                    return JsonResponse({'success': True, 'cart_count': cart_count})
+                    pixel = _add_to_cart_pixel(combo.id, combo.name, added_item.unit_price, data['quantity'])
+                    return JsonResponse({'success': True, 'cart_count': cart_count, 'pixel': pixel})
             action = request.POST.get('action', 'add')
             if action == 'buy':
                 return redirect('store:checkout')
@@ -1746,7 +1765,7 @@ class AddToCartView(View):
                 return redirect('store:product_detail', slug=product.slug)
             sellable = product
         try:
-            CartService.add_item(cart, sellable, data['quantity'], line_type=line_type, rental_billing=rb, rental_units=ru, rental_start_date=rs, rental_end_date=re, is_gift=data.get('is_gift', False), selected_pot_id=data.get('selected_pot_id'))
+            added_item = CartService.add_item(cart, sellable, data['quantity'], line_type=line_type, rental_billing=rb, rental_units=ru, rental_start_date=rs, rental_end_date=re, is_gift=data.get('is_gift', False), selected_pot_id=data.get('selected_pot_id'))
         except StockError as exc:
             messages.error(request, str(exc))
             if is_ajax:
@@ -1758,7 +1777,8 @@ class AddToCartView(View):
         else:
             if is_ajax:
                 cart_count = sum((item.quantity for item in cart.items.all()))
-                return JsonResponse({'success': True, 'cart_count': cart_count})
+                pixel = _add_to_cart_pixel(product.id, product.name, added_item.unit_price, data['quantity'])
+                return JsonResponse({'success': True, 'cart_count': cart_count, 'pixel': pixel})
         action = request.POST.get('action', 'add')
         if action == 'buy':
             return redirect('store:checkout')
@@ -1987,6 +2007,7 @@ class CheckoutView(TemplateView):
                     delivery_issues=checkout_totals.delivery_issues,
                 ),
                 'pack_upsell_message': _cart_pack_upsell_message(items),
+                'cart_total_quantity': _cart_total_quantity(items),
                 'totals': checkout_totals.as_cart_totals(),
                 'form': CheckoutForm(**_checkout_form_kwargs(self.request, cart, user, initial=initial)),
                 'addresses': addresses,
@@ -2051,6 +2072,7 @@ class OrderCreateView(FormView):
                 delivery_issues=checkout_totals.delivery_issues,
             ),
             'pack_upsell_message': _cart_pack_upsell_message(items),
+            'cart_total_quantity': _cart_total_quantity(items),
             'totals': checkout_totals.as_cart_totals(),
             'addresses': addresses,
             'default_address': default_address,

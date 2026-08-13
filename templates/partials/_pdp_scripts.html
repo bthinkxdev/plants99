@@ -5,6 +5,19 @@
 <script>window.productId = {{ product.id }};</script>
 
 <script>
+(function () {
+    if (typeof fbq !== 'function') return;
+    fbq('track', 'ViewContent', {
+        content_ids: ['{{ product.id }}'],
+        content_name: '{{ product.name|escapejs }}',
+        content_type: 'product',
+        value: {% firstof selected_variant.price product.base_price 0 %},
+        currency: 'INR'
+    });
+})();
+</script>
+
+<script>
 (function(){
     // Legacy attribute-driven logic (kept for reference) is disabled.
     // New variant-driven implementation is added in a separate script block below.

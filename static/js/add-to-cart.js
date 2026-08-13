@@ -124,6 +124,17 @@
                             triggerCartGleam();
                         }
 
+                        if (result.data.pixel && typeof fbq === "function") {
+                            var p = result.data.pixel;
+                            fbq('track', 'AddToCart', {
+                                content_ids: p.content_ids,
+                                content_name: p.content_name,
+                                content_type: p.content_type,
+                                value: p.value,
+                                currency: p.currency
+                            });
+                        }
+
                         var productId = body.get('product_id');
                         var variantId = body.get('variant_id');
                         form.setAttribute('data-cart-added', '1'); 

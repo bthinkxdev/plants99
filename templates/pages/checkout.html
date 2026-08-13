@@ -361,6 +361,16 @@
     window.CHECKOUT_UPDATE_URL = "{% url 'store:cart_update' %}";
 })();
 </script>
+<script>
+(function () {
+    if (typeof fbq !== 'function') return;
+    fbq('track', 'InitiateCheckout', {
+        value: {{ totals.subtotal|default:0 }},
+        currency: 'INR',
+        num_items: {{ cart_total_quantity|default:0 }}
+    });
+})();
+</script>
 
 {% if DELIVERY_INTEGRATED %}
 <script>

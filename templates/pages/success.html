@@ -131,3 +131,33 @@
     </div>
 </section>
 {% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    if (typeof fbq !== 'function') return;
+    var orderNumber = '{{ order.order_number|escapejs }}';
+    if (!orderNumber) return;
+
+    var key = 'purchase-' + orderNumber;
+    if (sessionStorage.getItem(key)) return;
+
+    var contents = [
+        {% for item in order.items.all %}
+        { id: '{% firstof item.product_id item.combo_id %}', quantity: {{ item.quantity }} }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+    var numItems = contents.reduce(function (sum, c) { return sum + c.quantity; }, 0);
+
+    fbq('track', 'Purchase', {
+        value: {{ order.total|default:0 }},
+        currency: 'INR',
+        contents: contents,
+        content_type: 'product',
+        num_items: numItems
+    }, { eventID: 'order-' + orderNumber });
+
+    sessionStorage.setItem(key, '1');
+})();
+</script>
+{% endblock %}

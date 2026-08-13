@@ -93,6 +93,18 @@
 {% block extra_js %}
 <script>
 (function () {
+    if (typeof fbq !== 'function') return;
+    fbq('track', 'ViewContent', {
+        content_ids: ['{{ combo.id }}'],
+        content_name: '{{ combo.name|escapejs }}',
+        content_type: 'product',
+        value: {% firstof combo.price 0 %},
+        currency: 'INR'
+    });
+})();
+</script>
+<script>
+(function () {
     var module = document.getElementById('pdpStateModule');
     if (!module) return;
     var tipsEl = document.getElementById('pdpStateTips');
