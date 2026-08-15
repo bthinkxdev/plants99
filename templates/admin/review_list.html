@@ -31,6 +31,9 @@
         background: #FFEBEE;
         color: #C62828;
     }
+    .reviews-filters .search-box .search-input-wrap {
+        position: relative;
+    }
 </style>
 {% endblock %}
 
@@ -50,13 +53,15 @@
             <form method="get" class="filters filters-inline reviews-filters mb-2">
                 <div class="search-box">
                     <label class="form-label" for="id_q">Search (product, user)</label>
-                    <i class="fas fa-search"></i>
-                    <input type="text"
-                           id="id_q"
-                           name="q"
-                           class="form-control"
-                           value="{{ filter_q }}"
-                           placeholder="Search by product or user">
+                    <div class="search-input-wrap">
+                        <i class="fas fa-search"></i>
+                        <input type="text"
+                               id="id_q"
+                               name="q"
+                               class="form-control"
+                               value="{{ filter_q }}"
+                               placeholder="Search by product or user">
+                    </div>
                 </div>
 
                 <div class="filter-group">
@@ -109,11 +114,15 @@
                 </div>
 
                 <div class="filter-group">
+                    <label class="form-label">&nbsp;</label>
                     <button type="submit" class="btn btn-primary">Filter</button>
+                    {% if filter_q or filter_product or filter_rating or filter_status or filter_date_from or filter_date_to %}
+                        <a href="{% url 'admin_panel:review_list' %}" class="btn btn-secondary" title="Clear filters">Clear</a>
+                    {% endif %}
                 </div>
             </form>
 
-            <form method="post">
+            <form method="post" action="{% url 'admin_panel:review_bulk_action' %}">
                 {% csrf_token %}
                 <div class="reviews-bulk-actions d-flex gap-2 align-center mb-2" style="flex-wrap: wrap;">
                     <select name="action" required class="form-control reviews-action-select">

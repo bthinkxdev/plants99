@@ -137,7 +137,19 @@
 
                         var productId = body.get('product_id');
                         var variantId = body.get('variant_id');
-                        form.setAttribute('data-cart-added', '1'); 
+                        form.setAttribute('data-cart-added', '1');
+
+                        // Keep the PDP's per-variant "already in cart" set current so switching
+                        // attribute selections right after this add (no reload) immediately shows
+                        // View Cart for this exact variant, and Add to Cart for every other one.
+                        if (variantId) {
+                            var addedVariantNum = parseInt(variantId, 10);
+                            if (addedVariantNum) {
+                                var ids = window.__pdpCartVariantIds || (window.__pdpCartVariantIds = new Set());
+                                ids.add(addedVariantNum);
+                            }
+                        }
+
                         document.dispatchEvent(new CustomEvent('cart:updated', {
                             detail: Object.assign({}, result.data, {
                                 added_product_id: productId,
@@ -153,7 +165,15 @@
                             setTimeout(function() {
                                 btn.classList.remove("btn-added");
                                 replaceWithViewCart(btn, cartUrl);
-                                syncStickyToViewCart();
+                                // Let the PDP re-derive every Add/View Cart control (main CTA +
+                                // sticky bar) from the updated __pdpCartVariantIds set, so only
+                                // the variant actually just added shows View Cart. Falls back to
+                                // the old one-way sticky flip outside the PDP's variant script.
+                                if (typeof window.__pdpRefreshCartButtons === "function") {
+                                    window.__pdpRefreshCartButtons();
+                                } else {
+                                    syncStickyToViewCart();
+                                }
                             }, 800);
                         }
                     } else {
@@ -191,7 +211,11 @@
                 var fVariant = (form.querySelector('[name="variant_id"]') || {}).value || null;
                 var fProduct = (form.querySelector('[name="product_id"]') || {}).value || null;
 
-                var isMatch = (productId && fProduct && fProduct === productId);
+                // Match on product AND, when the added item was a specific variant, on that
+                // exact variant too — matching by product alone would flag every other
+                // variant of the same product as "in cart" as well.
+                var isMatch = !!(productId && fProduct && fProduct === productId &&
+                    (variantId ? fVariant === variantId : !fVariant));
 
                 if (!isMatch) return;
 

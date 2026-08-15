@@ -56,11 +56,11 @@
                 <option value="active" {% if filter_status == "active" %}selected{% endif %}>Live</option>
                 <option value="inactive" {% if filter_status == "inactive" %}selected{% endif %}>Inactive</option>
             </select>
-            <select name="offer" class="form-control product-filter-select" onchange="this.form.submit()">
+            {% comment %} <select name="offer" class="form-control product-filter-select" onchange="this.form.submit()">
                 <option value="">All offer types</option>
                 <option value="rental" {% if filter_offer == "rental" %}selected{% endif %}>Rental-enabled</option>
                 <option value="combo" {% if filter_offer == "combo" %}selected{% endif %}>Combo bundles</option>
-            </select>
+            </select> {% endcomment %}
             <button type="submit" class="btn btn-secondary product-filter-btn">
                 <i class="fas fa-filter"></i> Apply
             </button>

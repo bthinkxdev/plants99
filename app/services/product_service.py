@@ -431,6 +431,19 @@ class ProductDetailService:
             pq.filter(line_type=CartItem.LineKind.RENTAL).values_list('rental_key', flat=True)
         )
 
+        # Every variant *of this product* currently sitting in the cart (purchase lines only).
+        # The PDP swaps between variants entirely client-side (attribute buttons, no page
+        # reload), so the JS needs this to know which specific variant should show "View Cart"
+        # instead of "Add to Cart" as the shopper clicks between options — the server-rendered
+        # `selected_variant` alone only covers whichever variant happens to be selected on load.
+        context['pdp_cart_variant_ids'] = list(
+            cart.items.filter(
+                product=product,
+                line_type=CartItem.LineKind.PURCHASE,
+                selected_variant__isnull=False,
+            ).values_list('selected_variant_id', flat=True)
+        )
+
         context['pincode_check_url'] = reverse('store:pincode_check')
         context['serviceable_pincode_count'] = len(allowed_pincode_list())
         context['pdp_combo_available'] = (

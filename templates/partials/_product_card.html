@@ -60,6 +60,7 @@
         <a href="{% url 'store:product_detail' product.slug %}?variant={{ v.id }}" class="tpc-name-link">
             <p class="tpc-name">{{ product.name }}</p>
         </a>
+        {% if product.beginner_friendly or product.air_purifying or product.office_friendly or product.low_maintenance %}
         <div class="p99-tag-row">
             {% if product.beginner_friendly %}<span class="p99-mini-tag p99-mini-tag--y">Easy care</span>
             {% elif product.air_purifying %}<span class="p99-mini-tag p99-mini-tag--b">Air purifying</span>
@@ -67,6 +68,7 @@
             {% elif product.low_maintenance %}<span class="p99-mini-tag p99-mini-tag--g">Low maintenance</span>
             {% endif %}
         </div>
+        {% endif %}
         <div class="tpc-price-row">
             <p class="tpc-price">₹{{ product.lowest_price|default:v.price|floatformat:0 }}</p>
             {% if v.original_price and v.original_price > v.price %}
@@ -145,6 +147,7 @@
         <a href="{% url 'store:product_detail' product.slug %}" class="tpc-name-link">
             <p class="tpc-name">{{ product.name }}</p>
         </a>
+        {% if product.beginner_friendly or product.air_purifying or product.office_friendly or product.low_maintenance %}
         <div class="p99-tag-row">
             {% if product.beginner_friendly %}<span class="p99-mini-tag p99-mini-tag--y">Easy care</span>
             {% elif product.air_purifying %}<span class="p99-mini-tag p99-mini-tag--b">Air purifying</span>
@@ -152,6 +155,7 @@
             {% elif product.low_maintenance %}<span class="p99-mini-tag p99-mini-tag--g">Low maintenance</span>
             {% endif %}
         </div>
+        {% endif %}
         <div class="tpc-price-row">
             <p class="tpc-price">₹{{ product.base_price|floatformat:0 }}</p>
             {% if product.base_original_price and product.base_original_price > product.base_price %}

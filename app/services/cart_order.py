@@ -481,9 +481,13 @@ class CheckoutTotalsResult:
         from .state_delivery_service import delivery_pack_upsell_message
 
         total_qty = sum(item.quantity for item in items)
+        # The upsell tip promises "no extra delivery charge" for one more unit —
+        # meaningless (and misleading) when the resolved delivery charge is
+        # already zero, so only surface it when a real charge actually applies.
+        pack_upsell_message = delivery_pack_upsell_message(total_qty) if self.shipping else ''
         return {
             'success': True,
-            'pack_upsell_message': delivery_pack_upsell_message(total_qty),
+            'pack_upsell_message': pack_upsell_message,
             'state_id': self.state_id,
             'state_selected': bool(self.state_id),
             'state_missing': self.state_missing,
@@ -630,6 +634,49 @@ class CartService:
         if not cart:
             cart = Cart.objects.create(session_key=session_key, status=Cart.Status.ACTIVE)
         return cart
+
+    @classmethod
+    def isolate_for_buy_now(cls, request):
+        """
+        Returns a Cart that a single 'Buy Now' item can be added to without
+        touching whatever the shopper already has in their real cart.
+
+        If the real (active) cart already has items in it, it's set aside
+        (status=PARKED, tracked via session) and a fresh cart is used for the
+        buy-now item instead — checkout then only ever sees that one item.
+        restore_parked_cart() un-parks the real cart once the buy-now flow
+        ends (order placed, payment cancelled, or the shopper just navigates
+        away — see ParkedCartRestoreMiddleware).
+        """
+        current = cls.get_or_create_cart(request)
+        if request.session.get('buy_now_cart_id') == current.pk:
+            # Already isolated by an earlier Buy Now click in this same flow —
+            # swap it for the newly chosen item instead of parking again
+            # (parking now would overwrite the reference to the real cart).
+            current.items.all().delete()
+            return current
+        if not current.items.exists():
+            # Nothing of the shopper's to protect — use this cart directly.
+            return current
+        current.status = Cart.Status.PARKED
+        current.save(update_fields=['status'])
+        request.session['parked_cart_id'] = current.pk
+        buy_now_cart = cls.get_or_create_cart(request)
+        request.session['buy_now_cart_id'] = buy_now_cart.pk
+        return buy_now_cart
+
+    @classmethod
+    def restore_parked_cart(cls, request):
+        """Un-parks the shopper's real cart after a Buy Now flow ends."""
+        parked_id = request.session.pop('parked_cart_id', None)
+        buy_now_id = request.session.pop('buy_now_cart_id', None)
+        if parked_id:
+            Cart.objects.filter(pk=parked_id, status=Cart.Status.PARKED).update(status=Cart.Status.ACTIVE)
+        if buy_now_id and buy_now_id != parked_id:
+            # Leftover isolated cart (e.g. buy-now abandoned without ordering) —
+            # retire it so it can't linger as a second ACTIVE cart alongside the
+            # just-restored real one.
+            Cart.objects.filter(pk=buy_now_id, status=Cart.Status.ACTIVE).update(status=Cart.Status.ABANDONED)
 
     @classmethod
     def merge_carts(cls, user, session_key):

@@ -105,4 +105,31 @@
             if (!wrap.contains(e.target)) hide();
         });
     });
+
+    // Guard against empty/whitespace-only search submissions landing on the
+    // "shop all" page (product_list with an empty ?q= just lists everything).
+    // Covers every live search box — desktop header pill + mobile search
+    // bar — not just the one wired up above, and skips the hidden q
+    // passthrough field in the shop filters panel (_filters.html), which
+    // legitimately carries an empty value forward when filtering with no
+    // active search term.
+    document.addEventListener('DOMContentLoaded', function () {
+        var guarded = [];
+        document.querySelectorAll('input[name="q"]:not([type="hidden"])').forEach(function (input) {
+            var searchForm = input.closest('form');
+            if (!searchForm || guarded.indexOf(searchForm) !== -1) return;
+            guarded.push(searchForm);
+            searchForm.addEventListener('submit', function (e) {
+                var q = (input.value || '').trim();
+                if (!q) {
+                    e.preventDefault();
+                    input.focus();
+                    return;
+                }
+                // Collapse stray internal whitespace too (e.g. "  plant   pot  ")
+                // rather than round-tripping it untouched into the URL.
+                input.value = q;
+            });
+        });
+    });
 })();

@@ -1,4 +1,5 @@
 import logging
+import re
 from django import forms
 from django.conf import settings
 from django.db import transaction
@@ -7,6 +8,22 @@ from django.forms.formsets import DELETION_FIELD_NAME
 from .models import Banner, BlogPost, Category, Combo, Product, HomeCategory, HomeCategoryProduct, Reel, Testimonial, Coupon
 from .models import RentalConfig
 logger = logging.getLogger(__name__)
+
+_HSN_CODE_RE = re.compile(r'^\d{4,8}$')
+
+
+def _validate_display_text(value, field_label, *, required=False):
+    """Reject text made up entirely of digits and/or special characters — a name/brand
+    needs at least one letter in it (any language/script). Returns the trimmed value."""
+    value = (value or '').strip()
+    if not value:
+        if required:
+            raise forms.ValidationError(f'{field_label} is required.')
+        return value
+    if not any(ch.isalpha() for ch in value):
+        raise forms.ValidationError(f'{field_label} must include at least one letter — numbers or symbols alone are not allowed.')
+    return value
+
 
 def _validate_image_file(image, required=False):
     if not image and (not required):
@@ -57,6 +74,9 @@ class CategoryForm(forms.ModelForm):
             self.fields['parent'].queryset = Category.objects.exclude(pk=self.instance.pk).order_by('name')
         else:
             self.fields['parent'].queryset = Category.objects.all().order_by('name')
+
+    def clean_name(self):
+        return _validate_display_text(self.cleaned_data.get('name'), 'Category name', required=True)
 
     def clean_image(self):
         image = self.cleaned_data.get('image')
@@ -336,7 +356,7 @@ class ProductBasicEditForm(forms.ModelForm):
     class Meta:
         model = Product
         fields = BASIC_EDIT_FIELDS
-        widgets = {'category': forms.Select(attrs={'class': 'form-control'}), 'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Product Name'}), 'slug': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'product-slug'}), 'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}), 'brand': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Brand'}), 'base_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0', 'placeholder': '0.00', 'id': 'basic-base_price'}), 'base_original_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0', 'placeholder': 'MRP / Original price (optional)', 'id': 'basic-base_original_price'}), 'base_stock': forms.NumberInput(attrs={'class': 'form-control', 'min': '0', 'placeholder': '0', 'id': 'basic-base_stock'}), 'is_featured': forms.CheckboxInput(attrs={'class': 'form-check-input'}), 'is_bestseller': forms.CheckboxInput(attrs={'class': 'form-check-input'}), 'is_deal_of_day': forms.CheckboxInput(attrs={'class': 'form-check-input'}), 'deal_of_day_start': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}), 'deal_of_day_end': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}), 'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}), 'is_gst_applicable': forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'basic-is_gst_applicable'}), 'gst_percentage': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': '0–28', 'min': 0, 'max': 28, 'step': '0.01'}), 'hsn_code': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. 8517', 'maxlength': 20}), 'is_rent_available': forms.CheckboxInput(attrs={'class': 'form-check-input'}), 'purchase_enabled': forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'basic-purchase_enabled'}), 'is_plant_combo': forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'basic-is_plant_combo'}), 'care_instructions': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'id': 'basic-care_instructions', 'placeholder': 'What is included, assembly, delivery notes…'})}
+        widgets = {'category': forms.Select(attrs={'class': 'form-control'}), 'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Product Name', 'maxlength': 200}), 'slug': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'product-slug'}), 'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'maxlength': 5000}), 'brand': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Brand', 'maxlength': 120}), 'base_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0', 'placeholder': '0.00', 'id': 'basic-base_price'}), 'base_original_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0', 'placeholder': 'MRP / Original price (optional)', 'id': 'basic-base_original_price'}), 'base_stock': forms.NumberInput(attrs={'class': 'form-control', 'min': '0', 'placeholder': '0', 'id': 'basic-base_stock'}), 'is_featured': forms.CheckboxInput(attrs={'class': 'form-check-input'}), 'is_bestseller': forms.CheckboxInput(attrs={'class': 'form-check-input'}), 'is_deal_of_day': forms.CheckboxInput(attrs={'class': 'form-check-input'}), 'deal_of_day_start': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}), 'deal_of_day_end': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}), 'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}), 'is_gst_applicable': forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'basic-is_gst_applicable'}), 'gst_percentage': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': '0–28', 'min': 0, 'max': 28, 'step': '0.01'}), 'hsn_code': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. 8517', 'maxlength': 8, 'inputmode': 'numeric', 'pattern': '[0-9]{4,8}'}), 'is_rent_available': forms.CheckboxInput(attrs={'class': 'form-check-input'}), 'purchase_enabled': forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'basic-purchase_enabled'}), 'is_plant_combo': forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'basic-is_plant_combo'}), 'care_instructions': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'id': 'basic-care_instructions', 'placeholder': 'What is included, assembly, delivery notes…', 'maxlength': 2000})}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -355,6 +375,20 @@ class ProductBasicEditForm(forms.ModelForm):
             if current and (not current.is_active):
                 active = active | Category.objects.filter(pk=current.pk)
         self.fields['category'].queryset = active.order_by('name')
+
+    def clean_name(self):
+        return _validate_display_text(self.cleaned_data.get('name'), 'Product name', required=True)
+
+    def clean_brand(self):
+        return _validate_display_text(self.cleaned_data.get('brand'), 'Brand', required=False)
+
+    def clean_hsn_code(self):
+        hsn = (self.cleaned_data.get('hsn_code') or '').strip()
+        if not hsn:
+            return None
+        if not _HSN_CODE_RE.match(hsn):
+            raise forms.ValidationError('HSN code must be 4–8 digits (numbers only), e.g. 8517.')
+        return hsn
 
     def clean(self):
         cleaned = super().clean()
@@ -408,7 +442,17 @@ class BlogPostForm(forms.ModelForm):
         return _validate_image_file(image, required=False)
 
 
+REEL_TARGET_RATIO = 9 / 16  # Instagram Reels portrait ratio (width / height)
+REEL_RATIO_TOLERANCE = 0.15  # allow ~15% relative deviation before warning
+
+
 class ReelForm(forms.ModelForm):
+    # Populated client-side (see dashboard/reels/form.html) once the browser reads the
+    # chosen video's real width/height. Not model fields — used only to warn vendors
+    # here and to double-check server-side, since the storefront now covers/crops any
+    # ratio safely regardless of what's uploaded.
+    video_width = forms.IntegerField(required=False, widget=forms.HiddenInput())
+    video_height = forms.IntegerField(required=False, widget=forms.HiddenInput())
 
     class Meta:
         model = Reel
@@ -429,11 +473,32 @@ class ReelForm(forms.ModelForm):
         self.fields['caption'].required = False
         self.fields['poster_image'].required = False
         self.fields['display_order'].required = False
+        self.fields['video_width'].required = False
+        self.fields['video_height'].required = False
         self.fields['product'].queryset = Product.objects.filter(is_active=True).order_by('name')
+        self.fields['product'].empty_label = 'Select a product'
+        self.reel_ratio_warning = None
 
     def clean_poster_image(self):
         image = self.cleaned_data.get('poster_image')
         return _validate_image_file(image, required=False)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        video = cleaned_data.get('video')
+        width = cleaned_data.get('video_width')
+        height = cleaned_data.get('video_height')
+        if video and width and height:
+            actual_ratio = width / height
+            deviation = abs(actual_ratio - REEL_TARGET_RATIO) / REEL_TARGET_RATIO
+            if deviation > REEL_RATIO_TOLERANCE:
+                orientation = 'landscape' if width > height else 'square-ish'
+                self.reel_ratio_warning = (
+                    f"This video is {width}×{height} ({orientation}), not the 9:16 Instagram Reels ratio. "
+                    "It will be zoomed and cropped to fill the storefront reel tile — for the best result, "
+                    "upload a portrait 9:16 video (e.g. 1080×1920)."
+                )
+        return cleaned_data
 
 
 class RentalConfigForm(forms.ModelForm):

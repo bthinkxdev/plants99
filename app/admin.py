@@ -8,6 +8,8 @@ def _invalidate_home_cache():
         'home_product_data_v1',
         'home_product_data_v2',
         'home_shop_categories_v1',
+        'home_shop_categories_v2',
+        'ctx:nav_available_category_ids:v1',
         'home_reels_v1',
         'home_testimonials_v1',
         'home_combos_v1',

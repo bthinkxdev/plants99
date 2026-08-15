@@ -37,7 +37,7 @@ class BlogPost(TimeStampedModel):
 class Reel(TimeStampedModel):
     title = models.CharField(max_length=200)
     caption = models.CharField(max_length=500, blank=True)
-    product = models.ForeignKey('Product', on_delete=models.CASCADE, related_name='reels', null=True, blank=True)
+    product = models.ForeignKey('Product', on_delete=models.CASCADE, related_name='reels', null=True)
     video = models.FileField(
         upload_to='reels/videos/',
         validators=[FileExtensionValidator(allowed_extensions=('mp4', 'webm', 'mov'))],

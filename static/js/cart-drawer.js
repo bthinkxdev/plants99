@@ -135,6 +135,7 @@
         stockAlertEl.hidden = true;
         stockAlertEl.textContent = '';
       }
+      stockAlertEl.classList.remove('cd-stock-alert--transient');
     }
     if (checkoutBtn) {
       if (data.checkout_blocked) {
@@ -217,21 +218,44 @@
   });
 
   
+  var qtyAlertTimer = null;
+
+
+  function showMaxQtyAlert(message) {
+    if (!stockAlertEl || !message) return;
+    stockAlertEl.hidden = false;
+    stockAlertEl.textContent = message;
+    stockAlertEl.classList.add('cd-stock-alert--transient');
+    if (qtyAlertTimer) clearTimeout(qtyAlertTimer);
+    qtyAlertTimer = setTimeout(function () {
+
+      if (stockAlertEl.classList.contains('cd-stock-alert--transient')) {
+        stockAlertEl.hidden = true;
+        stockAlertEl.textContent = '';
+        stockAlertEl.classList.remove('cd-stock-alert--transient');
+      }
+    }, 3000);
+  }
+
   function adjustQty(itemId, delta) {
     var row    = itemsEl.querySelector('[data-id="' + itemId + '"]');
     if (!row) return;
     var valEl  = row.querySelector('.cd-qty__val');
     var decBtn = row.querySelector('.js-cd-dec');
+    var incBtn = row.querySelector('.js-cd-inc');
     var current = parseInt(valEl.textContent, 10) || 1;
     var next    = current + delta;
     if (next < 1) return;
     var maxQ = parseInt(row.getAttribute('data-max'), 10);
     if (!isNaN(maxQ) && maxQ > 0 && next > maxQ) {
-      fetchCart();
+
+      if (incBtn) incBtn.disabled = true;
+      showMaxQtyAlert('Only ' + maxQ + ' left in stock for this item.');
       return;
     }
     valEl.textContent    = next;
     decBtn.disabled      = (next <= 1);
+    if (incBtn) incBtn.disabled = (!isNaN(maxQ) && maxQ > 0 && next >= maxQ);
 
     fetch('/cart/update/', {
       method: 'POST',
@@ -249,6 +273,7 @@
           if (data.error && stockAlertEl) {
             stockAlertEl.hidden = false;
             stockAlertEl.textContent = data.error;
+            stockAlertEl.classList.remove('cd-stock-alert--transient');
           }
           fetchCart();
           return;
@@ -264,6 +289,21 @@
           if (priceEl) {
             priceEl.setAttribute('data-line', parseFloat(data.line_total));
             priceEl.textContent = fmtPrice(parseFloat(data.line_total));
+          }
+        }
+
+        if (data.max_quantity !== undefined) {
+          var serverMax = parseInt(data.max_quantity, 10);
+          var serverQty = parseInt(data.quantity, 10);
+          if (!isNaN(serverMax)) {
+            row.setAttribute('data-max', serverMax);
+            if (!isNaN(serverQty)) {
+              if (decBtn) decBtn.disabled = (serverQty <= 1);
+              if (incBtn) incBtn.disabled = (serverQty >= serverMax);
+              if (serverMax > 0 && serverQty >= serverMax) {
+                showMaxQtyAlert('Only ' + serverMax + ' left in stock for this item.');
+              }
+            }
           }
         }
       })
@@ -287,6 +327,17 @@ function removeItem(itemId) {
         .then(function (r) { return r.json(); })
         .then(function (data) {
           if (data.cart_count !== undefined) syncAllBadges(data.cart_count);
+          if (data.cart_empty && /^\/checkout(\/|$)/.test(window.location.pathname)) {
+            // The checkout page's order lines, totals and place-order button
+            // are rendered server-side and require a non-empty cart. Removing
+            // the last item from the drawer while sitting on checkout has to
+            // leave that page the same way checkout's own remove control
+            // already does (see removeCheckoutItem in checkout.js) — just
+            // refreshing the drawer would leave a stale, cart-less checkout
+            // page behind it until the shopper navigated away and back.
+            window.location.href = '/?open_cart=1';
+            return;
+          }
           fetchCart();
         })
         .catch(fetchCart);

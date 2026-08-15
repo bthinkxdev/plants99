@@ -35,7 +35,7 @@
     {% comment %} <div id="home-combos-container"></div> {% endcomment %}
 
     {% if HOME_DEAL_OF_DAY_ENABLED and deal_of_day_products %}
-        {% include "sections/deal_of_the_day.html" with products=deal_of_day_products banner_link=shop_url view_all_url=shop_url %}
+        {% include "sections/deal_of_the_day.html" with products=deal_of_day_products banner_link=shop_url view_all_url=shop_url|add:"?deal=1" %}
     {% endif %}
 
     {% comment %} {% include "sections/rich_heading.html" with kicker="Low maintenance" title="Less care. More green." subtitle="Easy plants for busy homes — water-smart picks that still feel lush." cta_label="Shop easy-care plants" cta_url=shop_url modifier="p99-rich-band--foliage" %} {% endcomment %}

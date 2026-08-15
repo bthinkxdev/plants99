@@ -201,70 +201,68 @@
                     </div>
                     {% endif %}
 
-                    <div class="checkout-card" id="newAddressSection" {% if addresses and not form.is_bound %}style="display:none;"{% endif %}>
+                    <div class="checkout-card" id="newAddressSection" data-guest-checkout="{{ is_guest_checkout|yesno:'true,false' }}" {% if addresses and not form.is_bound %}style="display:none;"{% endif %}>
                         <h5>{% if addresses %}New Address{% else %}Customer Details{% endif %}</h5>
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label class="form-label-bw">Full Name *</label>
-                                <input type="text" name="full_name" class="form-control-bw" value="{{ form.full_name.value|default:'' }}" placeholder="Full name">
-                                {% if form.full_name.errors %}<div class="text-danger small mt-1">{{ form.full_name.errors.0 }}</div>{% endif %}
+                                <input type="text" name="full_name" class="form-control-bw{% if form.full_name.errors %} is-invalid{% endif %}" value="{{ form.full_name.value|default:'' }}" placeholder="Full name" autocomplete="name">
+                                <div class="text-danger small mt-1" data-field-error="full_name" {% if not form.full_name.errors %}hidden{% endif %}>{{ form.full_name.errors.0 }}</div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label-bw">Phone *</label>
-                                <input type="text" name="phone" class="form-control-bw" value="{{ form.phone.value|default:'' }}" placeholder="Phone">
-                                {% if form.phone.errors %}<div class="text-danger small mt-1">{{ form.phone.errors.0 }}</div>{% endif %}
+                                <input type="text" name="phone" class="form-control-bw{% if form.phone.errors %} is-invalid{% endif %}" value="{{ form.phone.value|default:'' }}" placeholder="Phone" maxlength="10" inputmode="numeric" pattern="[0-9]{10}" autocomplete="tel">
+                                <div class="text-danger small mt-1" data-field-error="phone" {% if not form.phone.errors %}hidden{% endif %}>{{ form.phone.errors.0 }}</div>
                             </div>
                             <div class="col-12">
-                                <label class="form-label-bw">
-                                    {% if DELIVERY_INTEGRATED %}Address *{% else %}Address{% endif %}
-                                </label>
-                                <textarea name="address_line" class="form-control-bw checkout-address-textarea" rows="2" placeholder="Address">{{ form.address_line.value|default:'' }}</textarea>
-                                {% if form.address_line.errors %}<div class="text-danger small mt-1">{{ form.address_line.errors.0 }}</div>{% endif %}
+                                <label class="form-label-bw">Address *</label>
+                                <textarea name="address_line" class="form-control-bw checkout-address-textarea{% if form.address_line.errors %} is-invalid{% endif %}" rows="2" placeholder="Address" autocomplete="street-address">{{ form.address_line.value|default:'' }}</textarea>
+                                <div class="text-danger small mt-1" data-field-error="address_line" {% if not form.address_line.errors %}hidden{% endif %}>{{ form.address_line.errors.0 }}</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label-bw">{% if DELIVERY_INTEGRATED %}City *{% else %}City{% endif %}</label>
-                                <input type="text" name="city" class="form-control-bw" value="{{ form.city.value|default:'' }}" placeholder="City">
-                                {% if form.city.errors %}<div class="text-danger small mt-1">{{ form.city.errors.0 }}</div>{% endif %}
+                                <label class="form-label-bw">City *</label>
+                                <input type="text" name="city" class="form-control-bw{% if form.city.errors %} is-invalid{% endif %}" value="{{ form.city.value|default:'' }}" placeholder="City" autocomplete="address-level2">
+                                <div class="text-danger small mt-1" data-field-error="city" {% if not form.city.errors %}hidden{% endif %}>{{ form.city.errors.0 }}</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label-bw">{% if DELIVERY_INTEGRATED %}Pincode *{% else %}Pincode{% endif %}</label>
+                                <label class="form-label-bw">Pincode *</label>
                                 {% if DELIVERY_INTEGRATED %}
                                 <div class="d-flex gap-2 checkout-pincode-row">
-                                    <input type="text" 
-                                           name="pincode" 
+                                    <input type="text"
+                                           name="pincode"
                                            id="id_pincode"
-                                           class="form-control-bw flex-grow-1" 
-                                           value="{{ stored_pincode|default:form.pincode.value|default:'' }}" 
+                                           class="form-control-bw flex-grow-1{% if form.pincode.errors %} is-invalid{% endif %}"
+                                           value="{{ stored_pincode|default:form.pincode.value|default:'' }}"
                                            placeholder="6-digit pincode"
                                            maxlength="6"
                                            pattern="[0-9]{6}"
                                            inputmode="numeric"
                                            data-verified="">
-                                    <button type="button" 
-                                            id="checkPincodeBtn" 
+                                    <button type="button"
+                                            id="checkPincodeBtn"
                                             class="btn btn-outline-dark whitespace-nowrap checkout-pincode-check">
                                         Check
                                     </button>
                                 </div>
                                 <div id="pincodeStatus" class="mt-1 small"></div>
                                 {% else %}
-                                <input type="text" name="pincode" class="form-control-bw" value="{{ form.pincode.value|default:'' }}" placeholder="Pincode">
+                                <input type="text" name="pincode" id="id_pincode" class="form-control-bw{% if form.pincode.errors %} is-invalid{% endif %}" value="{{ form.pincode.value|default:'' }}" placeholder="Pincode" maxlength="6" pattern="[0-9]{6}" inputmode="numeric">
                                 {% endif %}
-                                {% if form.pincode.errors %}<div class="text-danger small mt-1">{{ form.pincode.errors.0 }}</div>{% endif %}
+                                <div class="text-danger small mt-1" data-field-error="pincode" {% if not form.pincode.errors %}hidden{% endif %}>{{ form.pincode.errors.0 }}</div>
                             </div>
 
                             {% if DELIVERY_INTEGRATED %}
                             <div class="col-12" id="shippingInfo" style="display: none;"></div>
                             {% endif %}
                             <div class="col-md-6">
-                                <label class="form-label-bw" for="{{ form.delivery_state.id_for_label }}">{% if DELIVERY_INTEGRATED %}State *{% else %}State{% endif %}</label>
+                                <label class="form-label-bw" for="{{ form.delivery_state.id_for_label }}">State *</label>
                                 {{ form.delivery_state }}
-                                {% if form.delivery_state.errors %}<div class="text-danger small mt-1">{{ form.delivery_state.errors.0 }}</div>{% endif %}
+                                <div class="text-danger small mt-1" data-field-error="delivery_state" {% if not form.delivery_state.errors %}hidden{% endif %}>{{ form.delivery_state.errors.0 }}</div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label-bw">Email {% if is_guest_checkout %}*{% else %}(optional){% endif %}</label>
-                                <input type="email" name="email" class="form-control-bw" value="{{ form.email.value|default:'' }}" placeholder="Email">
-                                {% if form.email.errors %}<div class="text-danger small mt-1">{{ form.email.errors.0 }}</div>{% endif %}
+                                <input type="email" name="email" class="form-control-bw{% if form.email.errors %} is-invalid{% endif %}" value="{{ form.email.value|default:'' }}" placeholder="Email" autocomplete="email">
+                                <div class="text-danger small mt-1" data-field-error="email" {% if not form.email.errors %}hidden{% endif %}>{{ form.email.errors.0 }}</div>
                             </div>
                         </div>
                         {% if DELIVERY_INTEGRATED and addresses %}

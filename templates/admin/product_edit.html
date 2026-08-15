@@ -67,14 +67,14 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="basic-brand">Brand</label>
-                    <input type="text" class="form-control" id="basic-brand"
+                    <input type="text" class="form-control" id="basic-brand" maxlength="120"
                            value="{{ product.brand|default:'' }}" placeholder="e.g. Nike, Apple, Samsung">
                 </div>
             </div>
             <div class="grid-2">
                 <div class="form-group">
                     <label class="form-label" for="basic-name">Product name <span class="req">*</span></label>
-                    <input type="text" class="form-control" id="basic-name"
+                    <input type="text" class="form-control" id="basic-name" maxlength="200"
                            value="{{ product.name }}" placeholder="Product name">
                 </div>
                 <div class="form-group">
@@ -86,7 +86,8 @@
             </div>
             <div class="form-group">
                 <label class="form-label" for="basic-description">Description</label>
-                <textarea class="form-control" id="basic-description" rows="5">{{ product.description }}</textarea>
+                <textarea class="form-control" id="basic-description" rows="5" maxlength="5000">{{ product.description }}</textarea>
+                <span class="form-hint"><span id="basic-description-count">0</span> / 5000 characters</span>
             </div>
 
             <div class="nested-block" style="margin-top: 1rem;">
@@ -96,8 +97,8 @@
                 </p>
                 <div class="form-group">
                     <label class="form-label" for="basic-care_instructions">Care / instructions</label>
-                    <textarea class="form-control" id="basic-care_instructions" rows="3" placeholder="Care tips, what’s included, delivery notes…">{{ product.care_instructions }}</textarea>
-                    <span class="form-hint">Shown with product details on the storefront.</span>
+                    <textarea class="form-control" id="basic-care_instructions" rows="3" maxlength="2000" placeholder="Care tips, what’s included, delivery notes…">{{ product.care_instructions }}</textarea>
+                    <span class="form-hint">Shown with product details on the storefront. <span id="basic-care_instructions-count">0</span> / 2000 characters</span>
                 </div>
                 <div class="toggle-grid">
                     <label class="toggle-wrap{% if product.purchase_enabled %} checked{% endif %}" for="basic-purchase_enabled">
@@ -132,7 +133,8 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label" for="basic-hsn_code">HSN code</label>
-                            <input type="text" class="form-control" id="basic-hsn_code" maxlength="20" placeholder="e.g. 8517" value="{{ product.hsn_code|default:'' }}">
+                            <input type="text" class="form-control" id="basic-hsn_code" maxlength="8" inputmode="numeric" pattern="[0-9]{4,8}" placeholder="e.g. 8517" value="{{ product.hsn_code|default:'' }}">
+                            <span class="form-hint">4–8 digits, numbers only</span>
                         </div>
                     </div>
                 </div>
@@ -275,7 +277,7 @@
         </div>
     </div>
 
-    <div class="edit-section">
+    {% comment %} <div class="edit-section">
         <h4 class="section-heading"><span class="section-num">1A</span> Rental configuration</h4>
         <p class="section-hint">Rental is managed here (not Django admin). Enable rent in Basic details, then configure pricing and rules below.</p>
         <form method="post" action="{% url 'admin_panel:product_rental_config_update' product.pk %}">
@@ -309,7 +311,7 @@
                 <a class="btn btn-secondary" href="{% url 'admin_panel:order_list' %}?rental_status=pending">View rental orders</a>
             </div>
         </form>
-    </div>
+    </div> {% endcomment %}
 
     <div class="edit-section" id="delivery-states-section">
     <h4 class="section-heading"><span class="section-num">1B</span> Delivery states</h4>

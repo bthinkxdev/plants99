@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db.models import OuterRef, Subquery, Q, Prefetch, F
-from ..models import Combo, Variant
+from django.utils import timezone
+from ..models import Combo, Product, Variant
 from .category_tree import category_filter_ids_for_slug
 from .combo_catalog import combo_is_in_stock, prefetch_combo_items
 
@@ -176,34 +177,53 @@ def collection_combo_cards(request):
 # ─────────────────────────────────────────────
 # OPTIMIZED: collection_card_items
 # ─────────────────────────────────────────────
- 
-def collection_card_items(request, paginate_by=12):
+
+def _sort_merged_cards(cards, sort):
     """
-    Returns one card-dict per product (cheapest listing variant chosen; includes out-of-stock).
- 
+    Sorts a mixed list of variant-product and simple-product cards as one
+    sequence. Each card carries uniform sort_price / sort_date / sort_id
+    keys (set by _variant_cards / _simple_product_cards below) precisely so
+    the two kinds can be ordered against each other directly — previously
+    they were sorted independently and rendered as two back-to-back blocks
+    (all variant products, then all simple products), which looked like
+    "sort broken into two halves" regardless of which option was picked.
+
+    Uses two stable sorts (secondary key first, then primary key) rather
+    than a single tuple key, since datetimes can't be negated to flip
+    their sort direction the way numeric fields can.
+    """
+    if sort == 'price_asc':
+        cards.sort(key=lambda c: c['sort_date'], reverse=True)
+        cards.sort(key=lambda c: c['sort_price'])
+    elif sort == 'price_desc':
+        cards.sort(key=lambda c: c['sort_date'], reverse=True)
+        cards.sort(key=lambda c: c['sort_price'], reverse=True)
+    else:
+        cards.sort(key=lambda c: c['sort_id'], reverse=True)
+        cards.sort(key=lambda c: c['sort_date'], reverse=True)
+    return cards
+
+
+def _variant_cards(request, sort):
+    """
+    One card per variant-product (cheapest/most-expensive/display-order
+    listing variant chosen per the active sort — see subquery_order below),
+    including out-of-stock. Each card carries sort_price/sort_date/sort_id
+    so it can be merged with simple-product cards and sorted as one list.
+
     BEFORE: fetched ALL variants into Python, deduped with a seen-set.
             At 5 000 variants that's 5 000 ORM rows deserialized every request.
- 
+
     AFTER:  subquery picks the lowest-price active variant id per product
             entirely inside the DB.  Python only sees one row per product.
- 
-    Steps
-    ─────
-    1. Build a filtered base queryset of Variant rows (same filters as before).
-    2. Use a correlated Subquery to find the MIN-price variant id per product_id.
-    3. Filter the base qs to only those "winner" variant ids.
-    4. fetch_related images in one extra query (prefetch_related).
-    Result: 2 DB queries total instead of 1 huge scan + Python loop.
     """
-    _ = paginate_by  # kept for API compatibility
- 
     category   = request.GET.get('category')
     min_price  = request.GET.get('min_price')
     max_price  = request.GET.get('max_price')
     query      = request.GET.get('q')
-    sort       = (request.GET.get('sort') or '').strip().lower()
     rent_only  = (request.GET.get('rent') or '').strip() in ('1', 'true', 'yes')
     offer_discount = (request.GET.get('offer') or '').strip().lower() in ('discount', 'sale', 'offers')
+    deal_only  = (request.GET.get('deal') or '').strip().lower() in ('1', 'true', 'yes')
 
     # ── Step 1: build the filtered base qs (no select_related yet — keep it cheap) ──
     base_qs = Variant.objects.filter(
@@ -223,38 +243,42 @@ def collection_card_items(request, paginate_by=12):
             original_price__isnull=False,
             original_price__gt=F('price'),
         )
- 
+
+    if deal_only:
+        today = timezone.now().date()
+        base_qs = base_qs.filter(product__is_deal_of_day=True).filter(
+            Q(product__deal_of_day_start__isnull=True) | Q(product__deal_of_day_start__lte=today)
+        ).filter(
+            Q(product__deal_of_day_end__isnull=True) | Q(product__deal_of_day_end__gte=today)
+        )
+
     if category and category != 'all':
         _, ids = category_filter_ids_for_slug(category, include_children=True, max_depth=10)
         if ids:
             base_qs = base_qs.filter(product__category_id__in=ids)
- 
+
     if min_price:
         base_qs = base_qs.filter(price__gte=min_price)
     if max_price:
         base_qs = base_qs.filter(price__lte=max_price)
- 
+
     if query:
         base_qs = base_qs.filter(
             Q(product__name__icontains=query)
             | Q(product__description__icontains=query)
             | Q(product__category__name__icontains=query)
         )
- 
+
     base_qs = apply_plant_filters_to_variant_qs(base_qs, request)
- 
-    # ── Step 2: determine ordering ──
+
+    # ── Step 2: determine which variant "wins" per product ──
     if sort == 'price_asc':
-        order_fields = ('price', '-product__created_at')
         subquery_order = 'price'           # cheapest variant wins
     elif sort == 'price_desc':
-        order_fields = ('-price', '-product__created_at')
         subquery_order = '-price'          # most expensive variant wins
     else:
-        # Default: newest product first, then lowest display_order variant
-        order_fields = ('-product__created_at', '-product__id')
-        subquery_order = 'display_order'
- 
+        subquery_order = 'display_order'   # default: lowest display_order variant
+
     # ── Step 3: correlated subquery — one winner variant id per product ──
     # "For each product_id that appears in base_qs, give me the id of the
     #  variant with the best sort position."
@@ -263,7 +287,7 @@ def collection_card_items(request, paginate_by=12):
         .order_by(subquery_order, 'id')
         .values('id')[:1]
     )
- 
+
     # ── Step 4: final qs — only winner rows, fully hydrated ──
     winner_qs = (
         base_qs
@@ -271,16 +295,107 @@ def collection_card_items(request, paginate_by=12):
         .filter(id=Subquery(winner_subquery))   # keep only the chosen variant per product
         .select_related('product', 'product__category', 'product__rental_config')
         .prefetch_related('images')
-        .order_by(*order_fields)
     )
- 
-    cards = [
+
+    return [
         {
             'kind': 'variant',
             'variant': v,
             'is_jewellery': False,
             'in_stock': (v.stock_quantity or 0) > 0,
+            'sort_price': v.price,
+            'sort_date': v.product.created_at,
+            'sort_id': v.product_id,
         }
         for v in winner_qs
     ]
-    return cards
+
+
+def _simple_product_cards(request):
+    """
+    One card per simple (variant-less) product, including out-of-stock.
+    Mirrors _variant_cards' filters so the two only ever differ by which
+    products they cover, never by which filters got applied — and carries
+    the same sort_price/sort_date/sort_id keys so the two merge cleanly.
+    """
+    category   = request.GET.get('category')
+    min_price  = request.GET.get('min_price')
+    max_price  = request.GET.get('max_price')
+    query      = request.GET.get('q')
+    rent_only  = (request.GET.get('rent') or '').strip() in ('1', 'true', 'yes')
+    offer_discount = (request.GET.get('offer') or '').strip().lower() in ('discount', 'sale', 'offers')
+    deal_only  = (request.GET.get('deal') or '').strip().lower() in ('1', 'true', 'yes')
+
+    qs = (
+        Product.objects.filter(is_active=True, variants__isnull=True)
+        .exclude(base_price__isnull=True)
+        .select_related('category', 'rental_config')
+        .prefetch_related('images')
+    )
+
+    if rent_only:
+        qs = qs.filter(
+            is_rent_available=True,
+            rental_config__is_rent_enabled=True,
+            rental_config__rent_price_per_day__isnull=False,
+        )
+
+    if offer_discount:
+        qs = qs.filter(
+            base_original_price__isnull=False,
+            base_original_price__gt=F('base_price'),
+        )
+
+    if deal_only:
+        today = timezone.now().date()
+        qs = qs.filter(is_deal_of_day=True).filter(
+            Q(deal_of_day_start__isnull=True) | Q(deal_of_day_start__lte=today)
+        ).filter(
+            Q(deal_of_day_end__isnull=True) | Q(deal_of_day_end__gte=today)
+        )
+
+    if category and category != 'all':
+        _, ids = category_filter_ids_for_slug(category, include_children=True, max_depth=10)
+        if ids:
+            qs = qs.filter(category_id__in=ids)
+
+    if min_price:
+        qs = qs.filter(base_price__gte=min_price)
+    if max_price:
+        qs = qs.filter(base_price__lte=max_price)
+
+    if query:
+        qs = qs.filter(
+            Q(name__icontains=query)
+            | Q(description__icontains=query)
+            | Q(category__name__icontains=query)
+        )
+
+    qs = apply_plant_filters_to_product_qs(qs, request)
+
+    return [
+        {
+            'kind': 'simple',
+            'product': p,
+            'in_stock': (p.base_stock or 0) > 0,
+            'sort_price': p.base_price,
+            'sort_date': p.created_at,
+            'sort_id': p.id,
+        }
+        for p in qs
+    ]
+
+
+def collection_card_items(request, paginate_by=12):
+    """
+    Returns one card-dict per product — variant products and simple
+    (variant-less) products merged into a single list and sorted together,
+    so "newest" / "price: low to high" / "price: high to low" apply across
+    the whole catalog rather than sorting each kind separately and
+    concatenating them (which looked like two disconnected blocks: all
+    variant products in order, then all simple products in order).
+    """
+    _ = paginate_by  # kept for API compatibility
+    sort = (request.GET.get('sort') or '').strip().lower()
+    cards = _variant_cards(request, sort) + _simple_product_cards(request)
+    return _sort_merged_cards(cards, sort)

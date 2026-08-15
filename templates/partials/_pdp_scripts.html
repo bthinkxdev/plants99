@@ -1,7 +1,8 @@
-﻿{{ variant_json|json_script:"variant-data" }}
+{{ variant_json|json_script:"variant-data" }}
 {{ ordered_attributes|json_script:"ordered-attributes" }}
 {% if pdp_rent_ready %}{{ product_rental_rates|json_script:"product-rental-rates" }}{% endif %}
 {{ pdp_rental_keys_in_cart|json_script:"pdp-rental-keys-cart" }}
+{{ pdp_cart_variant_ids|json_script:"pdp-cart-variant-ids" }}
 <script>window.productId = {{ product.id }};</script>
 
 <script>
@@ -336,6 +337,26 @@
     var addToCartForm = document.getElementById('addToCartForm');
     var isSimpleProduct = addToCartForm && addToCartForm.getAttribute('data-simple-product') === 'true';
     var buyNowUrl = '{% url "store:buy_now" %}';
+    var pdpCartUrl = (document.body && document.body.getAttribute('data-cart-url')) || (addToCartForm ? addToCartForm.getAttribute('data-cart-url') : '') || '#';
+
+    // Which variants of THIS product are already in the cart. Seeded from the
+    // server-rendered snapshot (correct as of page load / hard refresh), then
+    // kept live by add-to-cart.js as items get added without a reload — see
+    // add-to-cart.js's window.__pdpCartVariantIds / window.__pdpRefreshCartButtons.
+    var cartVariantIdsEl = document.getElementById('pdp-cart-variant-ids');
+    var initialCartVariantIds = [];
+    if (cartVariantIdsEl) {
+        try {
+            initialCartVariantIds = JSON.parse(cartVariantIdsEl.textContent || '[]') || [];
+        } catch (e) {
+            initialCartVariantIds = [];
+        }
+    }
+    if (!window.__pdpCartVariantIds) {
+        window.__pdpCartVariantIds = new Set(initialCartVariantIds.map(Number));
+    } else {
+        initialCartVariantIds.forEach(function (id) { window.__pdpCartVariantIds.add(Number(id)); });
+    }
 
     var qtyInput = document.getElementById('qtyInput');
     var formQuantity = document.getElementById('formQuantity');
@@ -438,6 +459,139 @@
         }
     }
 
+    function variantInCart(variant) {
+        return !!(variant && window.__pdpCartVariantIds.has(Number(variant.id)));
+    }
+
+    function buildViewCartLink(warning) {
+        var link = document.createElement('a');
+        link.href = pdpCartUrl;
+        link.className = 'btn-add-cart btn btn-view-cart' + (warning ? ' btn-view-cart--warning' : '') + ' js-open-cart-drawer';
+        link.innerHTML = warning
+            ? '<i class="fas fa-exclamation-circle me-2"></i> In cart — Out of stock'
+            : '<i class="fas fa-shopping-cart me-2"></i> View Cart';
+        link.setAttribute('aria-label', 'View cart');
+        link.addEventListener('click', function (e) {
+            if (window.cartDrawer && typeof window.cartDrawer.open === 'function') {
+                e.preventDefault();
+                window.cartDrawer.open();
+            }
+        });
+        return link;
+    }
+
+    function buildAddToCartButton() {
+        var btn = document.createElement('button');
+        btn.type = 'submit';
+        btn.className = 'btn-add-cart btn js-pdp-add-cart';
+        btn.innerHTML = '<span class="btn-add-cart-text"><i class="fas fa-shopping-bag me-2"></i> Add to Cart</span>';
+        return btn;
+    }
+
+    // Renders the main CTA (and, once it exists further down, the sticky
+    // bar's mirror of it) for `variant` — swapping the live DOM node between
+    // the submit <button> and the "View Cart" <a> whenever its role needs to
+    // change, and just refreshing disabled state otherwise. Always re-queries
+    // the CURRENT node rather than trusting a cached `addBtn` reference,
+    // because add-to-cart.js may have already swapped it out from under us
+    // (that's exactly the bug this fixes — switching attributes after an add
+    // used to leave the stale "View Cart" node showing for every variant).
+    function renderCartActionState(variant) {
+        var ctaRow = document.querySelector('.product-cta-row');
+        var current = ctaRow ? ctaRow.querySelector('.btn-add-cart') : null;
+        if (current) {
+            var stock = variant ? ((variant.stock != null ? variant.stock : variant.stock_quantity) || 0) : 0;
+            var inStockNow = !!variant && stock > 0;
+            var inCartNow = variantInCart(variant);
+
+            if (inCartNow) {
+                var warning = !inStockNow;
+                if (current.tagName !== 'A') {
+                    var link = buildViewCartLink(warning);
+                    current.parentNode.replaceChild(link, current);
+                    addBtn = link;
+                } else {
+                    current.classList.toggle('btn-view-cart--warning', warning);
+                    current.innerHTML = warning
+                        ? '<i class="fas fa-exclamation-circle me-2"></i> In cart — Out of stock'
+                        : '<i class="fas fa-shopping-cart me-2"></i> View Cart';
+                    addBtn = current;
+                }
+            } else {
+                if (current.tagName !== 'BUTTON') {
+                    var btn = buildAddToCartButton();
+                    current.parentNode.replaceChild(btn, current);
+                    addBtn = btn;
+                } else {
+                    addBtn = current;
+                }
+                addBtn.disabled = !inStockNow;
+            }
+        }
+
+        // stickyAdd is declared further down in this closure (hoisted, so the
+        // binding exists here) but isn't assigned until after the initial
+        // applyVariant() call that happens during page load — same as the
+        // pre-existing syncStickyFromDom(), this simply no-ops until then.
+        if (typeof stickyAdd !== 'undefined' && stickyAdd) {
+            var stock2 = variant ? ((variant.stock != null ? variant.stock : variant.stock_quantity) || 0) : 0;
+            var inStockNow2 = !!variant && stock2 > 0;
+            var inCartNow2 = variantInCart(variant);
+            if (inCartNow2) {
+                if (stickyAdd.tagName !== 'A') {
+                    var stickyLink = document.createElement('a');
+                    stickyLink.href = pdpCartUrl;
+                    stickyLink.id = 'pdpStickyAdd';
+                    stickyLink.className = 'btn btn-dark btn-sm flex-shrink-0 js-open-cart-drawer';
+                    stickyLink.textContent = 'View Cart';
+                    stickyLink.addEventListener('click', function (e) {
+                        if (window.cartDrawer && typeof window.cartDrawer.open === 'function') {
+                            e.preventDefault();
+                            window.cartDrawer.open();
+                        }
+                    });
+                    stickyAdd.parentNode.replaceChild(stickyLink, stickyAdd);
+                    stickyAdd = stickyLink;
+                }
+            } else {
+                if (stickyAdd.tagName !== 'BUTTON') {
+                    var stickyBtn = document.createElement('button');
+                    stickyBtn.type = 'button';
+                    stickyBtn.id = 'pdpStickyAdd';
+                    stickyBtn.className = 'btn btn-dark btn-sm flex-shrink-0';
+                    stickyBtn.textContent = 'Add to cart';
+                    stickyBtn.addEventListener('click', function () {
+                        if (stickyBtn.disabled) return;
+                        if (addToCartForm) {
+                            if (typeof addToCartForm.requestSubmit === 'function') addToCartForm.requestSubmit();
+                            else addToCartForm.submit();
+                        }
+                    });
+                    stickyAdd.parentNode.replaceChild(stickyBtn, stickyAdd);
+                    stickyAdd = stickyBtn;
+                }
+                stickyAdd.disabled = !inStockNow2;
+            }
+        }
+    }
+
+    // Keeps the URL's ?variant= in sync with whatever's actually selected, so
+    // a hard refresh (or copy-pasting the URL) restores the exact same
+    // variant — and, combined with the server using pdp_purchase_in_cart for
+    // that resolved variant, the correct Add/View Cart state along with it.
+    function syncVariantUrl(variant) {
+        if (!variant || !window.history || !window.history.replaceState) return;
+        try {
+            var params = new URLSearchParams(window.location.search);
+            if (params.get('variant') === String(variant.id)) return;
+            params.set('variant', String(variant.id));
+            var newUrl = window.location.pathname + '?' + params.toString() + window.location.hash;
+            window.history.replaceState(window.history.state, '', newUrl);
+        } catch (e) {
+            // URL sync is a nice-to-have — never let it block variant switching.
+        }
+    }
+
     function applyVariant(variant) {
         currentVariant = variant || null;
         if (!variant) {
@@ -447,9 +601,7 @@
             if (formVariantId) {
                 formVariantId.value = '';
             }
-            if (addBtn) {
-                addBtn.disabled = true;
-            }
+            renderCartActionState(null);
             if (buyNowBtn) {
                 buyNowBtn.disabled = true;
             }
@@ -457,6 +609,12 @@
                 wishlistBtn.removeAttribute('data-variant-id');
             }
             setStockMessage('Select all options to see availability', 'info');
+            if (qtyInput) {
+                qtyInput.max = '0';
+                qtyInput.value = '1';
+                if (formQuantity) formQuantity.value = '1';
+                if (typeof window.syncQtyButtons === 'function') window.syncQtyButtons(qtyInput);
+            }
             return;
         }
 
@@ -531,9 +689,8 @@
         }
 
         var inStock = ((variant.stock != null ? variant.stock : variant.stock_quantity) || 0) > 0;
-        if (addBtn) {
-            addBtn.disabled = !inStock;
-        }
+        renderCartActionState(variant);
+        syncVariantUrl(variant);
         if (buyNowBtn) {
             buyNowBtn.disabled = !inStock;
         }
@@ -548,6 +705,19 @@
             setStockMessage('In Stock (' + sq + ')', 'ok');
         } else {
             setStockMessage('Out of Stock', 'out');
+        }
+
+        if (qtyInput) {
+            var variantMax = inStock ? (parseInt(sq, 10) || 0) : 0;
+            qtyInput.max = String(variantMax);
+            var qtyNow = parseInt(qtyInput.value, 10) || 1;
+            if (variantMax <= 0) {
+                qtyInput.value = '1';
+            } else if (qtyNow > variantMax) {
+                qtyInput.value = String(variantMax);
+            }
+            if (formQuantity) formQuantity.value = qtyInput.value;
+            if (typeof window.syncQtyButtons === 'function') window.syncQtyButtons(qtyInput);
         }
 
         if (mainImg && variant.image) {
@@ -971,7 +1141,7 @@
             for (var i = 0; i < levelIndex; i++) {
                 var prevName = attributeGroups[i].getAttribute('data-attribute-name');
                 if (!prevName || !selected[prevName]) {
-                    // Previous level not selected â‡’ disable everything at this level
+                    // Previous level not selected ⇒ disable everything at this level
                     buttons.forEach(function(btn){
                         btn.disabled = true;
                         btn.classList.add('disabled-option');
@@ -1149,6 +1319,16 @@
 
     // Initial state for variant products
     initialiseSelectedFromDOM();
+
+    // add-to-cart.js calls this right after a successful add (once its own
+    // direct DOM swap on the just-clicked button is done) so the whole CTA —
+    // main button and sticky bar alike — re-derives from the freshly updated
+    // window.__pdpCartVariantIds for whichever variant is selected right now.
+    // Only wired up for variant products: simple products have exactly one
+    // state to track and add-to-cart.js already handles that directly.
+    window.__pdpRefreshCartButtons = function () {
+        renderCartActionState(currentVariant);
+    };
     }
 
     var offerModeRoot = document.getElementById('pdpOfferMode');

@@ -9,7 +9,7 @@ from .wishlist_utils import (
     guest_wishlist_total_count,
     wishlist_enabled,
 )
-from .services.category_tree import build_active_category_tree
+from .services.category_tree import build_active_category_tree, category_ids_with_available_products
 
 def site_contact_context(request):
     return {
@@ -121,16 +121,41 @@ def search_typed_suggestions(request):
     return {'search_typed_phrases': phrases}
 
 
+_NAV_AVAILABLE_CATEGORY_IDS_CACHE_KEY = 'ctx:nav_available_category_ids:v1'
+_NAV_AVAILABLE_CATEGORY_IDS_CACHE_TTL = 120
+
+
+def _get_nav_available_category_ids(tree):
+    """
+    Cached wrapper around category_ids_with_available_products — this runs
+    on every request (it's a context processor), so the underlying
+    product-availability query is cached briefly rather than re-run per
+    page view. Cleared by _invalidate_home_cache() on product/category
+    edits, same as the homepage category strip's cache.
+    """
+    cached = cache.get(_NAV_AVAILABLE_CATEGORY_IDS_CACHE_KEY)
+    if cached is not None:
+        return cached
+    ids = category_ids_with_available_products(tree)
+    cache.set(_NAV_AVAILABLE_CATEGORY_IDS_CACHE_KEY, ids, _NAV_AVAILABLE_CATEGORY_IDS_CACHE_TTL)
+    return ids
+
+
 def storefront_brand(request):
     tree = build_active_category_tree()
+    # A category with zero purchasable products anywhere in its subtree
+    # (none linked at all, or all out of stock) is excluded from both the
+    # navbar and the homepage category strip — see
+    # category_ids_with_available_products for the shared rule.
+    qualifying_ids = _get_nav_available_category_ids(tree)
     root_ids = tree.children_ids.get(None, [])
-    roots = [tree.by_id[cid] for cid in root_ids if cid in tree.by_id]
+    roots = [tree.by_id[cid] for cid in root_ids if cid in tree.by_id and cid in qualifying_ids]
     roots.sort(key=lambda c: (c.name.lower(), c.pk))
     nav = roots[:16]
     nav_category_menu = []
     for parent in nav:
         child_ids = tree.children_ids.get(parent.pk, [])
-        children = [tree.by_id[cid] for cid in child_ids if cid in tree.by_id]
+        children = [tree.by_id[cid] for cid in child_ids if cid in tree.by_id and cid in qualifying_ids]
         children.sort(key=lambda c: (c.name.lower(), c.pk))
         nav_category_menu.append({'parent': parent, 'children': children})
     return {'site_brand': getattr(settings, 'SITE_BRAND', 'Plants 99'), 'site_tagline': getattr(settings, 'SITE_TAGLINE', 'Rooted in Kerala. Growing Happier Homes Across India.'), 'nav_categories': nav, 'nav_category_menu': nav_category_menu}

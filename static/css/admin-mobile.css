@@ -1059,6 +1059,12 @@
 @media (min-width: 769px) {
     #reportFilterTrigger { display: none !important; }
     .report-filters-sheet {
+        /* The generic ".filters-sheet { display: none !important; }" desktop rule
+           hides the mobile slide-up sheet on pages that have a separate always-visible
+           desktop filter bar. Reports has no such duplicate bar — this sheet IS the
+           filter UI on every viewport — so it must be explicitly shown here and
+           repurposed as a static inline panel instead of an off-canvas overlay. */
+        display: block !important;
         position: static !important;
         transform: none !important;
         box-shadow: none !important;

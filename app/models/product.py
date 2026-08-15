@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
@@ -50,7 +50,7 @@ class Product(TimeStampedModel):
     category = models.ForeignKey('Category', on_delete=models.PROTECT, related_name='products')
     name = models.CharField(max_length=200, db_index=True)
     slug = models.SlugField(max_length=220, unique=True)
-    description = models.TextField(blank=True)
+    description = models.TextField(blank=True, max_length=5000)
     brand = models.CharField(max_length=120, blank=True, db_index=True)
     is_featured = models.BooleanField(default=False, db_index=True)
     is_bestseller = models.BooleanField(default=False, db_index=True)
@@ -61,10 +61,10 @@ class Product(TimeStampedModel):
     average_rating = models.DecimalField(max_digits=3, decimal_places=2, default=0, help_text='Average star rating from verified reviews (1-5).')
     total_reviews = models.PositiveIntegerField(default=0, help_text='Total number of approved, non-deleted reviews.')
     is_gst_applicable = models.BooleanField(default=False, db_index=True)
-    gst_percentage = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, help_text='GST %% (0-28). Required when is_gst_applicable is True.')
+    gst_percentage = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(0), MaxValueValidator(28)], help_text='GST %% (0-28). Required when is_gst_applicable is True.')
     hsn_code = models.CharField(max_length=20, blank=True, null=True)
-    base_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    base_original_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text='MRP/Original price for simple products. Used for discount display.')
+    base_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(0)])
+    base_original_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(0)], help_text='MRP/Original price for simple products. Used for discount display.')
     base_stock = models.PositiveIntegerField(null=True, blank=True)
     sunlight = models.CharField(max_length=16, choices=Sunlight.choices, default=Sunlight.PARTIAL, db_index=True)
     watering = models.CharField(max_length=16, choices=Watering.choices, default=Watering.MEDIUM, db_index=True)
@@ -84,7 +84,7 @@ class Product(TimeStampedModel):
         db_index=True,
         help_text='Legacy Product row superseded by app.models.Combo; redirect storefront to Combo when set.',
     )
-    care_instructions = models.TextField(blank=True, help_text='Care instructions (overview tab / plain text).')
+    care_instructions = models.TextField(blank=True, max_length=2000, help_text='Care instructions (overview tab / plain text).')
     video_url = models.URLField(max_length=500, blank=True, help_text='Optional product video URL (e.g. YouTube embed or file).')
     germination_time_display = models.CharField(max_length=120, blank=True, help_text='Display label for germination time, e.g. 7–14 days.')
     harvest_time_display = models.CharField(max_length=120, blank=True)

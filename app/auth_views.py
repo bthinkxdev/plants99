@@ -93,11 +93,19 @@ class OTPLoginView(View):
         success, message, otp_request = OTPService.verify_otp(email, otp)
         if success:
             user, created = AuthenticationService.get_or_create_user(email)
+            # login() rotates the session key (session-fixation protection —
+            # see django.contrib.auth.login's cycle_key() call) whenever the
+            # session wasn't already authenticated, which this guest session
+            # never is. The guest cart is filed under the OLD session_key, so
+            # it must be captured before login() runs or merge_carts() below
+            # looks up a session_key that no longer matches anything.
+            guest_session_key = request.session.session_key
             login(request, user)
             request.session.pop('otp_email', None)
             request.session.pop('otp_next', None)
-            CartService.merge_carts(user, request.session.session_key)
+            CartService.merge_carts(user, guest_session_key)
             CartService.merge_session_wishlist_to_user(request, user)
+            AuthenticationService.merge_guest_orders(user)
             messages.success(request, 'Login successful!')
             if next_url == '/cart/add/':
                 return redirect('/')
@@ -154,9 +162,13 @@ class OTPLoginAjaxView(View):
         success, message, otp_request = OTPService.verify_otp(email, otp)
         if success:
             user, created = AuthenticationService.get_or_create_user(email)
+            # See the matching comment in OTPLoginView.handle_otp_verification —
+            # login() rotates the session key, so it must be captured first.
+            guest_session_key = request.session.session_key
             login(request, user)
-            CartService.merge_carts(user, request.session.session_key)
+            CartService.merge_carts(user, guest_session_key)
             CartService.merge_session_wishlist_to_user(request, user)
+            AuthenticationService.merge_guest_orders(user)
             request.session.pop('otp_email', None)
             next_url = request.POST.get('next', '/')
             return JsonResponse({'success': True, 'message': 'Login successful!', 'redirect': next_url})

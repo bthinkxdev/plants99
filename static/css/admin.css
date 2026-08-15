@@ -200,6 +200,7 @@ body {
 
 .main-content {
     flex: 1;
+    min-width: 0;
     margin-left: var(--sidebar-width);
     display: flex;
     flex-direction: column;
@@ -273,6 +274,7 @@ body {
 
 .content-area {
     flex: 1;
+    min-width: 0;
     padding: 2rem;
     background: var(--gray-50);
 }
@@ -516,6 +518,13 @@ select.form-control {
     font-size: 0.85rem;
     color: var(--gray-500);
     margin-top: 0.35rem;
+}
+
+.admin-form .form-warning {
+    font-size: 0.85rem;
+    color: var(--warning);
+    margin-top: 0.35rem;
+    font-weight: 500;
 }
 
 .admin-form .form-error {
@@ -873,6 +882,16 @@ select.form-control {
     flex: 1;
     min-width: 0;
     flex-wrap: nowrap;
+}
+
+/* .filters(.filters-inline) carries a global margin-bottom for pages where the filter
+   bar stacks above other content; here it's a flex sibling of the "Add home category"
+   button instead, and that margin was inflating this item's box, so align-items: center
+   pushed the button down relative to the Apply button. Selector kept at 3 classes to
+   reliably beat the desktop ".filters.filters-inline { margin-bottom: ... }" rule
+   regardless of stylesheet order. */
+.hc-list-toolbar-row .filters.filters-inline {
+    margin-bottom: 0;
 }
 
 .hc-list-add-btn {
@@ -2914,9 +2933,17 @@ html, body {
 }
 
 .tm-form-toggles {
+    /* .admin-form-checks (the other class on this element) sets align-items: center
+       for its own row layout elsewhere; this rule only overrode display/flex-direction/
+       gap, so that center value leaked through and centered each stacked toggle
+       horizontally. Set flex-direction/align-items/justify-content explicitly so the
+       toggles sit side by side and left-aligned on desktop. */
     display: flex;
-    flex-direction: column;
-    gap: 0.85rem;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.85rem 2rem;
 }
 
 .tm-rating-select {
@@ -2930,6 +2957,11 @@ html, body {
 @media (max-width: 900px) {
     .tm-form-layout {
         grid-template-columns: 1fr;
+    }
+
+    .tm-form-toggles {
+        flex-direction: column;
+        align-items: flex-start;
     }
 
     .tm-preview-aside {

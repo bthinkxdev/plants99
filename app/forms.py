@@ -1,3 +1,5 @@
+import re
+
 from django import forms
 from django.core.validators import EmailValidator, RegexValidator
 from django.contrib.auth.models import User
@@ -6,6 +8,38 @@ from .models import Address, ContactMessage, NewsletterSubscription, Review
 from .delivery_utils import delivery_enabled
 from .services.state_delivery_service import get_all_active_states, resolve_delivery_state_id
 from .services.cart_order import format_cart_delivery_error, get_cart_delivery_issues
+
+
+# A name/city must be actual letters — not something typed entirely in
+# digits or punctuation. Spaces, periods, apostrophes and hyphens are
+# allowed so names like "Mary-Jane" or "St. Thomas" still pass.
+_NAME_LIKE_VALIDATOR = RegexValidator(
+    regex=r"^[A-Za-z][A-Za-z .'-]*$",
+    message="Enter a valid name using letters only.",
+)
+_CITY_VALIDATOR = RegexValidator(
+    regex=r"^[A-Za-z][A-Za-z .'-]*$",
+    message="Enter a valid city name using letters only.",
+)
+# Django's built-in EmailValidator follows RFC 5322, which technically
+# allows most punctuation unquoted in the local part (e.g. "!!!123@gmail.com"
+# is "valid" by that standard) — too permissive for a real contact form.
+# This tightens it to the shape people actually expect: alphanumerics plus
+# ._%+- in the local part (no leading/trailing/doubled dots), and a domain
+# made of dot-separated labels ending in an alphabetic TLD of 2+ characters.
+_EMAIL_LIKE_VALIDATOR = RegexValidator(
+    regex=r"^(?!.*\.\.)[A-Za-z0-9_%+-]+(?:\.[A-Za-z0-9_%+-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}$",
+    message="Enter a valid email address.",
+)
+
+
+def _validate_address_has_letters(value):
+    # An address legitimately contains numbers (house/street/flat numbers),
+    # so it can't be letters-only like name/city — but it must contain at
+    # least one letter, so a value that's purely digits or punctuation
+    # (e.g. "12345" or "###") gets rejected.
+    if value and not re.search(r'[A-Za-z]', value):
+        raise forms.ValidationError('Enter a valid address.')
 
 
 def active_delivery_state_queryset():
@@ -93,11 +127,11 @@ class CheckoutForm(forms.Form):
     selected_address = forms.IntegerField(required=False, widget=forms.HiddenInput())
     use_new_address  = forms.BooleanField(required=False, initial=False, widget=forms.HiddenInput())
  
-    full_name    = forms.CharField(max_length=120, required=False)
-    email        = forms.EmailField(required=False)
+    full_name    = forms.CharField(max_length=120, required=False, validators=[_NAME_LIKE_VALIDATOR])
+    email        = forms.EmailField(required=False, validators=[_EMAIL_LIKE_VALIDATOR])
     phone        = forms.CharField(max_length=20, required=False)
-    address_line = forms.CharField(widget=forms.Textarea(attrs={"rows": 3}), required=False, label="Address")
-    city         = forms.CharField(max_length=80, required=False)
+    address_line = forms.CharField(widget=forms.Textarea(attrs={"rows": 3}), required=False, label="Address", validators=[_validate_address_has_letters])
+    city         = forms.CharField(max_length=80, required=False, validators=[_CITY_VALIDATOR])
     state        = forms.CharField(max_length=80, required=False, widget=forms.HiddenInput())
     pincode      = forms.CharField(max_length=10, required=False)
     delivery_state = forms.ModelChoiceField(
@@ -173,7 +207,11 @@ class CheckoutForm(forms.Form):
                     except Exception:
                         raise forms.ValidationError("Failed to retrieve addresses. Please try again.")
  
-                if use_new_address and delivery_on:
+                if use_new_address:
+                    # Address fields must always be mandatory for a new address —
+                    # delivery_on only controls the *display* of shipping-integration
+                    # extras (pincode-check API, open-box option, COD charge row),
+                    # it must never decide whether these fields get validated.
                     required_fields = ["full_name", "phone", "address_line", "city", "delivery_state", "pincode"]
                     if is_guest:
                         required_fields = ["full_name", "email", "phone", "address_line", "city", "delivery_state", "pincode"]
@@ -237,6 +275,14 @@ class CheckoutForm(forms.Form):
     _validate_pincode = _validate_pincode_format
 
 class ContactForm(forms.ModelForm):
+    MESSAGE_MAX_LENGTH = 2000
+
+    name = forms.CharField(max_length=120, validators=[_NAME_LIKE_VALIDATOR])
+    email = forms.EmailField(validators=[_EMAIL_LIKE_VALIDATOR])
+    message = forms.CharField(
+        max_length=MESSAGE_MAX_LENGTH,
+        widget=forms.Textarea(attrs={"rows": 5, "maxlength": MESSAGE_MAX_LENGTH}),
+    )
 
     class Meta:
         model = ContactMessage

@@ -24,6 +24,55 @@
     var imagesAddBtn = document.getElementById("create-images-add-btn");
     var imagesHint = document.getElementById("create-images-hint");
 
+    function wireCharCounter(inputId, countId) {
+        var input = document.getElementById(inputId);
+        var count = document.getElementById(countId);
+        if (!input || !count) return;
+        function update() {
+            count.textContent = input.value.length;
+        }
+        input.addEventListener("input", update);
+        update();
+    }
+    wireCharCounter("basic-description", "basic-description-count");
+    wireCharCounter("basic-care_instructions", "basic-care_instructions-count");
+
+    function sanitizeDecimalString(text) {
+        var cleaned = text.replace(/[^0-9.]/g, "");
+        var firstDot = cleaned.indexOf(".");
+        if (firstDot !== -1) {
+            cleaned = cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, "");
+        }
+        return cleaned;
+    }
+    var DECIMAL_ALLOWED_KEYS = ["Backspace", "Delete", "Tab", "Escape", "Enter", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"];
+    function wireDecimalInput(inputId) {
+        var input = document.getElementById(inputId);
+        if (!input) return;
+        input.addEventListener("keydown", function (e) {
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            if (DECIMAL_ALLOWED_KEYS.indexOf(e.key) !== -1) return;
+            if (e.key === "." && input.value.indexOf(".") === -1) return;
+            if (/^[0-9]$/.test(e.key)) return;
+            e.preventDefault();
+        });
+        input.addEventListener("input", function () {
+            var cleaned = sanitizeDecimalString(input.value);
+            if (cleaned !== input.value) input.value = cleaned;
+        });
+        input.addEventListener("paste", function (e) {
+            e.preventDefault();
+            var text = (e.clipboardData || window.clipboardData).getData("text");
+            var cleaned = sanitizeDecimalString(text);
+            var start = input.selectionStart == null ? input.value.length : input.selectionStart;
+            var end = input.selectionEnd == null ? input.value.length : input.selectionEnd;
+            var newVal = sanitizeDecimalString(input.value.slice(0, start) + cleaned + input.value.slice(end));
+            input.value = newVal;
+        });
+    }
+    wireDecimalInput("basic-base_price");
+    wireDecimalInput("basic-base_original_price");
+
     function toast(message, type) {
         type = type || "success";
         var container = document.getElementById("toast-container");
@@ -231,8 +280,21 @@
             is_plant_combo: plantComboEl ? plantComboEl.checked : false,
             care_instructions: careEl ? (careEl.value || "").trim() : "",
         };
+        var HAS_LETTER_RE = /\p{L}/u;
         if (!payload.name) {
             toast("Name is required.", "error");
+            return;
+        }
+        if (!HAS_LETTER_RE.test(payload.name)) {
+            toast("Product name must include at least one letter — numbers or symbols alone are not allowed.", "error");
+            return;
+        }
+        if (payload.brand && !HAS_LETTER_RE.test(payload.brand)) {
+            toast("Brand must include at least one letter — numbers or symbols alone are not allowed.", "error");
+            return;
+        }
+        if (payload.hsn_code && !/^\d{4,8}$/.test(payload.hsn_code)) {
+            toast("HSN code must be 4–8 digits (numbers only).", "error");
             return;
         }
         if (!payload.category) {

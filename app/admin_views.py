@@ -16,7 +16,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView, View
-from .models import Banner, BlogPost, CartItem, Category, Combo, ComboItem, ContactMessage, Coupon, CouponRedemption, HomeCategory, HomeCategoryProduct, Order, OrderItem, Product, ProductAttributeValue, Reel, RentalBooking, Review, Shipment, Variant, VariantImage, Testimonial
+from .models import Banner, BlogPost, CartItem, Category, Combo, ComboItem, ContactMessage, Coupon, CouponRedemption, HomeCategory, HomeCategoryProduct, Order, OrderItem, Product, ProductAttributeValue, ProductComboItem, ProductPotAddon, Reel, RentalBooking, Review, Shipment, Variant, VariantImage, Testimonial
 from django.conf import settings
 from .admin import _invalidate_home_cache
 from .admin_forms import AdminLoginForm, BannerForm, BlogPostForm, CategoryForm, ComboForm, CouponForm, HomeCategoryForm, ProductBasicEditForm, ReelForm, RentalConfigForm, _validate_image_file, TestimonialForm
@@ -1102,6 +1102,37 @@ class ProductCreateView(StaffRequiredMixin, TemplateView):
         context['basic_form'] = ProductBasicEditForm(instance=None)
         return context
 
+def _describe_product_protection(protected_objects):
+    combo_names = set()
+    pot_plant_names = set()
+    for obj in protected_objects:
+        if isinstance(obj, ProductComboItem):
+            if obj.combo_product_id:
+                combo_names.add(obj.combo_product.name)
+        elif isinstance(obj, ComboItem):
+            if obj.combo_id:
+                combo_names.add(obj.combo.name)
+        elif isinstance(obj, ProductPotAddon):
+            if obj.plant_product_id:
+                pot_plant_names.add(obj.plant_product.name)
+
+    def _format(names, max_shown=5):
+        names = sorted(names)
+        shown = ', '.join(f'"{n}"' for n in names[:max_shown])
+        if len(names) > max_shown:
+            shown += f' and {len(names) - max_shown} more'
+        return shown
+
+    reasons = []
+    if combo_names:
+        reasons.append(f'used as a component in combo bundle(s): {_format(combo_names)}')
+    if pot_plant_names:
+        reasons.append(f'linked as a pot add-on option for: {_format(pot_plant_names)}')
+    if not reasons:
+        reasons.append('referenced by other records')
+    return '; '.join(reasons)
+
+
 class ProductDeleteView(StaffRequiredMixin, DeleteView):
     model = Product
     success_url = reverse_lazy('admin_panel:product_list')
@@ -1131,7 +1162,8 @@ class ProductDeleteView(StaffRequiredMixin, DeleteView):
             self.object.delete()
             messages.success(request, f'Product "{product_name}" has been deleted successfully.')
         except ProtectedError as e:
-            messages.error(request, f'Cannot delete product "{product_name}". It is protected by existing order data.')
+            reason = _describe_product_protection(e.protected_objects)
+            messages.error(request, f'Cannot delete product "{product_name}" — it is {reason}. Remove it from there first, then delete the product.')
         except Exception as e:
             messages.error(request, f'Could not delete product: {str(e)}')
         return redirect(success_url)
@@ -1694,6 +1726,8 @@ class DashboardReelCreateView(StaffRequiredMixin, CreateView):
     def form_valid(self, form):
         form.save()
         messages.success(self.request, 'Reel created.')
+        if form.reel_ratio_warning:
+            messages.warning(self.request, form.reel_ratio_warning)
         return redirect(self.success_url)
 
     def get_context_data(self, **kwargs):
@@ -1712,6 +1746,8 @@ class DashboardReelUpdateView(StaffRequiredMixin, UpdateView):
     def form_valid(self, form):
         form.save()
         messages.success(self.request, 'Reel updated.')
+        if form.reel_ratio_warning:
+            messages.warning(self.request, form.reel_ratio_warning)
         return redirect(self.success_url)
 
     def get_context_data(self, **kwargs):

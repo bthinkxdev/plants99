@@ -32,7 +32,7 @@ from .services.cart_order import (
 from .services.state_delivery_service import resolve_delivery_state_id
 from .services.product_service import ProductDetailService, get_pdp_queryset
 from .services.catalog import active_variant_qs, apply_plant_filters_to_product_qs, apply_plant_filters_to_variant_qs, attach_product_card_display, collection_card_items, collection_combo_cards, listing_variant_prefetch
-from .services.category_tree import build_active_category_tree, category_filter_ids_for_slug
+from .services.category_tree import build_active_category_tree, category_filter_ids_for_slug, category_ids_with_available_products
 from .wishlist_utils import (
     get_guest_wishlist_product_ids,
     get_guest_wishlist_variant_ids,
@@ -349,15 +349,21 @@ class HomeView(TemplateView):
  
  
 def _load_shop_categories():
-    """Shop category list — cached for 5 minutes (rarely changes)."""
-    CACHE_KEY = 'home_shop_categories_v1'
+    """
+    Shop category list — cached for 5 minutes (rarely changes). Only
+    categories with at least one purchasable (active + in stock) product
+    somewhere in their subtree qualify — a category with zero products, or
+    whose products are all out of stock, is excluded (see
+    category_ids_with_available_products, also used to filter the navbar
+    menu so both stay in sync).
+    """
+    CACHE_KEY = 'home_shop_categories_v2'
     cached = _cache.get(CACHE_KEY)
     if cached is not None:
         return cached
+    qualifying_ids = category_ids_with_available_products()
     qs = (
-        Category.objects.filter(is_active=True, parent__isnull=True)
-        .filter(products__is_active=True)
-        .distinct()
+        Category.objects.filter(is_active=True, parent__isnull=True, pk__in=qualifying_ids)
         .order_by('name')[:8]
     )
     result = list(qs)
@@ -606,56 +612,20 @@ class ProductListView(ListView):
             ('price_desc', 'Price: High to Low'),
         ]
 
-        if combo_only:
-            context['simple_products']      = []
-            context['total_product_count']  = len(context.get('card_items', []))
-        else:
-            simple_qs = (
-                Product.objects.active()
-                .filter(variants__isnull=True)
-                .exclude(base_price__isnull=True)
-                .select_related('category')
-                .prefetch_related('images')
-            )
-            if rent_only:
-                simple_qs = simple_qs.filter(
-                    is_rent_available=True,
-                    rental_config__is_rent_enabled=True,
-                    rental_config__rent_price_per_day__isnull=False,
-                ).select_related('rental_config')
-            if offer_discount:
-                from django.db.models import F as DjF
-                simple_qs = simple_qs.filter(
-                    base_original_price__isnull=False,
-                    base_original_price__gt=DjF('base_price'),
-                )
-            if category_slug and category_slug != 'all':
-                _, ids = category_filter_ids_for_slug(category_slug, include_children=True, max_depth=10)
-                if ids:
-                    simple_qs = simple_qs.filter(category_id__in=ids)
-            if min_price:
-                simple_qs = simple_qs.filter(base_price__gte=min_price)
-            if max_price:
-                simple_qs = simple_qs.filter(base_price__lte=max_price)
-            if query:
-                simple_qs = simple_qs.filter(
-                    Q(name__icontains=query)
-                    | Q(description__icontains=query)
-                    | Q(category__name__icontains=query)
-                )
-            simple_qs = apply_plant_filters_to_product_qs(simple_qs, request)
-            if sort == 'price_asc':
-                simple_qs = simple_qs.order_by('base_price', 'created_at')
-            elif sort == 'price_desc':
-                simple_qs = simple_qs.order_by('-base_price', '-created_at')
-            else:
-                simple_qs = simple_qs.order_by('-created_at', 'name', 'id')
-            context['simple_products']     = list(simple_qs)
-            for product in context['simple_products']:
-                attach_product_card_display(product)
-            context['total_product_count'] = (
-                len(context.get('card_items', [])) + len(context['simple_products'])
-            )
+        # Simple (variant-less) products are no longer a separate,
+        # independently-sorted list rendered after the variant products —
+        # collection_card_items() (called from get_queryset()) already
+        # merges variant-product cards and simple-product cards into one
+        # sorted sequence ('card_items'/'products'), and ListView's own
+        # pagination (context['paginator']) slices that combined sequence.
+        # A second, separately-paginated simple-products list here would
+        # (a) duplicate products on every infinite-scroll page, since it
+        # was never sliced by page, and (b) reintroduce the "two blocks"
+        # sort bug this replaces.
+        paginator = context.get('paginator')
+        context['total_product_count'] = (
+            paginator.count if paginator is not None else len(context.get('card_items', []))
+        )
 
         # ── Cart state (per-request, must stay live) ──
         try:
@@ -1667,9 +1637,15 @@ def _cart_total_quantity(items):
     return sum(item.quantity for item in items)
 
 
-def _cart_pack_upsell_message(items):
+def _cart_pack_upsell_message(items, shipping=None):
     from app.services.state_delivery_service import delivery_pack_upsell_message
 
+    # The tip promises "no extra delivery charge" for one more unit, which is
+    # meaningless (and misleading) once the actual resolved delivery charge is
+    # zero. Callers that don't know the real charge yet (shipping=None) get no
+    # message rather than a guess — an authoritative refresh corrects it.
+    if not shipping:
+        return ''
     return delivery_pack_upsell_message(_cart_total_quantity(items))
 
 
@@ -1801,7 +1777,14 @@ class BuyNowView(View):
                 return redirect('store:product_detail', slug=product.slug)
             return _redirect_open_cart()
         data = form.cleaned_data
-        cart = CartService.get_or_create_cart(request)
+        # Buy Now must never touch whatever the shopper already has in their
+        # cart. isolate_for_buy_now() sets the real cart aside (if it has
+        # items) and hands back a cart that's safe to add just this one item
+        # to; restore_parked_cart() below brings the real cart back on any
+        # failure here, and OrderCreateView / RazorpayPaymentVerifyView
+        # restore it on success (ParkedCartRestoreMiddleware is the fallback
+        # for cancellation / simply navigating away).
+        cart = CartService.isolate_for_buy_now(request)
         lt_raw = (data.get('line_type') or 'purchase').strip().lower()
         line_type = CartItem.LineKind.RENTAL if lt_raw == 'rental' else CartItem.LineKind.PURCHASE
         rb = data.get('rental_billing') or None
@@ -1830,6 +1813,7 @@ class BuyNowView(View):
                     )
                 if not sellable:
                     if product.variants.exists():
+                        CartService.restore_parked_cart(request)
                         messages.error(request, 'Please select a variant or the selected variant is unavailable.')
                         return redirect('store:product_detail', slug=product.slug)
                     sellable = product
@@ -1845,9 +1829,8 @@ class BuyNowView(View):
                     is_gift=data.get('is_gift', False),
                     selected_pot_id=data.get('selected_pot_id'),
                 )
-            # Replace cart with this line only after a successful add
-            cart.items.exclude(pk=new_item.pk).delete()
         except StockError as exc:
+            CartService.restore_parked_cart(request)
             messages.error(request, str(exc))
             if data.get('combo_id'):
                 c = get_object_or_404(Combo, pk=data['combo_id'])
@@ -1855,6 +1838,7 @@ class BuyNowView(View):
             p = get_object_or_404(Product, pk=data['product_id'])
             return redirect('store:product_detail', slug=p.slug)
         except CartError as exc:
+            CartService.restore_parked_cart(request)
             messages.error(request, str(exc))
             if data.get('combo_id'):
                 c = get_object_or_404(Combo, pk=data['combo_id'])
@@ -2006,7 +1990,7 @@ class CheckoutView(TemplateView):
                     items,
                     delivery_issues=checkout_totals.delivery_issues,
                 ),
-                'pack_upsell_message': _cart_pack_upsell_message(items),
+                'pack_upsell_message': _cart_pack_upsell_message(items, checkout_totals.shipping),
                 'cart_total_quantity': _cart_total_quantity(items),
                 'totals': checkout_totals.as_cart_totals(),
                 'form': CheckoutForm(**_checkout_form_kwargs(self.request, cart, user, initial=initial)),
@@ -2071,7 +2055,7 @@ class OrderCreateView(FormView):
                 items,
                 delivery_issues=checkout_totals.delivery_issues,
             ),
-            'pack_upsell_message': _cart_pack_upsell_message(items),
+            'pack_upsell_message': _cart_pack_upsell_message(items, checkout_totals.shipping),
             'cart_total_quantity': _cart_total_quantity(items),
             'totals': checkout_totals.as_cart_totals(),
             'addresses': addresses,
@@ -2098,6 +2082,7 @@ class OrderCreateView(FormView):
         except (CartError, StockError) as exc:
             messages.error(self.request, str(exc))
             return redirect(reverse('store:checkout') + '?stock_issue=1')
+        CartService.restore_parked_cart(self.request)
         send_order_confirmation_email_async(order)
         self.request.session['last_order_number'] = order.order_number
         return redirect('store:order_success', order_number=order.order_number)
@@ -2350,6 +2335,7 @@ class RazorpayPaymentVerifyView(View):
                     cart.coupon_code = ''
                     cart.save(update_fields=['status', 'coupon_code'])
                     cart.items.all().delete()
+                CartService.restore_parked_cart(request)
                 if 'pending_checkout_data' in request.session:
                     del request.session['pending_checkout_data']
                 try:

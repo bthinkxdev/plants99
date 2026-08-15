@@ -1,6 +1,7 @@
 
 
 document.addEventListener('DOMContentLoaded', function() {
+    initCheckoutFieldValidation();
     initAddressSelection();
     initPaymentSelection();
     initPaymentButtonText();
@@ -13,6 +14,195 @@ document.addEventListener('DOMContentLoaded', function() {
     initCheckoutDeliveryGuard();
     initCheckoutDeliveryTotals();
 });
+
+
+// Keystroke-level filtering plus a submit-time re-check for the new-address
+// fields. This is UX sugar only — CheckoutForm.clean() on the server is the
+// real source of truth and re-validates everything regardless of what makes
+// it past this. Kept intentionally close to those same rules (name/city:
+// letters only; address: must contain a letter; phone: 10 digits; pincode:
+// 6 digits; email: standard format) so the two never disagree.
+function initCheckoutFieldValidation() {
+    var section = document.getElementById('newAddressSection');
+    if (!section) return;
+
+    var NAME_RE = /^[A-Za-z][A-Za-z .'-]*$/;
+    var HAS_LETTER_RE = /[A-Za-z]/;
+    var PHONE_RE = /^[6-9]\d{9}$/;
+    var PINCODE_RE = /^[1-9]\d{5}$/;
+    // Kept identical to contact.js's EMAIL_RE and to CheckoutForm.email's
+    // _EMAIL_LIKE_VALIDATOR server-side (app/forms.py) so all three never
+    // disagree. Stricter than a bare "has @ and a dot" check — Django's
+    // default EmailValidator technically allows most punctuation unquoted
+    // in the local part (RFC 5322), which let obvious junk like
+    // "!!!123@gmail.com" through.
+    var EMAIL_RE = /^(?!.*\.\.)[A-Za-z0-9_%+-]+(?:\.[A-Za-z0-9_%+-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}$/;
+    var REQUIRED_MSG = 'This field is required.';
+
+    var nameInput          = section.querySelector('input[name="full_name"]');
+    var phoneInput         = section.querySelector('input[name="phone"]');
+    var addressInput       = section.querySelector('textarea[name="address_line"]');
+    var cityInput          = section.querySelector('input[name="city"]');
+    var pincodeInput       = section.querySelector('input[name="pincode"]');
+    var emailInput         = section.querySelector('input[name="email"]');
+    var deliveryStateSelect = section.querySelector('select[name="delivery_state"]');
+
+    // Mirrors CheckoutForm.clean()'s required_fields list on the server:
+    // full_name/phone/address_line/city/delivery_state/pincode are always
+    // mandatory for a new address; email only when checking out as a guest.
+    var isGuestCheckout = section.getAttribute('data-guest-checkout') === 'true';
+
+    function setFieldError(name, message) {
+        var el = section.querySelector('[data-field-error="' + name + '"]');
+        if (!el) return;
+        if (message) {
+            el.textContent = message;
+            el.hidden = false;
+        } else {
+            el.textContent = '';
+            el.hidden = true;
+        }
+    }
+
+    function markInvalid(input, invalid) {
+        if (input) input.classList.toggle('is-invalid', !!invalid);
+    }
+
+    // A full-page reload after a failed submit (e.g. a required field left
+    // blank) re-renders this section server-side with each field's error
+    // text — but the input itself never got any visual treatment, so a
+    // missed field was easy to miss among several. Walk the server-rendered
+    // error markers and put the same red-border treatment on whichever
+    // input/select/textarea precedes each one, then jump to the first.
+    (function syncServerRenderedErrors() {
+        var firstInvalid = null;
+        section.querySelectorAll('[data-field-error]').forEach(function (errEl) {
+            if (errEl.hidden) return;
+            var field = errEl.previousElementSibling;
+            if (!field) return;
+            markInvalid(field, true);
+            if (!firstInvalid) firstInvalid = field;
+        });
+        if (firstInvalid) {
+            firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            firstInvalid.focus({ preventScroll: true });
+        }
+    })();
+
+    function filterOnInput(input, pattern) {
+        if (!input) return;
+        input.addEventListener('input', function () {
+            var cleaned = input.value.replace(pattern, '');
+            if (cleaned !== input.value) input.value = cleaned;
+        });
+    }
+
+    function filterDigitsOnInput(input, maxLen) {
+        if (!input) return;
+        input.addEventListener('input', function () {
+            var cleaned = input.value.replace(/\D/g, '').slice(0, maxLen);
+            if (cleaned !== input.value) input.value = cleaned;
+        });
+    }
+
+    // Checks a field's current value against required-ness first, then
+    // format. Blank on a required field always wins (red border + "This
+    // field is required.") over any format message, so an empty field never
+    // silently passes just because there's nothing yet to fail a regex.
+    function fieldInvalidState(input, testFn, message, required) {
+        var val = (input.value || '').trim();
+        if (!val) {
+            return required ? REQUIRED_MSG : '';
+        }
+        return testFn(val) ? '' : message;
+    }
+
+    function checkOnBlur(input, testFn, name, message, required) {
+        if (!input) return;
+        input.addEventListener('blur', function () {
+            var errMsg = fieldInvalidState(input, testFn, message, required);
+            markInvalid(input, !!errMsg);
+            setFieldError(name, errMsg);
+        });
+    }
+
+    // Letters (plus space/period/apostrophe/hyphen) only — blocks the
+    // "only numbers" / "only special characters" case outright by never
+    // letting those characters land in the field.
+    filterOnInput(nameInput, /[^A-Za-z .'-]/g);
+    filterOnInput(cityInput, /[^A-Za-z .'-]/g);
+    checkOnBlur(nameInput, function (v) { return NAME_RE.test(v); }, 'full_name', 'Enter a valid name using letters only.', true);
+    checkOnBlur(cityInput, function (v) { return NAME_RE.test(v); }, 'city', 'Enter a valid city name using letters only.', true);
+
+    // Address needs to allow digits (house/street numbers), so it isn't
+    // filtered as-you-type — just checked that it isn't purely numbers/punctuation.
+    checkOnBlur(addressInput, function (v) { return HAS_LETTER_RE.test(v); }, 'address_line', 'Enter a valid address.', true);
+
+    // Digits only, hard-capped — typing a letter or 11th digit simply does nothing.
+    filterDigitsOnInput(phoneInput, 10);
+    filterDigitsOnInput(pincodeInput, 6);
+    checkOnBlur(phoneInput, function (v) { return PHONE_RE.test(v); }, 'phone', 'Enter a valid 10-digit phone number.', true);
+    checkOnBlur(pincodeInput, function (v) { return PINCODE_RE.test(v); }, 'pincode', 'Enter a valid 6-digit PIN code.', true);
+
+    checkOnBlur(emailInput, function (v) { return EMAIL_RE.test(v); }, 'email', 'Enter a valid email address.', isGuestCheckout);
+
+    // The state dropdown has no format to fail — it's either picked or it
+    // isn't — so just gate it on required-ness.
+    if (deliveryStateSelect) {
+        deliveryStateSelect.addEventListener('blur', function () {
+            var blank = !deliveryStateSelect.value;
+            markInvalid(deliveryStateSelect, blank);
+            setFieldError('delivery_state', blank ? REQUIRED_MSG : '');
+        });
+        deliveryStateSelect.addEventListener('change', function () {
+            if (deliveryStateSelect.value) {
+                markInvalid(deliveryStateSelect, false);
+                setFieldError('delivery_state', '');
+            }
+        });
+    }
+
+    var form = document.getElementById('checkoutForm');
+    if (!form) return;
+
+    form.addEventListener('submit', function (e) {
+        // Saved-address checkout doesn't use these fields at all — nothing to gate.
+        if (section.offsetParent === null) return;
+
+        var checks = [
+            [nameInput, NAME_RE, 'full_name', 'Enter a valid name using letters only.', true],
+            [cityInput, NAME_RE, 'city', 'Enter a valid city name using letters only.', true],
+            [addressInput, HAS_LETTER_RE, 'address_line', 'Enter a valid address.', true],
+            [phoneInput, PHONE_RE, 'phone', 'Enter a valid 10-digit phone number.', true],
+            [pincodeInput, PINCODE_RE, 'pincode', 'Enter a valid 6-digit PIN code.', true],
+            [emailInput, EMAIL_RE, 'email', 'Enter a valid email address.', isGuestCheckout],
+        ];
+
+        var firstInvalid = null;
+        checks.forEach(function (c) {
+            var input = c[0], re = c[1], name = c[2], msg = c[3], required = c[4];
+            if (!input) return;
+            var errMsg = fieldInvalidState(input, function (v) { return re.test(v); }, msg, required);
+            markInvalid(input, !!errMsg);
+            setFieldError(name, errMsg);
+            if (errMsg && !firstInvalid) firstInvalid = input;
+        });
+
+        if (deliveryStateSelect) {
+            var stateBlank = !deliveryStateSelect.value;
+            markInvalid(deliveryStateSelect, stateBlank);
+            setFieldError('delivery_state', stateBlank ? REQUIRED_MSG : '');
+            if (stateBlank && !firstInvalid) firstInvalid = deliveryStateSelect;
+        }
+
+        if (firstInvalid) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            firstInvalid.focus();
+            showCheckoutError('Please correct the highlighted fields before placing your order.');
+        }
+    });
+}
 
 function initCheckoutSubmit() {
     var form = document.getElementById('checkoutForm');
@@ -126,6 +316,34 @@ function showCheckoutError(message) {
         errDiv.style.display = 'block';
         errDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
+}
+
+// #checkoutErrorMessage is actively managed by applyCheckoutBlockedState()
+// (called on every delivery-totals refresh) — it clears the box whenever
+// there's no real checkout-blocking issue. A "only N left in stock" note
+// isn't a blocking issue, so it can't live in that box or the very next
+// totals refresh wipes it out. Use a lightweight toast instead, matching
+// the one already used on the PDP / add-to-cart flow.
+function showCheckoutQtyToast(message) {
+    var container = document.getElementById('add-to-cart-toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'add-to-cart-toast-container';
+        container.setAttribute('aria-live', 'polite');
+        container.style.cssText = 'position:fixed;top:1rem;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:0.5rem;pointer-events:none;';
+        document.body.appendChild(container);
+    }
+    var toast = document.createElement('div');
+    toast.style.cssText = 'padding:0.75rem 1.25rem;border-radius:8px;font-size:0.9rem;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,0.15);white-space:nowrap;max-width:90vw;background:#dc3545;color:#fff;';
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(function() {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.25s ease';
+        setTimeout(function() {
+            if (toast.parentNode) toast.parentNode.removeChild(toast);
+        }, 250);
+    }, 2500);
 }
 
 function reenablePlaceOrderButton() {
@@ -409,6 +627,12 @@ function updateCheckoutItemQuantity(itemId, nextQty, wrap) {
         }
         syncCheckoutQtyButtons(wrap, result.data.quantity, result.data.max_quantity);
         syncCheckoutPackUpsell(result.data.pack_upsell_message);
+
+        var qtyNow = parseInt(result.data.quantity, 10);
+        var maxNow = parseInt(result.data.max_quantity, 10);
+        if (!isNaN(qtyNow) && !isNaN(maxNow) && maxNow > 0 && qtyNow >= maxNow) {
+            showCheckoutQtyToast('Only ' + maxNow + ' left in stock for this item.');
+        }
         refreshCheckoutDeliveryTotals(resolveCheckoutStateId());
     })
     .catch(function() {
@@ -442,7 +666,13 @@ function initCheckoutQtyControls() {
         if (isNaN(maxQ)) maxQ = current;
         var delta = btn.classList.contains('js-checkout-qty-inc') ? 1 : -1;
         var next = current + delta;
-        if (next < 1 || next > maxQ) return;
+        if (next < 1) return;
+        if (next > maxQ) {
+            var inc = wrap.querySelector('.js-checkout-qty-inc');
+            if (inc) inc.disabled = true;
+            showCheckoutQtyToast('Only ' + maxQ + ' left in stock for this item.');
+            return;
+        }
 
         updateCheckoutItemQuantity(itemId, next, wrap);
     });

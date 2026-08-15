@@ -48,6 +48,7 @@
                     <input type="hidden" name="q" value="{{ filters.q }}">
                     {% if filters.combo %}<input type="hidden" name="combo" value="{{ filters.combo }}">{% endif %}
                     {% if filters.offer %}<input type="hidden" name="offer" value="{{ filters.offer }}">{% endif %}
+                    {% if filters.deal %}<input type="hidden" name="deal" value="{{ filters.deal }}">{% endif %}
                     <label class="visually-hidden" for="shopSortSelect">Sort by</label>
                     <select name="sort" id="shopSortSelect" onchange="this.form.submit()">
                         {% for value, label in sort_options %}
@@ -152,65 +153,65 @@
                 </div>
                 {% endif %}
                 {% endwith %}
+                {% elif card.kind == 'simple' %}
+                {% with product=card.product %}
+                <div class="product-card{% if card.in_stock == False %} product-card--oos{% endif %}">
+                    <div class="product-img-wrap">
+                        {% include "partials/_card_stock_badge.html" with in_stock=card.in_stock %}
+                        {% if product.discount_percent %}<span class="product-badge badge-sale">{{ product.discount_percent }}% OFF</span>{% endif %}
+                        {% include "partials/_rating_pill.html" with product=product %}
+                        {% if WISHLIST_ENABLED %}
+                        <button type="button" class="product-wishlist js-wishlist-toggle {% if product.id in wishlist_product_ids %}in-wishlist{% endif %}" data-product-id="{{ product.id }}" title="Wishlist"><i class="far fa-heart"></i></button>
+                        {% endif %}
+                        <a href="{% url 'store:product_detail' product.slug %}">
+                            {% with imgs=product.images.all %}
+                            {% if imgs %}
+                            <img src="{{ imgs.0.image.url }}" alt="{{ product.name }}" loading="lazy">
+                            {% else %}
+                            <img src="{% static 'img/product-1.png' %}" alt="{{ product.name }}" loading="lazy">
+                            {% endif %}
+                            {% endwith %}
+                        </a>
+                    </div>
+                    <div class="product-body">
+                        <a href="{% url 'store:product_detail' product.slug %}" class="text-decoration-none">
+                            <h3 class="product-name">{{ product.name }}</h3>
+                        </a>
+                        {% if product.beginner_friendly or product.air_purifying or product.office_friendly or product.low_maintenance %}
+                        <div class="p99-tag-row">
+                            {% if product.beginner_friendly %}<span class="p99-mini-tag p99-mini-tag--y">Easy care</span>{% endif %}
+                            {% if product.air_purifying %}<span class="p99-mini-tag p99-mini-tag--b">Air purifying</span>{% endif %}
+                            {% if product.office_friendly %}<span class="p99-mini-tag p99-mini-tag--o">Desk friendly</span>{% endif %}
+                            {% if product.low_maintenance %}<span class="p99-mini-tag p99-mini-tag--g">Low maintenance</span>{% endif %}
+                        </div>
+                        {% endif %}
+                        <div class="product-price">
+                            {% if product.base_price %}
+                            <span class="price-current">₹{{ product.base_price|floatformat:0 }}</span>
+                            {% else %}
+                            <span class="price-current">Price on request</span>
+                            {% endif %}
+                            {% if product.base_original_price and product.base_original_price > product.base_price %}
+                            <span class="price-old">₹{{ product.base_original_price|floatformat:0 }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="product-add-form">
+                            {% if card.in_stock == False %}
+                            <span class="product-cta product-cta--oos border-0 text-decoration-none d-inline-block text-center w-100">Out of stock</span>
+                            {% else %}
+                            <a href="{% url 'store:product_detail' product.slug %}" class="product-cta border-0 text-decoration-none">View product</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endwith %}
                 {% endif %}
             {% endfor %}
 
-            {% for product in simple_products %}
-            <div class="product-card{% if product.card_in_stock == False %} product-card--oos{% endif %}">
-                <div class="product-img-wrap">
-                    {% include "partials/_card_stock_badge.html" with in_stock=product.card_in_stock %}
-                    {% if product.discount_percent %}<span class="product-badge badge-sale">{{ product.discount_percent }}% OFF</span>{% endif %}
-                    {% include "partials/_rating_pill.html" with product=product %}
-                    {% if WISHLIST_ENABLED %}
-                    <button type="button" class="product-wishlist js-wishlist-toggle {% if product.id in wishlist_product_ids %}in-wishlist{% endif %}" data-product-id="{{ product.id }}" title="Wishlist"><i class="far fa-heart"></i></button>
-                    {% endif %}
-                    <a href="{% url 'store:product_detail' product.slug %}">
-                        {% with imgs=product.images.all %}
-                        {% if imgs %}
-                        <img src="{{ imgs.0.image.url }}" alt="{{ product.name }}" loading="lazy">
-                        {% else %}
-                        <img src="{% static 'img/product-1.png' %}" alt="{{ product.name }}" loading="lazy">
-                        {% endif %}
-                        {% endwith %}
-                    </a>
-                </div>
-                <div class="product-body">
-                    <a href="{% url 'store:product_detail' product.slug %}" class="text-decoration-none">
-                        <h3 class="product-name">{{ product.name }}</h3>
-                    </a>
-                    {% if product.beginner_friendly or product.air_purifying or product.office_friendly or product.low_maintenance %}
-                    <div class="p99-tag-row">
-                        {% if product.beginner_friendly %}<span class="p99-mini-tag p99-mini-tag--y">Easy care</span>{% endif %}
-                        {% if product.air_purifying %}<span class="p99-mini-tag p99-mini-tag--b">Air purifying</span>{% endif %}
-                        {% if product.office_friendly %}<span class="p99-mini-tag p99-mini-tag--o">Desk friendly</span>{% endif %}
-                        {% if product.low_maintenance %}<span class="p99-mini-tag p99-mini-tag--g">Low maintenance</span>{% endif %}
-                    </div>
-                    {% endif %}
-                    <div class="product-price">
-                        {% if product.base_price %}
-                        <span class="price-current">₹{{ product.base_price|floatformat:0 }}</span>
-                        {% else %}
-                        <span class="price-current">Price on request</span>
-                        {% endif %}
-                        {% if product.base_original_price and product.base_original_price > product.base_price %}
-                        <span class="price-old">₹{{ product.base_original_price|floatformat:0 }}</span>
-                        {% endif %}
-                    </div>
-                    <div class="product-add-form">
-                        {% if product.card_in_stock == False %}
-                        <span class="product-cta product-cta--oos border-0 text-decoration-none d-inline-block text-center w-100">Out of stock</span>
-                        {% else %}
-                        <a href="{% url 'store:product_detail' product.slug %}" class="product-cta border-0 text-decoration-none">View product</a>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-
-            {% if not card_items and not simple_products %}
+            {% if not card_items %}
             <div class="col-12 text-center py-5">
                 <p class="text-muted">No products found. Try adjusting filters.</p>
-                <a href="{% url 'store:product_list' %}?{% if filters.category and filters.category != 'all' %}category={{ filters.category }}{% elif filters.combo %}combo={{ filters.combo }}{% elif filters.rent %}rent={{ filters.rent }}{% elif filters.offer %}offer={{ filters.offer }}{% endif %}" class="btn btn-outline-dark">Clear filters</a>
+                <a href="{% url 'store:product_list' %}?{% if filters.category and filters.category != 'all' %}category={{ filters.category }}{% elif filters.combo %}combo={{ filters.combo }}{% elif filters.rent %}rent={{ filters.rent }}{% elif filters.offer %}offer={{ filters.offer }}{% elif filters.deal %}deal={{ filters.deal }}{% endif %}" class="btn btn-outline-dark">Clear filters</a>
             </div>
             {% endif %}
 

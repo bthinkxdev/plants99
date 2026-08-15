@@ -6,7 +6,7 @@ from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 from django.db.models import QuerySet
 
-from ..models import Category
+from ..models import Category, Product
 
 
 @dataclass(frozen=True)
@@ -63,6 +63,46 @@ def build_active_category_tree(qs: Optional[QuerySet] = None) -> CategoryTree:
     for c in cats:
         children_ids[getattr(c, "parent_id", None)].append(c.pk)
     return CategoryTree(by_id=by_id, children_ids=dict(children_ids))
+
+
+def category_ids_with_direct_available_products() -> Set[int]:
+    """
+    Ids of categories that have at least one product linked *directly to
+    them* which is actually purchasable — active, and in stock (variant
+    stock_quantity > 0 / base_stock > 0 / combo availability — the same
+    rule Product.objects.available() already uses everywhere else). A
+    product that's merely active but has zero stock does not count, so a
+    category whose only products are sold out is treated the same as one
+    with no products at all.
+    """
+    return set(Product.objects.available().values_list('category_id', flat=True).distinct())
+
+
+def category_ids_with_available_products(tree: Optional[CategoryTree] = None) -> Set[int]:
+    """
+    Ids of categories that should actually be shown to a shopper: the
+    category itself, or any descendant of it, has at least one purchasable
+    product (see category_ids_with_direct_available_products). This rolls
+    availability up the tree so a parent category with no products of its
+    own — used purely as a grouping — still shows as long as a qualifying
+    child exists underneath it, while a category (parent or leaf) with
+    nothing purchasable anywhere in its subtree is excluded.
+
+    This is the single source of truth behind both the homepage category
+    strip and the navbar category menu, so the two can never disagree.
+    """
+    if tree is None:
+        tree = build_active_category_tree()
+    direct = category_ids_with_direct_available_products()
+    if not direct:
+        return set()
+    qualifying: Set[int] = set()
+    for cid in tree.by_id:
+        subtree_ids = {cid}
+        subtree_ids.update(tree.descendants_of(cid))
+        if subtree_ids & direct:
+            qualifying.add(cid)
+    return qualifying
 
 
 def category_filter_ids_for_slug(category_slug: str, *, include_children: bool = True, max_depth: int = 10) -> Tuple[Optional[Category], List[int]]:

@@ -13,6 +13,7 @@ class Cart(TimeStampedModel):
         ACTIVE = ('active', 'Active')
         ORDERED = ('ordered', 'Ordered')
         ABANDONED = ('abandoned', 'Abandoned')
+        PARKED = ('parked', 'Parked')  # shopper's real cart, set aside during a Buy Now flow
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, blank=True, null=True, related_name='carts')
     session_key = models.CharField(max_length=40, blank=True, db_index=True)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.ACTIVE, db_index=True)

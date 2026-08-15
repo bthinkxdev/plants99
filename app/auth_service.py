@@ -114,6 +114,23 @@ class AuthenticationService:
         return (user, created)
 
     @classmethod
+    def merge_guest_orders(cls, user):
+        """Attach past guest-checkout orders to this account.
+
+        Orders placed without logging in have ``user=None`` and only carry
+        the shopper's email on their (snapshot) address. When that shopper
+        later logs in with the same email, link those orders to the account
+        so they show up in order history instead of being orphaned.
+        """
+        if not user or not getattr(user, 'email', ''):
+            return 0
+        from .models import Order
+        return Order.objects.filter(
+            user__isnull=True,
+            address__email__iexact=user.email,
+        ).update(user=user)
+
+    @classmethod
     def update_user_profile(cls, user, **kwargs):
         profile, created = UserProfile.objects.get_or_create(user=user)
         if 'first_name' in kwargs:

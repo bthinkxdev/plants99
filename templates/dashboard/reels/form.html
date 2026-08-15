@@ -41,6 +41,10 @@
       <div class="form-group">
         <label class="form-label">Video</label>
         {{ form.video }}
+        {{ form.video_width }}
+        {{ form.video_height }}
+        <div class="form-hint">Best fit is a 9:16 portrait video (e.g. 1080×1920), matching the Instagram Reels format used on the storefront.</div>
+        <div id="reel-video-ratio-hint" class="form-warning" style="display:none;"></div>
         {% if form.instance.pk and form.instance.video %}
           <div style="margin-top:0.5rem;">
             <video controls muted playsinline style="max-width:360px;border-radius:10px;border:1px solid #e5e7eb;">
@@ -79,5 +83,56 @@
     </form>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var videoInput = document.getElementById('id_video');
+    var widthField = document.getElementById('id_video_width');
+    var heightField = document.getElementById('id_video_height');
+    var hint = document.getElementById('reel-video-ratio-hint');
+    if (!videoInput || !widthField || !heightField) return;
+
+    var TARGET_RATIO = 9 / 16;
+    var TOLERANCE = 0.15;
+
+    videoInput.addEventListener('change', function () {
+        widthField.value = '';
+        heightField.value = '';
+        if (hint) {
+            hint.textContent = '';
+            hint.style.display = 'none';
+        }
+        var file = videoInput.files && videoInput.files[0];
+        if (!file) return;
+
+        var probe = document.createElement('video');
+        probe.preload = 'metadata';
+        probe.muted = true;
+        var url = URL.createObjectURL(file);
+
+        probe.addEventListener('loadedmetadata', function () {
+            var w = probe.videoWidth;
+            var h = probe.videoHeight;
+            URL.revokeObjectURL(url);
+            if (!w || !h) return;
+            widthField.value = w;
+            heightField.value = h;
+            var ratio = w / h;
+            var deviation = Math.abs(ratio - TARGET_RATIO) / TARGET_RATIO;
+            if (hint && deviation > TOLERANCE) {
+                var orientation = w > h ? 'landscape' : 'square-ish';
+                hint.textContent = 'This video is ' + w + '×' + h + ' (' + orientation + '), not the 9:16 Instagram Reels ratio. It will be zoomed and cropped to fill the storefront reel tile — for the best result, upload a portrait 9:16 video (e.g. 1080×1920).';
+                hint.style.display = 'block';
+            }
+        });
+        probe.addEventListener('error', function () {
+            URL.revokeObjectURL(url);
+        });
+        probe.src = url;
+    });
+});
+</script>
 {% endblock %}
 

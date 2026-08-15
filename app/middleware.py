@@ -25,3 +25,43 @@ class DebugTraceMiddleware:
         finally:
             if getattr(settings, 'DEBUG_TRACE', False):
                 connection.force_debug_cursor = False
+
+
+class ParkedCartRestoreMiddleware:
+    """
+    Buy Now temporarily parks the shopper's real cart aside (see
+    CartService.isolate_for_buy_now) so checkout only ever sees the single
+    buy-now item. If the shopper completes or explicitly cancels that
+    checkout, the view itself restores the real cart immediately. This
+    middleware is the fallback for every other way a buy-now flow can end —
+    closing the tab, hitting back, or just browsing elsewhere — by restoring
+    the parked cart the moment the shopper visits any page outside the
+    checkout flow.
+    """
+
+    CHECKOUT_URL_NAMES = {
+        'buy_now',
+        'checkout',
+        'order_create',
+        'create_razorpay_order',
+        'razorpay_verify',
+        'razorpay_cancel',
+        'checkout_totals',
+        'checkout_coupon_apply',
+        'checkout_coupon_remove',
+    }
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if request.session.get('parked_cart_id'):
+            from django.urls import Resolver404, resolve
+            try:
+                url_name = resolve(request.path_info).url_name
+            except Resolver404:
+                url_name = None
+            if url_name not in self.CHECKOUT_URL_NAMES:
+                from .services import CartService
+                CartService.restore_parked_cart(request)
+        return self.get_response(request)

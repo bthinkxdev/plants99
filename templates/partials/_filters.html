@@ -9,6 +9,8 @@
         <input type="hidden" name="q" value="{{ filters.q }}">
         {% if filters.combo %}<input type="hidden" name="combo" value="{{ filters.combo }}">{% endif %}
         {% if filters.offer %}<input type="hidden" name="offer" value="{{ filters.offer }}">{% endif %}
+        {% if filters.rent %}<input type="hidden" name="rent" value="{{ filters.rent }}">{% endif %}
+        {% if filters.deal %}<input type="hidden" name="deal" value="{{ filters.deal }}">{% endif %}
         <div class="filter-section">
             <h6>Category</h6>
             <select name="category" class="form-select mb-3">
@@ -16,12 +18,20 @@
                 {% for cat in categories %}
                 <option value="{{ cat.slug }}" {% if filters.category == cat.slug %}selected{% endif %}>{{ cat.name }}</option>
                 {% endfor %}
+                {% if selected_category and active_category_slug != active_category_parent_slug %}
+                {# Currently browsing a subcategory (not a top-level one) — it isn't in the
+                   root `categories` list above, so without this option none of the <option>
+                   tags above match and the browser silently falls back to selecting "All".
+                   Submitting the form (e.g. to apply a price filter) would then reset the
+                   category to "all" and bounce the user out of their subcategory. #}
+                <option value="{{ active_category_slug }}" selected>{{ selected_category.name }}</option>
+                {% endif %}
             </select>
             {% if child_categories %}
             <div class="filter-child-cats d-flex flex-wrap gap-2">
                 {% for c in child_categories %}
                 <a class="btn btn-sm btn-outline-dark"
-                   href="{% url 'store:product_list' %}?category={{ c.slug }}{% if filters.sort %}&sort={{ filters.sort }}{% endif %}{% if filters.q %}&q={{ filters.q }}{% endif %}">
+                   href="{% url 'store:product_list' %}?category={{ c.slug }}{% if filters.sort %}&sort={{ filters.sort }}{% endif %}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.min_price %}&min_price={{ filters.min_price }}{% endif %}{% if filters.max_price %}&max_price={{ filters.max_price }}{% endif %}{% if filters.combo %}&combo={{ filters.combo }}{% endif %}{% if filters.offer %}&offer={{ filters.offer }}{% endif %}{% if filters.rent %}&rent={{ filters.rent }}{% endif %}{% if filters.deal %}&deal={{ filters.deal }}{% endif %}">
                     {{ c.name }}
                 </a>
                 {% endfor %}
@@ -37,7 +47,7 @@
         </div>
         <div class="filter-actions d-flex flex-column gap-2">
             <button type="submit" class="btn btn-dark w-100">Apply</button>
-            <a href="{% url 'store:product_list' %}?{% if filters.category and filters.category != 'all' %}category={{ filters.category }}{% elif filters.combo %}combo={{ filters.combo }}{% elif filters.rent %}rent={{ filters.rent }}{% elif filters.offer %}offer={{ filters.offer }}{% endif %}" class="btn btn-outline-dark w-100">Clear filters</a>
+            <a href="{% url 'store:product_list' %}?{% if filters.category and filters.category != 'all' %}category={{ filters.category }}{% elif filters.combo %}combo={{ filters.combo }}{% elif filters.rent %}rent={{ filters.rent }}{% elif filters.offer %}offer={{ filters.offer }}{% elif filters.deal %}deal={{ filters.deal }}{% endif %}" class="btn btn-outline-dark w-100">Clear filters</a>
         </div>
     </form>
 </aside>

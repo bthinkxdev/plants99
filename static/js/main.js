@@ -61,12 +61,12 @@
                     nav: false,
                     responsiveClass: true,
                     responsive: {
-                        0:    { items: Math.min(2, itemCount), margin: 10 },
-                        480:  { items: Math.min(2, itemCount), margin: 11 },
-                        576:  { items: Math.min(2, itemCount), margin: 12 },
-                        768:  { items: Math.min(2, itemCount), margin: 20 },
-                        992:  { items: Math.min(2, itemCount), margin: 24 },
-                        1200: { items: Math.min(3, itemCount), margin: 24 }
+                        0:    { items: 2, margin: 10 },
+                        480:  { items: 2, margin: 11 },
+                        576:  { items: 2, margin: 12 },
+                        768:  { items: 2, margin: 20 },
+                        992:  { items: 2, margin: 24 },
+                        1200: { items: 3, margin: 24 }
                     }
                 });
             });
@@ -238,16 +238,64 @@
     }
 
 
-    
-    $(document).on('click', '.btn-plus, .btn-minus', function () {
-        var $btn   = $(this);
-        var $input = $btn.closest('.quantity').find('input[type="text"], input[type="number"]');
+
+    function qtyStockToast(message) {
+        var container = document.getElementById('add-to-cart-toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'add-to-cart-toast-container';
+            container.setAttribute('aria-live', 'polite');
+            container.style.cssText = 'position:fixed;top:1rem;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:0.5rem;pointer-events:none;';
+            document.body.appendChild(container);
+        }
+        var toast = document.createElement('div');
+        toast.style.cssText = 'padding:0.75rem 1.25rem;border-radius:8px;font-size:0.9rem;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,0.15);white-space:nowrap;max-width:90vw;background:#dc3545;color:#fff;';
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(function () {
+            toast.style.opacity = '0';
+            toast.style.transition = 'opacity 0.25s ease';
+            setTimeout(function () {
+                if (toast.parentNode) toast.parentNode.removeChild(toast);
+            }, 250);
+        }, 2500);
+    }
+
+    function syncQtyButtons($wrapper) {
+        var $input = $wrapper.find('input[type="text"], input[type="number"]');
+        if (!$input.length) return;
         var current = parseInt($input.val(), 10) || 1;
+        var max = parseInt($input.attr('max'), 10);
+        var min = parseInt($input.attr('min'), 10) || 1;
+        $wrapper.find('.btn-plus').prop('disabled', !isNaN(max) && max > 0 && current >= max);
+        $wrapper.find('.btn-minus').prop('disabled', current <= min);
+    }
+    window.syncQtyButtons = function (el) { syncQtyButtons($(el).closest('.quantity')); };
+
+    $('.quantity').each(function () { syncQtyButtons($(this)); });
+
+    $(document).on('click', '.btn-plus, .btn-minus', function () {
+        var $btn     = $(this);
+        var $wrapper = $btn.closest('.quantity');
+        var $input   = $wrapper.find('input[type="text"], input[type="number"]');
+        var current  = parseInt($input.val(), 10) || 1;
 
         if ($btn.hasClass('btn-plus')) {
             var max = parseInt($input.attr('max'), 10);
+            if (!isNaN(max) && max > 0 && current >= max) {
+                // Guards a stale/disabled-button edge case — in normal use the
+                // button is already disabled by the time this would fire, so
+                // the real "just hit the cap" notice is the branch below.
+                qtyStockToast('Only ' + max + ' left in stock.');
+                syncQtyButtons($wrapper);
+                return;
+            }
             if (isNaN(max) || current < max) {
-                $input.val(current + 1);
+                var nextVal = current + 1;
+                $input.val(nextVal);
+                if (!isNaN(max) && max > 0 && nextVal >= max) {
+                    qtyStockToast('Only ' + max + ' left in stock.');
+                }
             }
         } else {
             var min = parseInt($input.attr('min'), 10) || 1;
@@ -257,6 +305,7 @@
         }
 
         $input.trigger('change');
+        syncQtyButtons($wrapper);
     });
 
 

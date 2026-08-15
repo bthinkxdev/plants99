@@ -1629,16 +1629,15 @@ body.storefront .p99-product-card .tpc-body {
   letter-spacing: 0;
 }
 .p99-product-card .p99-tag-row {
-  /* Always occupies this band, tag or not — keeps every card's price/CTA at the same
-     height regardless of which (if any) care-tag a product has. */
+  /* Only rendered when a product actually has a care tag, so it no longer reserves
+     an empty band on cards without one. */
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  justify-content: flex-start;
-  align-content: flex-start;
+  justify-content: center;
+  align-content: center;
   flex-shrink: 0;
-  min-height: var(--store-pc-tag-band-h);
   max-height: var(--store-pc-tag-band-h);
   overflow: hidden;
   margin: 0;
@@ -1663,17 +1662,17 @@ body.storefront .p99-product-card .tpc-body {
   background: #e9f7ef;
 }
 .p99-product-card .tpc-body {
-  /* Professional alignment: stable vertical rhythm + consistent CTA placement */
+  /* Professional alignment: stable vertical rhythm + consistent CTA placement.
+     Centered to match the shop page and every other storefront product card. */
   display: flex;
   flex-direction: column;
   gap: 8px;
-  text-align: left;
+  text-align: center;
   padding: 14px 14px 14px !important;
 }
 .p99-product-card .tpc-name {
-  /* Fixed 2-line band (line-height 1.4 x font-size 0.92rem x 2 lines) so a one-word title
-     and a two-line title leave the price/CTA in exactly the same place. */
-  min-height: 2.6rem;
+  /* Clamped to 2 lines max, but height is content-driven (no reserved band) so a
+     one-line title doesn't leave a gap before the price — same as the shop card. */
   color: var(--text-color) !important;
   font-weight: 700 !important;
   font-size: 0.92rem !important;
@@ -1686,7 +1685,7 @@ body.storefront .p99-product-card .tpc-body {
 .p99-product-card .tpc-price-row {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   gap: 10px;
   margin: 0;
 }
