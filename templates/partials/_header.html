@@ -53,8 +53,9 @@
                 {% else %}
                 <a href="{% url 'auth:login' %}" class="site-icon-btn d-none d-sm-inline-flex" title="Login" aria-label="Login"><i class="fas fa-user"></i></a>
                 {% endif %}
-                <button class="site-icon-btn d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Menu">
-                    <i class="fas fa-bars"></i>
+                <button class="site-icon-btn site-menu-toggle d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Menu">
+                    <i class="fas fa-bars site-menu-toggle__icon site-menu-toggle__icon--open"></i>
+                    <i class="fas fa-times site-menu-toggle__icon site-menu-toggle__icon--close"></i>
                 </button>
             </div>
         </div>

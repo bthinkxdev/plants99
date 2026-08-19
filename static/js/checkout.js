@@ -558,7 +558,11 @@ function syncCheckoutQtyButtons(wrap, quantity, maxQuantity) {
     var dec = wrap.querySelector('.js-checkout-qty-dec');
     var inc = wrap.querySelector('.js-checkout-qty-inc');
     if (dec) dec.disabled = qty <= 1;
-    if (inc) inc.disabled = qty >= maxQ;
+    
+    if (inc) {
+        if (qty >= maxQ) inc.setAttribute('aria-disabled', 'true');
+        else inc.removeAttribute('aria-disabled');
+    }
 }
 
 
@@ -625,13 +629,31 @@ function updateCheckoutItemQuantity(itemId, nextQty, wrap) {
             var amount = parseFloat(result.data.line_total);
             priceEl.textContent = '\u20B9' + (isNaN(amount) ? result.data.line_total : amount.toFixed(0));
         }
+
+        
+        if (line && result.data.stock_message !== undefined) {
+            var lineWarnEl = line.querySelector('[data-line-stock-warn]');
+            if (lineWarnEl) {
+                if (result.data.stock_message) {
+                    lineWarnEl.textContent = result.data.stock_message;
+                    lineWarnEl.hidden = false;
+                } else {
+                    lineWarnEl.textContent = '';
+                    lineWarnEl.hidden = true;
+                }
+            }
+            line.classList.toggle('order-line--stock-issue', !!result.data.stock_message);
+        }
         syncCheckoutQtyButtons(wrap, result.data.quantity, result.data.max_quantity);
         syncCheckoutPackUpsell(result.data.pack_upsell_message);
 
-        var qtyNow = parseInt(result.data.quantity, 10);
-        var maxNow = parseInt(result.data.max_quantity, 10);
-        if (!isNaN(qtyNow) && !isNaN(maxNow) && maxNow > 0 && qtyNow >= maxNow) {
-            showCheckoutQtyToast('Only ' + maxNow + ' left in stock for this item.');
+        
+        if (result.data.checkout_blocked !== undefined) {
+            window.CHECKOUT_STOCK_BLOCKED = !!result.data.checkout_blocked;
+            window.CHECKOUT_STOCK_SUMMARY = result.data.stock_summary || '';
+            window.CHECKOUT_SUMMARY = window.CHECKOUT_STOCK_SUMMARY;
+            window.CHECKOUT_BLOCKED = window.CHECKOUT_STOCK_BLOCKED;
+            applyCheckoutBlockedState();
         }
         refreshCheckoutDeliveryTotals(resolveCheckoutStateId());
     })
@@ -667,11 +689,16 @@ function initCheckoutQtyControls() {
         var delta = btn.classList.contains('js-checkout-qty-inc') ? 1 : -1;
         var next = current + delta;
         if (next < 1) return;
-        if (next > maxQ) {
+        if (delta > 0 && next > maxQ) {
+            // Trying to go *up* past the current stock ceiling — block it.
             var inc = wrap.querySelector('.js-checkout-qty-inc');
-            if (inc) inc.disabled = true;
+            if (inc) inc.setAttribute('aria-disabled', 'true');
             showCheckoutQtyToast('Only ' + maxQ + ' left in stock for this item.');
             return;
+        }
+        if (delta < 0 && maxQ > 0 && current > maxQ) {
+            
+            next = maxQ;
         }
 
         updateCheckoutItemQuantity(itemId, next, wrap);
@@ -917,9 +944,20 @@ function initCheckoutCoupon() {
 function applyCheckoutBlockedState() {
     var placeOrderBtn = document.getElementById('placeOrderBtn');
     var errDiv = document.getElementById('checkoutErrorMessage');
+    var stockBanner = document.getElementById('checkoutStockBanner');
+    var stockBannerMsg = document.getElementById('checkoutStockBannerMsg');
     if (placeOrderBtn) {
         placeOrderBtn.disabled = !!window.CHECKOUT_BLOCKED;
         placeOrderBtn.setAttribute('aria-disabled', window.CHECKOUT_BLOCKED ? 'true' : 'false');
+    }
+    
+    if (stockBanner) {
+        if (window.CHECKOUT_STOCK_BLOCKED) {
+            if (stockBannerMsg) stockBannerMsg.textContent = window.CHECKOUT_STOCK_SUMMARY || window.CHECKOUT_SUMMARY || '';
+            stockBanner.style.display = '';
+        } else {
+            stockBanner.style.display = 'none';
+        }
     }
     // Only surface the bottom alert for stock / submit errors — not delivery status.
     if (errDiv) {

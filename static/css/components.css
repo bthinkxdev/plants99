@@ -221,10 +221,11 @@
   transition: background 0.14s;
   flex-shrink: 0;
 }
-.cd-qty__btn:hover:not(:disabled) {
+.cd-qty__btn:hover:not(:disabled):not([aria-disabled="true"]) {
   background: var(--cd-cream);
 }
-.cd-qty__btn:disabled {
+.cd-qty__btn:disabled,
+.cd-qty__btn[aria-disabled="true"] {
   opacity: 0.3;
   cursor: not-allowed;
 }

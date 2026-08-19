@@ -444,6 +444,21 @@ class ProductDetailService:
             ).values_list('selected_variant_id', flat=True)
         )
 
+        if request.user.is_authenticated:
+            context['pdp_wishlist_variant_ids'] = list(
+                Wishlist.objects.filter(
+                    user=request.user,
+                    selected_variant__product=product,
+                    selected_variant__isnull=False,
+                ).values_list('selected_variant_id', flat=True)
+            )
+        else:
+            from app.wishlist_utils import get_guest_wishlist_variant_ids
+            product_variant_ids = set(product.variants.values_list('id', flat=True))
+            context['pdp_wishlist_variant_ids'] = [
+                vid for vid in get_guest_wishlist_variant_ids(request) if vid in product_variant_ids
+            ]
+
         context['pincode_check_url'] = reverse('store:pincode_check')
         context['serviceable_pincode_count'] = len(allowed_pincode_list())
         context['pdp_combo_available'] = (

@@ -49,6 +49,9 @@ class ParkedCartRestoreMiddleware:
         'checkout_totals',
         'checkout_coupon_apply',
         'checkout_coupon_remove',
+        'cart_drawer',
+        'cart_update',
+        'cart_remove',
     }
 
     def __init__(self, get_response):
@@ -56,12 +59,14 @@ class ParkedCartRestoreMiddleware:
 
     def __call__(self, request):
         if request.session.get('parked_cart_id'):
-            from django.urls import Resolver404, resolve
-            try:
-                url_name = resolve(request.path_info).url_name
-            except Resolver404:
-                url_name = None
-            if url_name not in self.CHECKOUT_URL_NAMES:
-                from .services import CartService
-                CartService.restore_parked_cart(request)
+            is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+            if not is_ajax:
+                from django.urls import Resolver404, resolve
+                try:
+                    url_name = resolve(request.path_info).url_name
+                except Resolver404:
+                    url_name = None
+                if url_name not in self.CHECKOUT_URL_NAMES:
+                    from .services import CartService
+                    CartService.restore_parked_cart(request)
         return self.get_response(request)

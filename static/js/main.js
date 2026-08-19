@@ -58,7 +58,7 @@
                     rewind: !useLoop,
                     center: false,
                     margin: 12,
-                    nav: false,
+                    nav: true,
                     responsiveClass: true,
                     responsive: {
                         0:    { items: 2, margin: 10 },
@@ -839,4 +839,16 @@
   // listen here to recalculate total. Example:
   // document.addEventListener('pdpPriceUpdated', updatePrice);
  
+})();
+
+
+(function () {
+  var nav = document.getElementById('navbarCollapse');
+  if (!nav) return;
+  nav.addEventListener('show.bs.collapse', function () {
+    document.body.style.overflow = 'hidden';
+  });
+  nav.addEventListener('hidden.bs.collapse', function () {
+    document.body.style.overflow = '';
+  });
 })();

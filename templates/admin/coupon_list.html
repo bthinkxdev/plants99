@@ -26,7 +26,12 @@
                     <option value="inactive" {% if filter_status == 'inactive' %}selected{% endif %}>Inactive</option>
                 </select>
             </div>
-            <button type="submit" class="btn btn-secondary">Filter</button>
+            <button type="submit" class="btn btn-secondary">Apply</button>
+            {% if filter_q or filter_status %}
+                <a href="{% url 'admin_panel:coupon_list' %}" class="btn btn-secondary" title="Clear filters">
+                    <i class="fas fa-times"></i> Clear
+                </a>
+            {% endif %}
         </form>
 
         {% if coupons %}

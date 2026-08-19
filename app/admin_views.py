@@ -13,6 +13,7 @@ from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
+from django.utils.cache import add_never_cache_headers
 from django.utils.dateparse import parse_date
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView, View
@@ -145,6 +146,12 @@ class StaffRequiredMixin(UserPassesTestMixin):
             return redirect('admin_panel:login')
         messages.error(self.request, "You don't have permission to access this area.")
         return redirect('store:home')
+
+    def dispatch(self, request, *args, **kwargs):
+        
+        response = super().dispatch(request, *args, **kwargs)
+        add_never_cache_headers(response)
+        return response
 
 class ProductCreateBasicView(StaffRequiredMixin, BaseProductCreateBasicView):
     pass

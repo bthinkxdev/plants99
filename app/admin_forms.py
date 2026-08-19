@@ -5,6 +5,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.forms.formsets import DELETION_FIELD_NAME
+from django.utils import timezone
 from .models import Banner, BlogPost, Category, Combo, Product, HomeCategory, HomeCategoryProduct, Reel, Testimonial, Coupon
 from .models import RentalConfig
 logger = logging.getLogger(__name__)
@@ -301,8 +302,9 @@ class CouponForm(forms.ModelForm):
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Internal notes'}),
             'discount_type': forms.Select(attrs={'class': 'form-control'}),
             'discount_value': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0.01'}),
-            'starts_at': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
-            'expires_at': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
+
+            'starts_at': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'expires_at': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'max_uses': forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'placeholder': 'Blank = unlimited'}),
             'once_per_customer': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
@@ -319,7 +321,11 @@ class CouponForm(forms.ModelForm):
         for field_name in ('starts_at', 'expires_at'):
             value = getattr(self.instance, field_name, None) if self.instance and self.instance.pk else None
             if value:
-                self.initial[field_name] = value.strftime('%Y-%m-%dT%H:%M')
+                self.initial[field_name] = value.strftime('%Y-%m-%d')
+        
+        today_str = timezone.localdate().isoformat()
+        self.fields['starts_at'].widget.attrs['min'] = today_str
+        self.fields['expires_at'].widget.attrs['min'] = today_str
 
     def clean_code(self):
         code = (self.cleaned_data.get('code') or '').strip().upper()
@@ -346,6 +352,12 @@ class CouponForm(forms.ModelForm):
                 self.add_error('discount_value', 'Percentage discount cannot exceed 100.')
         if starts and expires and expires <= starts:
             self.add_error('expires_at', 'Expiry must be after the start date.')
+       
+        today = timezone.localdate()
+        if starts and 'starts_at' in self.changed_data and starts.date() < today:
+            self.add_error('starts_at', 'Start date cannot be in the past.')
+        if expires and 'expires_at' in self.changed_data and expires.date() < today:
+            self.add_error('expires_at', 'Expiry date cannot be in the past.')
         return cleaned
 
 

@@ -3,7 +3,18 @@
 {% if pdp_rent_ready %}{{ product_rental_rates|json_script:"product-rental-rates" }}{% endif %}
 {{ pdp_rental_keys_in_cart|json_script:"pdp-rental-keys-cart" }}
 {{ pdp_cart_variant_ids|json_script:"pdp-cart-variant-ids" }}
+{{ pdp_wishlist_variant_ids|json_script:"pdp-wishlist-variant-ids" }}
 <script>window.productId = {{ product.id }};</script>
+
+<script>
+(function () {
+    window.addEventListener('pageshow', function (event) {
+        if (event.persisted) {
+            window.location.reload();
+        }
+    });
+})();
+</script>
 
 <script>
 (function () {
@@ -358,6 +369,33 @@
         initialCartVariantIds.forEach(function (id) { window.__pdpCartVariantIds.add(Number(id)); });
     }
 
+    var wishlistVariantIdsEl = document.getElementById('pdp-wishlist-variant-ids');
+    var initialWishlistVariantIds = [];
+    if (wishlistVariantIdsEl) {
+        try {
+            initialWishlistVariantIds = JSON.parse(wishlistVariantIdsEl.textContent || '[]') || [];
+        } catch (e) {
+            initialWishlistVariantIds = [];
+        }
+    }
+    if (!window.__pdpWishlistVariantIds) {
+        window.__pdpWishlistVariantIds = new Set(initialWishlistVariantIds.map(Number));
+    } else {
+        initialWishlistVariantIds.forEach(function (id) { window.__pdpWishlistVariantIds.add(Number(id)); });
+    }
+
+   
+    function syncWishlistButton(variant) {
+        if (!wishlistBtn) return;
+        var isSaved = !!variant && window.__pdpWishlistVariantIds.has(Number(variant.id));
+        wishlistBtn.classList.toggle('in-wishlist', isSaved);
+        var heartIcon = wishlistBtn.querySelector('i.fa-heart, i.far.fa-heart, i.fas.fa-heart');
+        if (heartIcon) {
+            heartIcon.classList.toggle('far', !isSaved);
+            heartIcon.classList.toggle('fas', isSaved);
+        }
+    }
+
     var qtyInput = document.getElementById('qtyInput');
     var formQuantity = document.getElementById('formQuantity');
 
@@ -607,6 +645,7 @@
             }
             if (wishlistBtn) {
                 wishlistBtn.removeAttribute('data-variant-id');
+                syncWishlistButton(null);
             }
             setStockMessage('Select all options to see availability', 'info');
             if (qtyInput) {
@@ -698,6 +737,7 @@
         if (wishlistBtn) {
             wishlistBtn.setAttribute('data-variant-id', String(variant.id));
             wishlistBtn.removeAttribute('data-product-id');
+            syncWishlistButton(variant);
         }
 
         var sq = variant.stock != null ? variant.stock : variant.stock_quantity;
@@ -1761,16 +1801,17 @@
     }
 })();
 
-/* ── PDP Image Lightbox: click to view, arrow/swipe to navigate ─── */
+/* ── PDP Image Lightbox: click to view, zoom (wheel / pinch / double-tap / drag-pan). ─── */
 (function () {
     var mainImg = document.getElementById('mainProductImg');
     var overlay = document.getElementById('pdpLightbox');
+    var stage = overlay ? overlay.querySelector('.pdp-lightbox-stage') : null;
     var stageImg = document.getElementById('pdpLightboxImg');
     var closeBtn = document.getElementById('pdpLightboxClose');
     var prevBtn = document.getElementById('pdpLightboxPrev');
     var nextBtn = document.getElementById('pdpLightboxNext');
     var counterEl = document.getElementById('pdpLightboxCounter');
-    if (!mainImg || !overlay || !stageImg) return;
+    if (!mainImg || !overlay || !stageImg || !stage) return;
 
     var images = [];
     var index = 0;
@@ -1788,10 +1829,95 @@
         if (!urls.length && mainImg.src) urls.push(mainImg.src);
         return urls;
     }
+    var MIN_SCALE = 1;
+    var MAX_SCALE = 4;
+    var WHEEL_ZOOM_STEP = 0.15;
+    var DOUBLE_TAP_MS = 300;
+    var zoom = { scale: 1, tx: 0, ty: 0 };
+    var panning = false, panStartX = 0, panStartY = 0, panStartTx = 0, panStartTy = 0;
+    var pinchStartDist = 0, pinchStartScale = 1;
+    var lastTapTime = 0;
+
+    function applyZoom(withTransition) {
+        stageImg.classList.toggle('no-transition', !withTransition);
+        stageImg.style.transform = 'translate(' + zoom.tx + 'px, ' + zoom.ty + 'px) scale(' + zoom.scale + ')';
+        stageImg.classList.toggle('is-zoomed', zoom.scale > 1);
+    }
+
+    function resetZoom() {
+        zoom.scale = 1;
+        zoom.tx = 0;
+        zoom.ty = 0;
+        applyZoom(true);
+    }
+
+    function zoomAt(newScale, clientX, clientY, withTransition) {
+        newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, newScale));
+        var rect = stage.getBoundingClientRect();
+        var cx = clientX - rect.left - rect.width / 2;
+        var cy = clientY - rect.top - rect.height / 2;
+        var ratio = newScale / zoom.scale;
+        zoom.tx = cx - (cx - zoom.tx) * ratio;
+        zoom.ty = cy - (cy - zoom.ty) * ratio;
+        zoom.scale = newScale;
+        applyZoom(withTransition);
+    }
+
+    function toggleZoomAt(clientX, clientY) {
+        if (zoom.scale > 1) resetZoom();
+        else zoomAt(2, clientX, clientY, true);
+    }
+
+    function onWheel(e) {
+        if (!overlay.classList.contains('is-open')) return;
+        e.preventDefault();
+        var delta = e.deltaY > 0 ? -WHEEL_ZOOM_STEP : WHEEL_ZOOM_STEP;
+        zoomAt(zoom.scale + delta, e.clientX, e.clientY, true);
+    }
+
+    function onImgDblClick(e) {
+        e.preventDefault();
+        toggleZoomAt(e.clientX, e.clientY);
+    }
+
+    function onImgMouseDown(e) {
+        if (e.button !== 0 || zoom.scale <= 1) return;
+        e.preventDefault();
+        panning = true;
+        panStartX = e.clientX;
+        panStartY = e.clientY;
+        panStartTx = zoom.tx;
+        panStartTy = zoom.ty;
+        stageImg.classList.add('is-panning');
+    }
+
+    function onWindowMouseMove(e) {
+        if (!panning) return;
+        zoom.tx = panStartTx + (e.clientX - panStartX);
+        zoom.ty = panStartTy + (e.clientY - panStartY);
+        applyZoom(false);
+    }
+
+    function onWindowMouseUp() {
+        panning = false;
+        stageImg.classList.remove('is-panning');
+    }
+
+    function touchDist(touches) {
+        return Math.hypot(touches[1].clientX - touches[0].clientX, touches[1].clientY - touches[0].clientY);
+    }
+
+    function touchCenter(touches) {
+        return {
+            x: (touches[0].clientX + touches[1].clientX) / 2,
+            y: (touches[0].clientY + touches[1].clientY) / 2
+        };
+    }
 
     function render() {
         if (!images.length) return;
         stageImg.src = images[index];
+        resetZoom();
         if (counterEl) {
             counterEl.textContent = images.length > 1 ? (index + 1) + ' / ' + images.length : '';
         }
@@ -1812,6 +1938,7 @@
     function close() {
         overlay.classList.remove('is-open');
         document.body.style.overflow = '';
+        resetZoom();
     }
 
     function showPrev() {
@@ -1835,6 +1962,11 @@
     overlay.addEventListener('click', function (e) {
         if (e.target === overlay || e.target.classList.contains('pdp-lightbox-stage')) close();
     });
+    overlay.addEventListener('wheel', onWheel, { passive: false });
+    stageImg.addEventListener('dblclick', onImgDblClick);
+    stageImg.addEventListener('mousedown', onImgMouseDown);
+    window.addEventListener('mousemove', onWindowMouseMove);
+    window.addEventListener('mouseup', onWindowMouseUp);
     document.addEventListener('keydown', function (e) {
         if (!overlay.classList.contains('is-open')) return;
         if (e.key === 'Escape') close();
@@ -1842,22 +1974,64 @@
         else if (e.key === 'ArrowRight') showNext();
     });
 
-    // Manual left/right swipe navigation on touch devices
-    var touchStartX = null;
-    var touchStartY = null;
+    var swipeStartX = null;
+    var swipeStartY = null;
     overlay.addEventListener('touchstart', function (e) {
-        if (!e.touches || !e.touches.length) return;
-        touchStartX = e.touches[0].clientX;
-        touchStartY = e.touches[0].clientY;
-    }, { passive: true });
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            pinchStartDist = touchDist(e.touches);
+            pinchStartScale = zoom.scale;
+            swipeStartX = null;
+            return;
+        }
+        if (e.touches.length !== 1) return;
+        var now = Date.now();
+        if (now - lastTapTime <= DOUBLE_TAP_MS) {
+            e.preventDefault();
+            toggleZoomAt(e.touches[0].clientX, e.touches[0].clientY);
+            lastTapTime = 0;
+            return;
+        }
+        lastTapTime = now;
+        if (zoom.scale > 1) {
+            panning = true;
+            panStartX = e.touches[0].clientX;
+            panStartY = e.touches[0].clientY;
+            panStartTx = zoom.tx;
+            panStartTy = zoom.ty;
+        } else {
+            swipeStartX = e.touches[0].clientX;
+            swipeStartY = e.touches[0].clientY;
+        }
+    }, { passive: false });
+    overlay.addEventListener('touchmove', function (e) {
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            if (pinchStartDist > 0) {
+                var dist = touchDist(e.touches);
+                var center = touchCenter(e.touches);
+                zoomAt(pinchStartScale * (dist / pinchStartDist), center.x, center.y, false);
+            }
+            return;
+        }
+        if (e.touches.length === 1 && panning) {
+            e.preventDefault();
+            zoom.tx = panStartTx + (e.touches[0].clientX - panStartX);
+            zoom.ty = panStartTy + (e.touches[0].clientY - panStartY);
+            applyZoom(false);
+        }
+    }, { passive: false });
     overlay.addEventListener('touchend', function (e) {
-        if (touchStartX == null) return;
+        if (e.touches.length < 2) pinchStartDist = 0;
+        if (panning) { panning = false; return; }
+        if (zoom.scale > 1) return; // was zoomed in — lifting the finger isn't a swipe
+        if (swipeStartX == null) return;
         var touch = e.changedTouches && e.changedTouches[0];
         if (!touch) return;
-        var dx = touch.clientX - touchStartX;
-        var dy = touch.clientY - touchStartY;
-        touchStartX = null;
-        touchStartY = null;
+        var dx = touch.clientX - swipeStartX;
+        var dy = touch.clientY - swipeStartY;
+        swipeStartX = null;
+        swipeStartY = null;
         if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
         if (dx > 0) showPrev();
         else showNext();

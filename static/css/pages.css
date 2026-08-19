@@ -2052,6 +2052,10 @@ body.storefront .product-grid-layout > .p99-product-card {
   display: flex !important;
 }
 
+.storefront .hc-hero-carousel.owl-carousel .owl-nav.disabled {
+  display: none !important;
+}
+
 .hc-hero-carousel.owl-carousel .owl-nav button.owl-prev,
 .hc-hero-carousel.owl-carousel .owl-nav button.owl-next {
   position: relative;
@@ -5143,6 +5147,22 @@ body.storefront .shop-page .toolbar-right .results-count {
     opacity: 0.45 !important;
     cursor: not-allowed !important;
 }
+
+/* PDP "Add to Cart" / "View Cart" hover feedback (border + light shade). */
+#addToCartForm .btn-add-cart:hover:not(:disabled),
+#addToCartForm .btn-add-cart:focus-visible:not(:disabled) {
+    border: 1.5px solid #0d1a3c !important;
+    background-color: #f2f2f2 !important;
+    color: #0d1a3c !important;
+}
+
+#pdpStickyAdd:hover:not(:disabled),
+#pdpStickyAdd:focus-visible:not(:disabled) {
+    border: 1.5px solid #0d1a3c !important;
+    background-color: #f2f2f2 !important;
+    color: #0d1a3c !important;
+}
+
 .btn-add-cart i {
     font-size: 0.9rem;
 }
@@ -5706,6 +5726,110 @@ body.storefront .shop-page .toolbar-right .results-count {
 .address-card.selectable.selected .address-checkmark svg {
     opacity: 1;
     transform: scale(1);
+}
+
+/* ── Checkout: inline "Edit address" button + modal ──────────────── */
+.address-edit-btn {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid #E0E0E0;
+    border-radius: 999px;
+    background: #fff;
+    color: #212121;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.address-edit-btn:hover {
+    border-color: var(--clr-black, #000);
+    background: #f8f8f8;
+}
+.address-edit-btn i {
+    font-size: 11px;
+}
+
+.address-card.selectable--just-updated {
+    animation: addressCardUpdated 1.4s ease;
+}
+@keyframes addressCardUpdated {
+    0% { box-shadow: 0 0 0 3px rgba(16, 122, 65, 0.35); }
+    100% { box-shadow: none; }
+}
+
+.address-edit-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10060;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+}
+.address-edit-overlay.is-open {
+    display: flex;
+}
+.address-edit-sheet {
+    width: 100%;
+    max-width: 640px;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: #fff;
+    border-radius: 16px 16px 12px 12px;
+    box-shadow: 0 18px 48px rgba(15, 23, 42, 0.22);
+    animation: addressEditSlideUp 0.22s ease;
+}
+@keyframes addressEditSlideUp {
+    from { transform: translateY(12px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+.address-edit-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid #eef0f2;
+    position: sticky;
+    top: 0;
+    background: #fff;
+}
+.address-edit-close {
+    border: none;
+    background: #f3f4f6;
+    color: #374151;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.address-edit-body {
+    padding: 18px 20px 22px;
+}
+.address-edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+@media (min-width: 576px) {
+    .address-edit-overlay {
+        align-items: center;
+    }
+    .address-edit-sheet {
+        border-radius: 16px;
+    }
 }
 
 
@@ -6566,6 +6690,12 @@ body.storefront .shop-page .toolbar-right .results-count {
 .wl-card:focus-within .wl-quick {
     opacity: 1;
     transform: translateY(0);
+}
+
+@media (max-width: 767px) {
+    .wl-quick {
+        display: none;
+    }
 }
 
 
@@ -7559,6 +7689,14 @@ body.storefront .order-line .line-info {
 .pdp-sticky-bar.is-visible {
   transform: translateY(0);
   pointer-events: auto;
+}
+
+
+@media (max-width: 991.98px) {
+  body.has-bottom-bar .pdp-sticky-bar {
+    bottom: calc(var(--bottom-bar-total, 56px) + 12px);
+    border-radius: 16px;
+  }
 }
 .product-detail-store .pdp-mini-card,
 .product-detail-store .pdp-card {
@@ -9490,6 +9628,20 @@ body.storefront .order-line .line-info {
     object-fit: contain;
     user-select: none;
     -webkit-user-drag: none;
+    touch-action: none;
+    cursor: zoom-in;
+    transition: transform 0.2s ease;
+}
+/* While actively wheeling/pinching/dragging, skip the transition so the image tracks the
+   cursor/finger 1:1 instead of lagging behind it. */
+.pdp-lightbox-img.no-transition {
+    transition: none;
+}
+.pdp-lightbox-img.is-zoomed {
+    cursor: grab;
+}
+.pdp-lightbox-img.is-zoomed.is-panning {
+    cursor: grabbing;
 }
 .pdp-lightbox-close {
     position: absolute;

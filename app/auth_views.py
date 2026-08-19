@@ -14,6 +14,8 @@ from .auth_service import AuthenticationService, OTPService, RateLimitError
 from .forms import AddressForm, EmailOTPRequestForm, OTPVerificationForm, UserProfileForm
 from .models import Address, Order
 from .services import CartService
+from .services.cart_order import get_cart_delivery_issues, format_cart_delivery_error
+from .services.state_delivery_service import resolve_delivery_state_id
 from .captcha import CaptchaError, captcha_required, extract_captcha_token, verify_captcha
 from django.conf import settings
 
@@ -275,11 +277,53 @@ class AddressUpdateView(LoginRequiredMixin, FormView):
         kwargs['instance'] = self.address
         return kwargs
 
+    def _is_ajax(self):
+        return self.request.headers.get('x-requested-with') == 'XMLHttpRequest'
+
+    def _address_payload(self, address):
+        """Serializes an address for the checkout page's inline edit modal.
+
+        """
+        state_id = resolve_delivery_state_id(delivery_state=address.delivery_state, state_text=address.state)
+        issues = []
+        if state_id:
+            cart = CartService.get_or_create_cart(self.request)
+            items = list(cart.items.select_related('product', 'combo'))
+            issues = get_cart_delivery_issues(items, state_id)
+        return {
+            'id': address.pk,
+            'full_name': address.full_name,
+            'phone': address.phone,
+            'address_line': address.address_line,
+            'city': address.city,
+            'pincode': address.pincode,
+            'delivery_state_id': address.delivery_state_id,
+            'state_display': address.delivery_state.name if address.delivery_state_id else address.state,
+            'is_default': address.is_default,
+            'state_id': state_id,
+            'blocked': bool(issues),
+            'message': format_cart_delivery_error(issues) if issues else '',
+        }
+
+    def get(self, request, *args, **kwargs):
+       
+        if self._is_ajax():
+            return JsonResponse({'success': True, 'address': self._address_payload(self.address)})
+        return super().get(request, *args, **kwargs)
+
+    def form_invalid(self, form):
+        if self._is_ajax():
+            errors = {field: str(errs[0]) for field, errs in form.errors.items()}
+            return JsonResponse({'success': False, 'errors': errors}, status=400)
+        return super().form_invalid(form)
+
     def form_valid(self, form):
         address = form.save(commit=False)
         if address.is_default:
             Address.objects.filter(user=self.request.user, is_snapshot=False).exclude(pk=address.pk).update(is_default=False)
         address.save()
+        if self._is_ajax():
+            return JsonResponse({'success': True, 'address': self._address_payload(address)})
         messages.success(self.request, 'Address updated successfully.')
         return super().form_valid(form)
 

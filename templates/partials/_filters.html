@@ -11,9 +11,10 @@
         {% if filters.offer %}<input type="hidden" name="offer" value="{{ filters.offer }}">{% endif %}
         {% if filters.rent %}<input type="hidden" name="rent" value="{{ filters.rent }}">{% endif %}
         {% if filters.deal %}<input type="hidden" name="deal" value="{{ filters.deal }}">{% endif %}
+        <input type="hidden" name="category_changed" id="categoryChangedFlag" value="{% if request.GET.category_changed %}1{% endif %}">
         <div class="filter-section">
             <h6>Category</h6>
-            <select name="category" class="form-select mb-3">
+            <select name="category" id="filterCategorySelect" class="form-select mb-3">
                 <option value="all" {% if filters.category == 'all' %}selected{% endif %}>All</option>
                 {% for cat in categories %}
                 <option value="{{ cat.slug }}" {% if filters.category == cat.slug %}selected{% endif %}>{{ cat.name }}</option>
@@ -47,8 +48,24 @@
         </div>
         <div class="filter-actions d-flex flex-column gap-2">
             <button type="submit" class="btn btn-dark w-100">Apply</button>
+            {% if request.GET.category_changed %}
+            <a href="{% url 'store:product_list' %}" class="btn btn-outline-dark w-100">Clear filters</a>
+            {% else %}
             <a href="{% url 'store:product_list' %}?{% if filters.category and filters.category != 'all' %}category={{ filters.category }}{% elif filters.combo %}combo={{ filters.combo }}{% elif filters.rent %}rent={{ filters.rent }}{% elif filters.offer %}offer={{ filters.offer }}{% elif filters.deal %}deal={{ filters.deal }}{% endif %}" class="btn btn-outline-dark w-100">Clear filters</a>
+            {% endif %}
         </div>
     </form>
 </aside>
 <div id="filterOverlay" class="filter-offcanvas-overlay"></div>
+
+<script>
+(function () {
+    var select = document.getElementById('filterCategorySelect');
+    var flag = document.getElementById('categoryChangedFlag');
+    if (!select || !flag) return;
+    
+    select.addEventListener('change', function () {
+        flag.value = '1';
+    });
+})();
+</script>

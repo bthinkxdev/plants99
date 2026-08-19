@@ -187,7 +187,7 @@
                       ' aria-label="Decrease">−</button>' +
                     '<span class="cd-qty__val">' + item.quantity + '</span>' +
                     '<button class="cd-qty__btn js-cd-inc" data-id="' + item.id + '"' +
-                      (canInc ? '' : ' disabled') +
+                      (canInc ? '' : ' aria-disabled="true"') +
                       ' aria-label="Increase">+</button>' +
                   '</div>' +
                   '<button class="cd-remove js-cd-del" data-id="' + item.id + '" aria-label="Remove item">' +
@@ -237,6 +237,13 @@
     }, 3000);
   }
 
+  
+  function setIncMaxed(btn, maxed) {
+    if (!btn) return;
+    if (maxed) btn.setAttribute('aria-disabled', 'true');
+    else btn.removeAttribute('aria-disabled');
+  }
+
   function adjustQty(itemId, delta) {
     var row    = itemsEl.querySelector('[data-id="' + itemId + '"]');
     if (!row) return;
@@ -247,15 +254,20 @@
     var next    = current + delta;
     if (next < 1) return;
     var maxQ = parseInt(row.getAttribute('data-max'), 10);
-    if (!isNaN(maxQ) && maxQ > 0 && next > maxQ) {
-
-      if (incBtn) incBtn.disabled = true;
+    var overStock = !isNaN(maxQ) && maxQ > 0 && current > maxQ;
+    if (delta > 0 && !isNaN(maxQ) && maxQ > 0 && next > maxQ) {
+      // Trying to go *up* past the current stock ceiling — block it.
+      setIncMaxed(incBtn, true);
       showMaxQtyAlert('Only ' + maxQ + ' left in stock for this item.');
       return;
     }
+    if (delta < 0 && overStock) {
+      
+      next = maxQ;
+    }
     valEl.textContent    = next;
     decBtn.disabled      = (next <= 1);
-    if (incBtn) incBtn.disabled = (!isNaN(maxQ) && maxQ > 0 && next >= maxQ);
+    setIncMaxed(incBtn, !isNaN(maxQ) && maxQ > 0 && next >= maxQ);
 
     fetch('/cart/update/', {
       method: 'POST',
@@ -299,10 +311,50 @@
             row.setAttribute('data-max', serverMax);
             if (!isNaN(serverQty)) {
               if (decBtn) decBtn.disabled = (serverQty <= 1);
-              if (incBtn) incBtn.disabled = (serverQty >= serverMax);
-              if (serverMax > 0 && serverQty >= serverMax) {
-                showMaxQtyAlert('Only ' + serverMax + ' left in stock for this item.');
-              }
+              setIncMaxed(incBtn, serverQty >= serverMax);
+              
+            }
+          }
+        }
+
+        
+        if (data.stock_message !== undefined) {
+          row.classList.toggle('cd-item--oos', !data.in_stock);
+          var warnEl = row.querySelector('.cd-item__stock-warn');
+          if (data.stock_message) {
+            if (!warnEl) {
+              warnEl = document.createElement('p');
+              warnEl.className = 'cd-item__stock-warn';
+              warnEl.setAttribute('role', 'status');
+              var infoEl = row.querySelector('.cd-item__info');
+              var priceEl2 = row.querySelector('.cd-item__price');
+              if (infoEl) infoEl.insertBefore(warnEl, priceEl2 || null);
+            }
+            warnEl.textContent = data.stock_message;
+          } else if (warnEl) {
+            warnEl.remove();
+          }
+        }
+
+       
+        if (data.checkout_blocked !== undefined) {
+          if (stockAlertEl) {
+            if (data.checkout_blocked && data.stock_summary) {
+              stockAlertEl.hidden = false;
+              stockAlertEl.textContent = data.stock_summary;
+            } else {
+              stockAlertEl.hidden = true;
+              stockAlertEl.textContent = '';
+            }
+            stockAlertEl.classList.remove('cd-stock-alert--transient');
+          }
+          if (checkoutBtn) {
+            if (data.checkout_blocked) {
+              checkoutBtn.classList.add('cd-btn--disabled');
+              checkoutBtn.setAttribute('aria-disabled', 'true');
+            } else {
+              checkoutBtn.classList.remove('cd-btn--disabled');
+              checkoutBtn.removeAttribute('aria-disabled');
             }
           }
         }
@@ -327,6 +379,17 @@ function removeItem(itemId) {
         .then(function (r) { return r.json(); })
         .then(function (data) {
           if (data.cart_count !== undefined) syncAllBadges(data.cart_count);
+
+          
+          if (data.removed_product_id) {
+            document.dispatchEvent(new CustomEvent('cart:item-removed', {
+              detail: {
+                removed_product_id: data.removed_product_id,
+                removed_variant_id: data.removed_variant_id
+              }
+            }));
+          }
+
           if (data.cart_empty && /^\/checkout(\/|$)/.test(window.location.pathname)) {
             // The checkout page's order lines, totals and place-order button
             // are rendered server-side and require a non-empty cart. Removing

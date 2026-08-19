@@ -28,34 +28,13 @@
                     <option value="inactive" {% if filter_status == 'inactive' %}selected{% endif %}>Inactive</option>
                 </select>
             </div>
-            <button type="submit" class="btn btn-secondary">Filter</button>
+            {% comment %} <button type="submit" class="btn btn-secondary">Filter</button> {% endcomment %}
+            {% if filter_status %}
+                <a href="{% url 'admin_panel:banner_list' %}" class="btn btn-secondary" title="Clear filters">
+                    <i class="fas fa-times"></i> Clear
+                </a>
+            {% endif %}
         </form>
-
-        <button type="button" class="btn btn-secondary filter-trigger mb-2" id="filterTrigger" aria-label="Open filters">
-            <i class="fas fa-filter"></i> Filters
-        </button>
-
-        <div class="filter-overlay" id="filterOverlay" aria-hidden="true"></div>
-        <div class="filters-sheet" id="filtersSheet">
-            <div class="filters-sheet-header">
-                <strong>Filter Banners</strong>
-                <button type="button" class="btn btn-sm btn-secondary" id="filterSheetClose" aria-label="Close">✕</button>
-            </div>
-            <form method="get" class="filters-sheet-body">
-                <div class="form-group">
-                    <label class="form-label">Status</label>
-                    <select name="status" class="form-control">
-                        <option value="">All statuses</option>
-                        <option value="active" {% if filter_status == 'active' %}selected{% endif %}>Active</option>
-                        <option value="inactive" {% if filter_status == 'inactive' %}selected{% endif %}>Inactive</option>
-                    </select>
-                </div>
-                <div class="filters-sheet-footer">
-                    <button type="button" class="btn btn-secondary" id="filterClear">Clear</button>
-                    <button type="submit" class="btn btn-primary">Apply</button>
-                </div>
-            </form>
-        </div>
 
         
         {% if banners %}

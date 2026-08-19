@@ -33,6 +33,7 @@ urlpatterns = [
     path('cart/buy-now/', views.BuyNowView.as_view(), name='buy_now'),
     path('cart/update/', views.UpdateCartItemView.as_view(), name='cart_update'),
     path('cart/remove/<int:item_id>/', views.RemoveCartItemView.as_view(), name='cart_remove'),
+    path('api/cart/product-state/', views.CartProductStateView.as_view(), name='cart_product_state'),
     path('api/wishlist/toggle/', views.WishlistToggleView.as_view(), name='wishlist_toggle'),
     path('api/wishlist/remove/', views.RemoveFromWishlistView.as_view(), name='wishlist_remove'),
     path('api/wishlist/ids/', views.WishlistIdsView.as_view(), name='wishlist_ids'),

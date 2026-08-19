@@ -138,26 +138,14 @@ body.storefront {
   pointer-events: none;
 }
 
+/* Always sticky at the top — no scroll-triggered hide/show */
 .site-header-zone {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 1050;
-  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow var(--transition-premium, 0.3s cubic-bezier(0.4, 0, 0.2, 1));
-  will-change: transform;
-}
-
-.site-header-zone.site-header-zone--scroll-hidden {
-  transform: translate3d(0, -100%, 0);
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .site-header-zone {
-    transition: none;
-  }
+  transition: box-shadow var(--transition-premium, 0.3s cubic-bezier(0.4, 0, 0.2, 1));
 }
 
 .site-header {
@@ -576,6 +564,17 @@ body.storefront {
 .site-icon-btn:hover {
   background: var(--secondary-green);
   color: var(--primary-green-dark);
+}
+
+/* Mobile nav hamburger <-> close (X) swap. */
+.site-menu-toggle__icon--close {
+  display: none;
+}
+.site-menu-toggle[aria-expanded="true"] .site-menu-toggle__icon--open {
+  display: none;
+}
+.site-menu-toggle[aria-expanded="true"] .site-menu-toggle__icon--close {
+  display: inline-block;
 }
 
 .site-count-badge {

@@ -98,6 +98,16 @@
                         }
                         if (typeof data.count === "number") updateHeaderCount(data.count);
 
+                        
+                        if (variantId) {
+                            var variantNum = parseInt(variantId, 10);
+                            if (variantNum) {
+                                var ids = window.__pdpWishlistVariantIds || (window.__pdpWishlistVariantIds = new Set());
+                                if (data.added) ids.add(variantNum);
+                                else ids.delete(variantNum);
+                            }
+                        }
+
                         if (!data.added) {
                             
                             var card = null;
@@ -139,8 +149,46 @@
                     }
                 })
                 .catch(function() {
-                    
+
                 });
         });
+    });
+
+    
+    window.addEventListener("pageshow", function(event) {
+        if (!event.persisted) return;
+        var idsUrl = document.body.getAttribute("data-wishlist-ids-url");
+        if (!idsUrl) return;
+
+        fetch(idsUrl, { headers: { "X-Requested-With": "XMLHttpRequest" }, credentials: "same-origin" })
+            .then(function(res) { return res.ok ? res.json() : null; })
+            .then(function(data) {
+                if (!data) return;
+                var variantIds = (data.variant_ids || []).map(Number);
+                var productIds = (data.product_ids || []).map(Number);
+                var variantSet = new Set(variantIds);
+                var productSet = new Set(productIds);
+
+                
+                window.__pdpWishlistVariantIds = variantSet;
+
+                document.querySelectorAll(".js-wishlist-toggle").forEach(function(btn) {
+                    var vId = btn.getAttribute("data-variant-id");
+                    var pId = btn.getAttribute("data-product-id");
+                    var isSaved = (vId && variantSet.has(parseInt(vId, 10))) ||
+                        (pId && productSet.has(parseInt(pId, 10)));
+                    btn.classList.toggle("in-wishlist", !!isSaved);
+                    var icon = btn.querySelector("i.fa-heart, i.far.fa-heart, i.fas.fa-heart");
+                    if (icon) {
+                        icon.classList.toggle("far", !isSaved);
+                        icon.classList.toggle("fas", !!isSaved);
+                    }
+                });
+
+                updateHeaderCount(variantIds.length + productIds.length);
+            })
+            .catch(function() {
+
+            });
     });
 })();

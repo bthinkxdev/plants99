@@ -46,6 +46,7 @@
             <div class="form-group">
                 <label class="form-label" for="{{ form.starts_at.id_for_label }}">Starts at</label>
                 {{ form.starts_at }}
+                {% if form.starts_at.errors %}<div class="text-danger small">{{ form.starts_at.errors.0 }}</div>{% endif %}
             </div>
             <div class="form-group">
                 <label class="form-label" for="{{ form.expires_at.id_for_label }}">Expires at</label>

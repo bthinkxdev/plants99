@@ -15,9 +15,12 @@
         <form method="get" class="filters filters-inline">
             <div class="search-box">
                 <i class="fas fa-search"></i>
-                <input type="text" name="search" class="form-control" placeholder="Search orders..." 
+                <input type="text" name="search" class="form-control" placeholder="Search orders..."
                        value="{{ search_query }}">
             </div>
+            <button type="submit" class="btn btn-secondary">
+                <i class="fas fa-search"></i> Search
+            </button>
             <div class="filter-group">
                 <select name="status" class="form-control" onchange="this.form.submit()">
                     <option value="">All Status</option>
@@ -37,6 +40,11 @@
                     </optgroup>
                 </select>
             </div>
+            {% if search_query or filter_status %}
+                <a href="{% url 'admin_panel:order_list' %}" class="btn btn-secondary" title="Clear filters">
+                    <i class="fas fa-times"></i> Clear
+                </a>
+            {% endif %}
         </form>
 
         

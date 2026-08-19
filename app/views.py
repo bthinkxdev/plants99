@@ -9,6 +9,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.views.generic import DetailView, FormView, ListView, TemplateView, View
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import never_cache
 from .captcha import CaptchaError, captcha_required, extract_captcha_token, verify_captcha
 from .auth_views import get_client_ip
 import json
@@ -760,7 +762,12 @@ class ComboDetailView(DetailView):
         return ctx
 
 
+@method_decorator(never_cache, name='dispatch')
 class ProductDetailView(DetailView):
+    """
+    Renders the PDP with the current price baked into the HTML.
+
+    """
     template_name = 'pages/product.html'
     context_object_name = 'product'
     slug_url_kwarg = 'slug'
@@ -1888,19 +1895,28 @@ class UpdateCartItemView(View):
                 cart.items.select_related('product', 'combo', 'selected_variant', 'selected_pot')
                 .prefetch_related('combo__items__product')
             )
-            issue_map = {i.item_id: i for i in get_cart_stock_issues(items)}
+            stock_issues = get_cart_stock_issues(items)
+            issue_map = {i.item_id: i for i in stock_issues}
+            item_issue = issue_map.get(item.id)
             totals = CartService.compute_totals(cart)
             return JsonResponse({
                 'success': True,
                 'item_id': item_id,
                 'quantity': item.quantity,
                 'line_total': str(item.line_total),
-                'max_quantity': cart_item_max_quantity(item, issue_map.get(item.id)),
+                'max_quantity': cart_item_max_quantity(item, item_issue),
                 'pack_upsell_message': _cart_pack_upsell_message(items),
                 'item_removed': False,
                 'cart_count': item_count,
                 'cart_empty': False,
                 'total': str(totals.subtotal),
+               
+                'in_stock': item_issue is None,
+                'stock_issue': item_issue.issue if item_issue else '',
+                'stock_message': item_issue.message if item_issue else '',
+                
+                'checkout_blocked': bool(stock_issues),
+                'stock_summary': format_cart_stock_error(stock_issues) if stock_issues else '',
             })
         return _redirect_open_cart()
 
@@ -1911,9 +1927,13 @@ class RemoveCartItemView(View):
         next_url = request.POST.get('next') or request.GET.get('next')
         if next_url and (not next_url.startswith('/')):
             next_url = None
+        removed_product_id = None
+        removed_variant_id = None
         try:
             cart = CartService.get_or_create_cart(request)
             item = get_object_or_404(CartItem, pk=kwargs.get('item_id'), cart=cart)
+            removed_product_id = item.product_id
+            removed_variant_id = item.selected_variant_id
             item.delete()
             is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
             if not is_ajax:
@@ -1934,8 +1954,34 @@ class RemoveCartItemView(View):
                 'success': True,
                 'cart_count': item_count,
                 'cart_empty': item_count == 0,
+                'removed_product_id': removed_product_id,
+                'removed_variant_id': removed_variant_id,
             })
         return _redirect_open_cart()
+
+class CartProductStateView(View):
+    """GET /api/cart/product-state/?product_id=<id>
+
+    """
+
+    def get(self, request, *args, **kwargs):
+        try:
+            product_id = int(request.GET.get('product_id') or 0)
+        except (TypeError, ValueError):
+            product_id = 0
+        if not product_id:
+            return JsonResponse({'variant_ids': [], 'purchase_in_cart': False})
+        try:
+            cart = CartService.get_or_create_cart(request)
+            pq = cart.items.filter(product_id=product_id, line_type=CartItem.LineKind.PURCHASE)
+            variant_ids = list(
+                pq.filter(selected_variant__isnull=False).values_list('selected_variant_id', flat=True)
+            )
+            purchase_in_cart = pq.filter(selected_variant__isnull=True).exists()
+            return JsonResponse({'variant_ids': variant_ids, 'purchase_in_cart': purchase_in_cart})
+        except Exception as e:
+            logger.exception('CartProductStateView: %s', e)
+            return JsonResponse({'variant_ids': [], 'purchase_in_cart': False})
 
 class CheckoutView(TemplateView):
     template_name = 'pages/checkout.html'

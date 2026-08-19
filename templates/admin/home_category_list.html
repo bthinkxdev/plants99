@@ -23,14 +23,14 @@
                 <i class="fas fa-search"></i>
                 <input type="text" name="search" class="form-control" placeholder="Search home categories…" value="{{ search_query }}">
             </div>
+            <button type="submit" class="btn btn-secondary product-filter-btn">
+                <i class="fas fa-search"></i> Search
+            </button>
             <select name="status" class="form-control product-filter-select" onchange="this.form.submit()">
                 <option value="">All status</option>
                 <option value="active" {% if filter_status == "active" %}selected{% endif %}>Active</option>
                 <option value="inactive" {% if filter_status == "inactive" %}selected{% endif %}>Inactive</option>
             </select>
-            <button type="submit" class="btn btn-secondary product-filter-btn">
-                <i class="fas fa-filter"></i> Apply
-            </button>
             {% if search_query or filter_status %}
                 <a href="{% url 'admin_panel:home_category_list' %}" class="btn btn-secondary product-filter-btn">
                     <i class="fas fa-times"></i> Clear

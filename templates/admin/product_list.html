@@ -45,6 +45,9 @@
                 <input type="text" name="search" class="form-control" placeholder="Search by name or ID…"
                        value="{{ search_query }}">
             </div>
+            <button type="submit" class="btn btn-secondary product-filter-btn">
+                <i class="fas fa-search"></i> Search
+            </button>
             <select name="category" class="form-control product-filter-select" onchange="this.form.submit()">
                 <option value="">All Categories</option>
                 {% for category in categories %}
@@ -61,9 +64,7 @@
                 <option value="rental" {% if filter_offer == "rental" %}selected{% endif %}>Rental-enabled</option>
                 <option value="combo" {% if filter_offer == "combo" %}selected{% endif %}>Combo bundles</option>
             </select> {% endcomment %}
-            <button type="submit" class="btn btn-secondary product-filter-btn">
-                <i class="fas fa-filter"></i> Apply
-            </button>
+            
             {% if search_query or filter_category or filter_status or filter_offer %}
                 <a href="{% url 'admin_panel:product_list' %}" class="btn btn-secondary product-filter-btn" title="Clear filters">
                     <i class="fas fa-times"></i> Clear
