@@ -845,10 +845,13 @@
 (function () {
   var nav = document.getElementById('navbarCollapse');
   if (!nav) return;
+  
   nav.addEventListener('show.bs.collapse', function () {
+    document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
   });
   nav.addEventListener('hidden.bs.collapse', function () {
+    document.documentElement.style.overflow = '';
     document.body.style.overflow = '';
   });
 })();

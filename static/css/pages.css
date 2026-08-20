@@ -1573,25 +1573,24 @@ body.storefront .product-grid-layout > .p99-product-card {
 .hero-brand-badge {
   pointer-events: none;
   position: absolute;
-  left: 50%;
+  left: var(--store-pad-left, 16px);
   bottom: 16px;
-  transform: translateX(-50%);
   z-index: 4;
-  width: calc(100% - 28px);
-  max-width: 400px;
 }
 
 .hero-brand-badge__pill {
+  display: inline-flex;
+  align-items: center;
   text-align: center;
-  font-size: 0.6875rem;
+  font-size: 0.625rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: #1a3d2e;
   background: rgba(255, 255, 255, 0.93);
-  padding: 9px 14px;
+  padding: 5px 10px;
   border-radius: 999px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
 }
 
 
@@ -7696,6 +7695,11 @@ body.storefront .order-line .line-info {
   body.has-bottom-bar .pdp-sticky-bar {
     bottom: calc(var(--bottom-bar-total, 56px) + 12px);
     border-radius: 16px;
+    
+    transform: translateY(calc(100% + var(--bottom-bar-total, 56px) + 12px + 24px));
+  }
+  body.has-bottom-bar .pdp-sticky-bar.is-visible {
+    transform: translateY(0);
   }
 }
 .product-detail-store .pdp-mini-card,
