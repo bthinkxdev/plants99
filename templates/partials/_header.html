@@ -88,7 +88,7 @@
             {% comment %} <a href="{% url 'store:product_list' %}?rent=1" class="site-nav-link {% if request.GET.rent == '1' %}is-active{% endif %}">Rental</a> {% endcomment %}
             {% comment %} <a href="{% url 'store:product_list' %}?plant_type=outdoor" class="site-nav-link">Outdoor</a> {% endcomment %}
             {% comment %} <a href="{% url 'store:product_list' %}?combo=1" class="site-nav-link {% if request.GET.combo == '1' %}is-active{% endif %}">Combos</a> {% endcomment %}
-            <a href="{% url 'store:product_list' %}?offer=discount" class="site-nav-link {% if request.GET.offer == 'discount' %}is-active{% endif %}">Offers</a>
+            {% comment %} <a href="{% url 'store:product_list' %}?offer=discount" class="site-nav-link {% if request.GET.offer == 'discount' %}is-active{% endif %}">Offers</a> {% endcomment %}
             <a href="{% url 'store:contact' %}" class="site-nav-link {% if active_page == 'contact' %}is-active{% endif %}">Contact Us</a>
             {% comment %} <a href="{% url 'store:about' %}" class="site-nav-link {% if active_page == 'about' %}is-active{% endif %}">Blog</a> {% endcomment %}
         </nav>
