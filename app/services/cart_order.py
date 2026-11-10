@@ -319,22 +319,34 @@ def format_cart_stock_error(issues: list[CartStockIssue]) -> str:
     )
 
 
+# Upper bound sent to the UI when nothing else limits a line (stock is the real limit).
+_UNCAPPED_QTY = 9999
+
+
 def cart_item_max_quantity(item, stock_issue: CartStockIssue | None = None) -> int:
     """
     Max selectable quantity for a cart line (drawer + checkout).
-    Honours stock issues, variant/base/pot stock, and MAX_CART_QTY.
+    Limited only by stock (variant/base/pot/combo components) — there is no
+    separate per-line cap.
     """
-    max_qty_setting = int(getattr(settings, 'MAX_CART_QTY', 10) or 10)
     if stock_issue is not None:
         if stock_issue.issue in ('insufficient', 'pot_insufficient'):
             return max(0, int(stock_issue.available_qty or 0))
         return 0
 
-    max_quantity = max_qty_setting
+    max_quantity = _UNCAPPED_QTY
     if item.selected_variant_id and getattr(item, 'selected_variant', None):
         max_quantity = min(max_quantity, int(item.selected_variant.stock_quantity or 0))
-    elif item.product_id and item.product and not item.combo_id:
-        if not getattr(item.product, 'is_combo_product', False):
+    elif item.combo_id and item.combo:
+        for row in item.combo.items.all():
+            max_quantity = min(max_quantity, int(row.product.base_stock or 0) // int(row.quantity))
+    elif item.product_id and item.product:
+        if getattr(item.product, 'is_combo_product', False):
+            for row in item.product.combo_components.select_related('component_product'):
+                max_quantity = min(
+                    max_quantity, int(row.component_product.base_stock or 0) // int(row.quantity)
+                )
+        else:
             max_quantity = min(max_quantity, int(item.product.base_stock or 0))
     if item.selected_pot_id and getattr(item, 'selected_pot', None):
         max_quantity = min(max_quantity, int(item.selected_pot.base_stock or 0))
@@ -841,8 +853,7 @@ class CartService:
         from ..models import Product
         from ..services.rental_pricing import compute_rental_line_unit_price, rental_key as make_rental_key
         from ..services.rental_catalog import combo_is_in_stock
-        max_qty = getattr(settings, 'MAX_CART_QTY', 10)
-        quantity = max(1, min(int(quantity), max_qty))
+        quantity = max(1, int(quantity))
         gift_flag = bool(is_gift)
 
         # ── Pot addon validation ───────────────────────────────────────────────
@@ -912,7 +923,7 @@ class CartService:
                         raise StockError('Requested quantity exceeds available stock.')
                 item = CartItem.objects.filter(cart=cart, product=product, selected_variant__isnull=True, line_type=line_type, rental_key=rkey, is_gift=gift_flag, selected_pot=selected_pot).first()
                 if item:
-                    new_quantity = min(item.quantity + quantity, max_qty)
+                    new_quantity = item.quantity + quantity
                     if product.is_combo_product:
                         if not combo_is_in_stock(product, multiplier=new_quantity):
                             raise StockError('Requested quantity exceeds available stock.')
@@ -938,7 +949,7 @@ class CartService:
                     raise StockError('Requested quantity exceeds available stock.')
             item = CartItem.objects.filter(cart=cart, product=product, selected_variant__isnull=True, line_type=line_type, rental_key=rkey, is_gift=gift_flag, rental_start_date=rental_start_date, rental_end_date=rental_end_date).first()
             if item:
-                new_quantity = min(item.quantity + quantity, max_qty)
+                new_quantity = item.quantity + quantity
                 if product.is_combo_product:
                     if not combo_is_in_stock(product, multiplier=new_quantity):
                         raise StockError('Requested quantity exceeds available stock.')
@@ -965,7 +976,7 @@ class CartService:
             unit_price = v.price
             item = CartItem.objects.filter(cart=cart, selected_variant=v, line_type=line_type, rental_key=rkey, is_gift=gift_flag, selected_pot=selected_pot).first()
             if item:
-                new_quantity = min(item.quantity + quantity, max_qty)
+                new_quantity = item.quantity + quantity
                 if new_quantity > v.stock_quantity:
                     raise StockError('Requested quantity exceeds available stock.')
                 item.quantity = new_quantity
@@ -985,7 +996,7 @@ class CartService:
             raise CartError('; '.join(getattr(exc, 'messages', []) or [str(exc)])) from exc
         item = CartItem.objects.filter(cart=cart, selected_variant=v, line_type=line_type, rental_key=rkey, is_gift=gift_flag, rental_start_date=rental_start_date, rental_end_date=rental_end_date).first()
         if item:
-            new_quantity = min(item.quantity + quantity, max_qty)
+            new_quantity = item.quantity + quantity
             if new_quantity > v.stock_quantity:
                 raise StockError('Requested quantity exceeds available stock.')
             item.quantity = new_quantity
@@ -998,9 +1009,8 @@ class CartService:
     def add_combo_item(cart, combo, quantity, *, line_type=CartItem.LineKind.PURCHASE, is_gift=False):
         from ..services.combo_catalog import combo_is_in_stock
 
-        max_qty = getattr(settings, 'MAX_CART_QTY', 10)
-        quantity = max(1, min(int(quantity), max_qty))
-        if line_type != CartItem.LineKind.PURCHASE:
+        quantity = max(1, int(quantity))
+        if line_type !=CartItem.LineKind.PURCHASE:
             raise CartError('Combo bundles can only be purchased (not rented).')
         if not isinstance(combo, Combo):
             combo = Combo.objects.filter(pk=int(combo), is_active=True).first()
@@ -1017,7 +1027,7 @@ class CartService:
         rkey = ''
         existing = CartItem.objects.filter(cart=cart, combo=combo, line_type=line_type, rental_key=rkey, is_gift=gift_flag).first()
         if existing:
-            new_quantity = min(existing.quantity + quantity, max_qty)
+            new_quantity = existing.quantity + quantity
             if not combo_is_in_stock(combo, multiplier=new_quantity):
                 raise StockError('Requested quantity exceeds available stock.')
             existing.quantity = new_quantity
@@ -1047,8 +1057,7 @@ class CartService:
         if quantity <= 0:
             item.delete()
             return
-        max_qty = getattr(settings, 'MAX_CART_QTY', 10)
-        quantity = min(int(quantity), max_qty)
+        quantity = int(quantity)
         if item.combo_id:
             c = item.combo
             if item.line_type == CartItem.LineKind.RENTAL:

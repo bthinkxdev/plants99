@@ -89,7 +89,6 @@ ALLOW_ATTRIBUTES_AND_VARIANTS = True
 REVIEW_ENABLED = True
 FLAT_DELIVERY_CHARGE = 60  # Fallback when no state-based product charges are configured
 DELIVERY_PACK_SIZE = 10  # Pieces per delivery pack; qty 1–10 share one state charge
-MAX_CART_QTY = 10
 LOGIN_URL = '/accounts/login/'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
