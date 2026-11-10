@@ -558,8 +558,11 @@ function syncCheckoutQtyButtons(wrap, quantity, maxQuantity) {
     var dec = wrap.querySelector('.js-checkout-qty-dec');
     var inc = wrap.querySelector('.js-checkout-qty-inc');
     if (dec) dec.disabled = qty <= 1;
-    
+
     if (inc) {
+        // Clear the busy lock set by setCheckoutQtyControlsBusy(); the stock
+        // ceiling is expressed via aria-disabled, which the click handler checks.
+        inc.disabled = false;
         if (qty >= maxQ) inc.setAttribute('aria-disabled', 'true');
         else inc.removeAttribute('aria-disabled');
     }
