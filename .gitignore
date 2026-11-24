@@ -107,3 +107,4 @@ product_add.py
 seed_*.py
 *.bak
 *.tmp
+.claude/

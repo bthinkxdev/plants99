@@ -217,7 +217,6 @@ Defined in `ecom/settings.py` (some overlap with env):
 | `ALLOW_ATTRIBUTES_AND_VARIANTS` | Attribute/variant merchandising |
 | `REVIEW_ENABLED` | Product reviews |
 | `FLAT_DELIVERY_CHARGE` | Flat shipping amount (default ₹80) |
-| `MAX_CART_QTY` | Per-line quantity cap |
 | `TIME_ZONE` | `Asia/Kolkata` |
 
 Guest sessions: `EnsureGuestSessionMiddleware` ensures a session key for guest cart/wishlist.
